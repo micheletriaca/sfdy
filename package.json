@@ -1,0 +1,27 @@
+{
+  "name": "sftx",
+  "version": "1.0.0",
+  "description": "Tool to better handle Salesforce metadata",
+  "main": "src/sftx.js",
+  "bin": "src/sftx.js",
+  "author": "Michele Triaca",
+  "license": "MIT",
+  "dependencies": {
+    "commander": "^2.20.3",
+    "highland": "^2.13.5",
+    "lodash.groupby": "^4.6.0",
+    "lodash.keyby": "^4.6.0",
+    "lodash.mapvalues": "^4.6.0",
+    "lodash.memoize": "^4.1.2",
+    "node-salesforce-connection": "^2.3.1",
+    "xml2js": "^0.4.23"
+  },
+  "devDependencies": {
+    "eslint": "^6.8.0",
+    "eslint-config-standard": "^12.0.0",
+    "eslint-plugin-import": "^2.20.1",
+    "eslint-plugin-node": "^9.2.0",
+    "eslint-plugin-promise": "^4.2.1",
+    "eslint-plugin-standard": "^4.0.1"
+  }
+}
