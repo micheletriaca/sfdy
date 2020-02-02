@@ -5,8 +5,9 @@ const memoize = require('lodash.memoize')
 const { parseXml } = require('./xml-utils')
 
 const OBJECTS_PATH = path.resolve(process.cwd(), 'src/objects')
+const TABS_PATH = path.resolve(process.cwd(), 'src/tabs')
 
-module.exports = {
+const res = {
   getFieldMap: memoize(() => _(fs.readdirSync(OBJECTS_PATH))
     .map(async x => ({
       content: await parseXml(fs.readFileSync(path.resolve(OBJECTS_PATH, x), 'utf8')),
@@ -26,5 +27,12 @@ module.exports = {
     .collect()
     .map(x => new Set(x))
     .toPromise(Promise)),
-  getVersionedObjects: memoize(() => fs.readdirSync(OBJECTS_PATH).map(x => x.replace('.object', '')))
+  getVersionedObjects: memoize(() => fs.readdirSync(OBJECTS_PATH).map(x => x.replace('.object', ''))),
+  getVersionedTabs: memoize((allTabs) => {
+    const versionedTabs = new Set(fs.readdirSync(TABS_PATH).map(x => x.replace('.tab', '')))
+    const versionedObjects = new Set(res.getVersionedObjects())
+    return allTabs.filter(x => versionedTabs.has(x.Name) || versionedObjects.has(x.SobjectName)).map(x => x.Name)
+  })
 }
+
+module.exports = res

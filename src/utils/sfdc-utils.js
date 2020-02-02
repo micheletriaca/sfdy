@@ -17,9 +17,9 @@ class SfdcConn {
     this.isLoggedIn = true
   }
 
-  async query (q) {
+  async query (q, useTooling = false) {
     if (!this.isLoggedIn) throw Error('not logged in')
-    return (await this.sfConn.rest(`/services/data/v${this.apiVersion}/query/?q=${encodeURIComponent(q.replace(/\n|\t/g, ''))}`)).records
+    return (await this.sfConn.rest(`/services/data/v${this.apiVersion}/${useTooling ? 'tooling/' : ''}query/?q=${encodeURIComponent(q.replace(/\n|\t/g, ''))}`)).records
   }
 
   async rest (path) {
