@@ -13,8 +13,7 @@ fs.writeFileSync(configPath, JSON.stringify({
   },
   profiles: {
     addDisabledUserPermissions: true,
-    addDisabledVersionedObjects: true,
-    addExtraObjects: ['*', 'standard', 'custom', '!Account', 'Lead'],
+    addExtraObjects: ['*', '!*__?', '!Account', 'Lead'],
     stripUserPermissionsFromStandardProfiles: true,
     stripUnversionedFields: true
 

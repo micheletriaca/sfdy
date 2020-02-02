@@ -1,6 +1,7 @@
 const { getFieldMap, getVersionedObjects } = require('../utils/object-utils')
 const { parseXml, buildXml } = require('../utils/xml-utils')
 const connectionFactory = require('../utils/sfdc-utils')
+const multimatch = require('multimatch')
 const program = require('commander')
 const path = require('path')
 const fs = require('fs')
@@ -25,26 +26,25 @@ module.exports = async (config) => {
       .filter(x => x.startsWith('Permissions'))
       .map(x => x.replace(/^Permissions/, ''))
   })
-  const retrieveAllObjects = _.memoize(async (byLicenseOrByProfile = 'license') => {
-    return _(await q(`SELECT 
-        Id, 
-        Parent.Profile.Name, 
-        Parent.License.Name, 
-        SobjectType, 
-        PermissionsCreate, 
-        PermissionsDelete, 
-        PermissionsEdit, 
-        PermissionsModifyAllRecords, 
-        PermissionsRead, 
-        PermissionsViewAllRecords 
-        FROM ObjectPermissions 
-        WHERE Parent.IsOwnedByProfile = TRUE
-        AND Parent.IsCustom = ${byLicenseOrByProfile !== 'license'}`
-    ))
-      .groupBy(`Parent.${byLicenseOrByProfile === 'license' ? 'License' : 'Profile'}.Name`)
-      .mapValues(x => _(x).uniqBy('SobjectType').value())
-      .value()
-  })
+  const retrieveAllObjects = _.memoize(async (byLicenseOrByProfile = 'license') => _(await q(`SELECT 
+    Id, 
+    Parent.Profile.Name,
+    Parent.License.Name,
+    SobjectType,
+    PermissionsCreate,
+    PermissionsDelete,
+    PermissionsEdit,
+    PermissionsModifyAllRecords,
+    PermissionsRead,
+    PermissionsViewAllRecords
+    FROM ObjectPermissions
+    WHERE Parent.IsOwnedByProfile = TRUE
+    AND Parent.IsCustom = ${byLicenseOrByProfile !== 'license'}`
+  ))
+    .groupBy(`Parent.${byLicenseOrByProfile === 'license' ? 'License' : 'Profile'}.Name`)
+    .mapValues(x => _(x).uniqBy('SobjectType').value())
+    .value()
+  )
 
   const pcfg = config.profiles
   const versionedObjects = new Set(getVersionedObjects())
@@ -70,17 +70,11 @@ module.exports = async (config) => {
     }
 
     if (pcfg.addExtraObjects || pcfg.addDisabledVersionedObjects) {
-      const patternsToConsider = new Set(pcfg.addExtraObjects || [])
       const allObjects = (await retrieveAllObjects('license'))['Salesforce']
         .filter(b => {
           const x = b.SobjectType
-          const isCustom = /__[ce]$/.test(x)
           if (versionedObjects.has(x)) return true
-          else if (patternsToConsider.has('!' + x)) return false
-          else if (patternsToConsider.has(x)) return true
-          else if (patternsToConsider.has('*')) return true
-          else if (patternsToConsider.has('standard') && !isCustom) return true
-          else if (patternsToConsider.has('custom') && isCustom) return true
+          else return multimatch(x, pcfg.addExtraObjects || []).length > 0
         })
 
       const currentProfileObjectData = (await retrieveAllObjects('profile'))[f.replace('.profile', '')] || []
@@ -90,25 +84,37 @@ module.exports = async (config) => {
       const extraObjects = allObjects.filter(x => !versionedObjects.has(x))
       const missingVersionedObjects = allObjects.filter(x => !currentProfileObjects.has(x) && versionedObjects.has(x))
       const finalPermissions = {
-        ..._.keyBy(!pcfg.addDisabledVersionedObjects ? [] : missingVersionedObjects.map(obj => ({
-          allowCreate: false,
-          allowDelete: false,
-          allowEdit: false,
-          allowRead: false,
-          modifyAllRecords: false,
-          'object': obj.SobjectType,
-          viewAllRecords: false
-        })), 'object'),
-        ..._.keyBy(extraObjects.map(obj => ({
-          allowCreate: currentProfileObjects.has(obj.SobjectType) ? currentProfileObjectDataMap[obj.SobjectType].PermissionsCreate : false,
-          allowDelete: currentProfileObjects.has(obj.SobjectType) ? currentProfileObjectDataMap[obj.SobjectType].PermissionsDelete : false,
-          allowEdit: currentProfileObjects.has(obj.SobjectType) ? currentProfileObjectDataMap[obj.SobjectType].PermissionsEdit : false,
-          allowRead: currentProfileObjects.has(obj.SobjectType) ? currentProfileObjectDataMap[obj.SobjectType].PermissionsRead : false,
-          modifyAllRecords: currentProfileObjects.has(obj.SobjectType) ? currentProfileObjectDataMap[obj.SobjectType].PermissionsModifyAllRecords : false,
-          'object': obj.SobjectType,
-          viewAllRecords: currentProfileObjects.has(obj.SobjectType) ? currentProfileObjectDataMap[obj.SobjectType].PermissionsViewAllRecords : false
-        })), 'object'),
-        ..._.keyBy(fJson.Profile.objectPermissions || [], x => x['object'][0])
+        ..._(!pcfg.addDisabledVersionedObjects ? [] : missingVersionedObjects)
+          .map(obj => ({
+            allowCreate: false,
+            allowDelete: false,
+            allowEdit: false,
+            allowRead: false,
+            modifyAllRecords: false,
+            'object': obj.SobjectType,
+            viewAllRecords: false
+          }))
+          .keyBy('object')
+          .value(),
+        ..._(extraObjects)
+          .map(obj => {
+            const o = currentProfileObjects.has(obj.SobjectType) ? currentProfileObjectDataMap[obj.SobjectType] : {}
+            return {
+              allowCreate: !!o.PermissionsCreate,
+              allowDelete: !!o.PermissionsDelete,
+              allowEdit: !!o.PermissionsEdit,
+              allowRead: !!o.PermissionsRead,
+              modifyAllRecords: !!o.PermissionsModifyAllRecords,
+              'object': obj.SobjectType,
+              viewAllRecords: !!o.PermissionsViewAllRecords
+            }
+          })
+          .keyBy('object')
+          .value(),
+        ..._(fJson.Profile.objectPermissions || [])
+          .filter(x => versionedObjects.has(x['object'][0]))
+          .keyBy(x => x['object'][0])
+          .value()
       }
 
       fJson.Profile.objectPermissions = Object.keys(finalPermissions).sort().map(x => finalPermissions[x])
