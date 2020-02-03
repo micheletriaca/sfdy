@@ -5,6 +5,7 @@ const memoize = require('lodash.memoize')
 const { parseXml } = require('./xml-utils')
 
 const OBJECTS_PATH = path.resolve(process.cwd(), 'src/objects')
+const APPS_PATH = path.resolve(process.cwd(), 'src/applications')
 const TABS_PATH = path.resolve(process.cwd(), 'src/tabs')
 
 const res = {
@@ -28,6 +29,7 @@ const res = {
     .map(x => new Set(x))
     .toPromise(Promise)),
   getVersionedObjects: memoize(() => fs.readdirSync(OBJECTS_PATH).map(x => x.replace('.object', ''))),
+  getVersionedApplications: memoize(() => fs.readdirSync(APPS_PATH).map(x => x.replace('.app', ''))),
   getVersionedTabs: memoize((allTabs) => {
     const versionedTabs = new Set(fs.readdirSync(TABS_PATH).map(x => x.replace('.tab', '')))
     const versionedObjects = new Set(res.getVersionedObjects())

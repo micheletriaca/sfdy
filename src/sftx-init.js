@@ -12,24 +12,16 @@ fs.writeFileSync(configPath, JSON.stringify({
     stripNotVersionedFields: true
   },
   profiles: {
-    addDisabledUserPermissions: true,
+    addAllUserPermissions: true,
     addDisabledVersionedObjects: true,
     addExtraObjects: ['*', '!*__?', '!Account', 'Lead'],
     addHiddenVersionedTabVisibilities: true,
     addExtraTabVisibility: ['*', '!*__?', '!*Account', '*Lead'],
+    addDisabledApplications: true,
     stripUserPermissionsFromStandardProfiles: true,
     stripUnversionedFields: true
-
-    // addUnversionedTabVisibilites: true,
-    // defaultVersionedClassAccess: false,
-    // defaultVersionedFls: 'rw',
-    // defaultVersionedPageAccess: false,
-    // defaultVersionedTabVisibilites: 'Hidden'
   },
   roles: {
     stripPartnerRoles: true
-  },
-  customMetadata: {
-    format: 'csv'
   }
 }, null, 2))

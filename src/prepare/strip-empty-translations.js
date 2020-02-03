@@ -2,6 +2,7 @@
 const { parseXml, buildXml } = require('../utils/xml-utils')
 const path = require('path')
 const fs = require('fs')
+const _ = require('highland')
 
 const TRANSLATIONS_PATH = path.resolve(process.cwd(), 'src/objectTranslations')
 const OBJECTS_PATH = path.resolve('src/objects')
@@ -9,8 +10,8 @@ const OBJECTS_PATH = path.resolve('src/objects')
 module.exports = async (config) => {
   if (!fs.existsSync(TRANSLATIONS_PATH) || !config.objectTranslations) return true
   const cfg = config.objectTranslations
-  fs.readdirSync(TRANSLATIONS_PATH)
-    .forEach(async f => {
+  return _(fs.readdirSync(TRANSLATIONS_PATH))
+    .map(async f => {
       const fContent = fs.readFileSync(path.resolve(TRANSLATIONS_PATH, f), 'utf8')
       const fJson = await parseXml(fContent)
 
@@ -71,4 +72,8 @@ module.exports = async (config) => {
 
       fs.writeFileSync(path.resolve(TRANSLATIONS_PATH, f), buildXml(fJson))
     })
+    .map(x => _(x))
+    .sequence()
+    .collect()
+    .toPromise(Promise)
 }

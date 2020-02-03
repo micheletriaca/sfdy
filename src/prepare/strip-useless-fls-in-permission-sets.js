@@ -2,13 +2,14 @@
 const { parseXml, buildXml } = require('../utils/xml-utils')
 const path = require('path')
 const fs = require('fs')
+const _ = require('highland')
 
 const PERMISSION_SET_PATH = path.resolve(process.cwd(), 'src/permissionsets')
 
 module.exports = async (config) => {
   if (!fs.existsSync(PERMISSION_SET_PATH) || !config.permissionSets || !config.permissionSets.stripUselessFls) return true
-  fs.readdirSync(PERMISSION_SET_PATH)
-    .forEach(async f => {
+  return _(fs.readdirSync(PERMISSION_SET_PATH))
+    .map(async f => {
       const fContent = fs.readFileSync(path.resolve(PERMISSION_SET_PATH, f), 'utf8')
       const fJson = await parseXml(fContent)
 
@@ -20,4 +21,8 @@ module.exports = async (config) => {
 
       fs.writeFileSync(path.resolve(PERMISSION_SET_PATH, f), buildXml(fJson))
     })
+    .map(x => _(x))
+    .sequence()
+    .collect()
+    .toPromise(Promise)
 }
