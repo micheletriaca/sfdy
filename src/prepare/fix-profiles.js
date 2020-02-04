@@ -23,6 +23,33 @@ module.exports = async (config, sfConn = undefined) => {
   }
 
   const q = _.memoize(sfConn.query.bind(sfConn))
+  const remapProfileName = async f => {
+    f = f.replace('.profile', '')
+    const fMap = {
+      'Admin': 'System Administrator',
+      'ReadOnly': 'Read Only',
+      'Standard': 'Standard User',
+      'MarketingProfile': 'Marketing User',
+      'ContractManager': 'Contract Manager',
+      'SolutionManager': 'Solution Manager',
+      'Chatter Free User': 'Chatter Free User',
+      'Guest': 'Standard Guest',
+      'Chatter External User': 'Chatter External User',
+      'Chatter Moderator User': 'Chatter Moderator User',
+      'Guest License User': 'Guest License User',
+      'StandardAul': 'Standard Platform User'
+    }
+
+    const pNames = new Set(Object.values(fMap))
+    const stdProfiles = await __(await q('SELECT Profile.Name FROM PermissionSet WHERE IsCustom = FALSE AND Profile.Name != NULL'))
+      .filter(x => !pNames.has(x.Profile.Name))
+      .map(x => __(q(`SELECT FullName, Name FROM Profile WHERE Name = '${x.Profile.Name}'`, true)))
+      .parallel(4)
+      .reduce(fMap, (memo, x) => ({ ...memo, [x[0].FullName]: x[0].Name }))
+      .toPromise(Promise)
+
+    return stdProfiles[f] || f
+  }
   const retrievePermissionsList = _.memoize(async (profileName) => {
     const psetId = (await q(`SELECT Id FROM PermissionSet Where Profile.Name = '${profileName}'`))[0].Id
     const res = await sfConn.rest(`/sobjects/PermissionSet/${psetId}`)
@@ -68,8 +95,9 @@ module.exports = async (config, sfConn = undefined) => {
     log(chalk.grey(`---> Processing ${f}`))
     const fContent = fs.readFileSync(path.resolve(PROFILE_PATH, f), 'utf8')
     const fJson = await parseXml(fContent)
+    const isStandard = !fJson.Profile.custom || fJson.Profile.custom[0] !== 'true'
 
-    if (pcfg.stripUserPermissionsFromStandardProfiles && (!fJson.Profile.custom || fJson.Profile.custom[0] !== 'true')) {
+    if (pcfg.stripUserPermissionsFromStandardProfiles && isStandard) {
       log(chalk.grey(`Stripping user permissions...`))
       fJson.Profile.userPermissions = []
       log(chalk.grey('done.'))
@@ -77,7 +105,7 @@ module.exports = async (config, sfConn = undefined) => {
 
     if (pcfg.addDisabledUserPermissions) {
       log(chalk.grey(`Adding disabled user permissions...`))
-      const allPermissions = await retrievePermissionsList(f.replace('.profile', ''))
+      const allPermissions = await retrievePermissionsList(await remapProfileName(f))
 
       const finalPermissions = {
         ..._.keyBy(allPermissions, 'name')
@@ -96,7 +124,7 @@ module.exports = async (config, sfConn = undefined) => {
           else return multimatch(x, pcfg.addExtraObjects || []).length > 0
         })
 
-      const currentProfileObjectData = (await retrieveAllObjects('profile'))[f.replace('.profile', '')] || []
+      const currentProfileObjectData = (await retrieveAllObjects('profile'))[await remapProfileName(f)] || []
       const currentProfileObjectDataMap = _.keyBy(currentProfileObjectData, 'SobjectType')
       const currentProfileObjects = new Set(_.map(currentProfileObjectData, 'SobjectType'))
 
@@ -159,7 +187,7 @@ module.exports = async (config, sfConn = undefined) => {
           .toPromise(Promise)
       ]
       const versionedTabs = new Set(getVersionedTabs(allTabs))
-      const visibleTabs = _.keyBy(await retrieveAllTabVisibilities(f.replace('.profile', '')), 'Name')
+      const visibleTabs = _.keyBy(await retrieveAllTabVisibilities(await remapProfileName(f)), 'Name')
       const tabVisibilities = allTabs
         .filter(b => {
           if (pcfg.addVersionedTabVisibilities && (versionedTabs.has(b.Name) || versionedObjects.has(b.SobjectName))) return true
