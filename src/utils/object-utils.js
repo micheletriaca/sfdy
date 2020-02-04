@@ -3,9 +3,9 @@ const fs = require('fs')
 const _ = require('highland')
 const memoize = require('lodash.memoize')
 const { parseXml } = require('./xml-utils')
+const { getMembersOf } = require('./package-utils')
 
 const OBJECTS_PATH = path.resolve(process.cwd(), 'src/objects')
-const APPS_PATH = path.resolve(process.cwd(), 'src/applications')
 const TABS_PATH = path.resolve(process.cwd(), 'src/tabs')
 
 const res = {
@@ -29,8 +29,9 @@ const res = {
     .map(x => new Set(x))
     .toPromise(Promise)),
   getVersionedObjects: memoize(() => fs.readdirSync(OBJECTS_PATH).map(x => x.replace('.object', ''))),
-  getVersionedApplications: memoize(() => fs.readdirSync(APPS_PATH).map(x => x.replace('.app', ''))),
+  getVersionedApplications: memoize(async () => getMembersOf('CustomApplication')),
   getVersionedTabs: memoize((allTabs) => {
+    if (!fs.existsSync(TABS_PATH)) return []
     const versionedTabs = new Set(fs.readdirSync(TABS_PATH).map(x => x.replace('.tab', '')))
     const versionedObjects = new Set(res.getVersionedObjects())
     return allTabs.filter(x => versionedTabs.has(x.Name) || versionedObjects.has(x.SobjectName)).map(x => x.Name)

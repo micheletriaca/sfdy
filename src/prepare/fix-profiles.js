@@ -190,30 +190,17 @@ module.exports = async (config, sfConn = undefined) => {
       log(chalk.grey('done.'))
     }
 
-    if (pcfg.addDisabledApplications && fJson.Profile.applicationVisibilities) {
-      log(chalk.grey('adding disabled applications...'))
-      const versionedApps = new Set(getVersionedApplications())
-      const applications = _(await q('SELECT DeveloperName, NamespacePrefix FROM CustomApplication', true))
-        .map(x => (x.NamespacePrefix ? x.NamespacePrefix + '__' : '') + x.DeveloperName)
-        .value()
-      const finalApps = {
-        ..._(applications)
-          .map(x => ({
-            application: x,
-            default: false,
-            visible: false
-          }))
-          .keyBy('application')
-          .value(),
-        ..._(fJson.Profile.applicationVisibilities || [])
-          .filter(x => versionedApps.has(x['application'][0]))
-          .keyBy(x => x['application'][0])
-          .value()
-      }
-
-      fJson.Profile.applicationVisibilities = Object.keys(finalApps).sort().map(x => finalApps[x])
+    if (pcfg.addExtraApplications) {
+      log(chalk.grey('adding extra application visibilities...'))
+      const versionedApps = await getVersionedApplications()
+      fJson.Profile.applicationVisibilities = fJson.Profile.applicationVisibilities
+        .filter(x => {
+          if (multimatch(x.application[0], versionedApps).length > 0) return true
+          else return multimatch(x.application[0], pcfg.addExtraApplications).length > 0
+        })
       log(chalk.grey('done.'))
     }
+
     fs.writeFileSync(path.resolve(PROFILE_PATH, f), buildXml(fJson) + '\n')
   })
     .map(x => __(x))

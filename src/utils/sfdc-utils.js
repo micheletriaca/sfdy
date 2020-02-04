@@ -37,9 +37,18 @@ class SfdcConn {
     return this.sfConn.soap(metadataWsdl, method, args, headers)
   }
 
-  async retrieveMetadata (packageXmlPath) {
+  async retrieveMetadata (packageXmlPath, fetchCustomApplications = false) {
     const pkg = fs.readFileSync(packageXmlPath, 'utf8')
     const pkgJson = (await parseXml(pkg)).Package
+    // It seems that there's no other way to retrieve custom application visibility in profiles
+    if (fetchCustomApplications) {
+      pkgJson.types = pkgJson.types.filter(x => x.name[0] !== 'CustomApplication')
+      pkgJson.types.push({
+        members: ['*'],
+        name: ['CustomApplication']
+      })
+    }
+
     delete pkgJson['$']
     return this.metadata('retrieve', {
       RetrieveRequest: {
