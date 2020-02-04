@@ -70,7 +70,7 @@ module.exports = async (config) => {
         processXml(fJson.CustomObjectTranslation, keysToProcess)
       }
 
-      fs.writeFileSync(path.resolve(TRANSLATIONS_PATH, f), buildXml(fJson))
+      fs.writeFileSync(path.resolve(TRANSLATIONS_PATH, f), buildXml(fJson) + '\n')
     })
     .map(x => _(x))
     .sequence()

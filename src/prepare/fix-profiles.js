@@ -214,7 +214,7 @@ module.exports = async (config, sfConn = undefined) => {
       fJson.Profile.applicationVisibilities = Object.keys(finalApps).sort().map(x => finalApps[x])
       log(chalk.grey('done.'))
     }
-    fs.writeFileSync(path.resolve(PROFILE_PATH, f), buildXml(fJson))
+    fs.writeFileSync(path.resolve(PROFILE_PATH, f), buildXml(fJson) + '\n')
   })
     .map(x => __(x))
     .sequence()
