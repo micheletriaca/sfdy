@@ -19,7 +19,7 @@ module.exports = async (config) => {
         })
       }
 
-      fs.writeFileSync(path.resolve(PERMISSION_SET_PATH, f), buildXml(fJson))
+      fs.writeFileSync(path.resolve(PERMISSION_SET_PATH, f), buildXml(fJson) + '\n')
     })
     .map(x => _(x))
     .sequence()

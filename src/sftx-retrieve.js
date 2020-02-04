@@ -49,9 +49,11 @@ const config = require(configPath)
   await decompress(zipBuffer, srcFolder)
   log(chalk.green(`Unzipped!`))
   log(chalk.yellow(`(4/4) Applying patches...`))
-  await stripEmptyTranslations(config)
-  await stripUselessFlsInPermissionSets(config)
+  await Promise.all([
+    stripEmptyTranslations(config),
+    stripUselessFlsInPermissionSets(config),
+    fixProfiles(config, sfdcConnector)
+  ])
   stripPartnerRoles(config)
-  await fixProfiles(config, sfdcConnector)
   log(chalk.green(`Patches applied!`))
 })()
