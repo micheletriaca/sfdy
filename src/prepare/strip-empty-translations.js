@@ -5,7 +5,7 @@ const fs = require('fs')
 const _ = require('highland')
 
 const TRANSLATIONS_PATH = path.resolve(process.cwd(), 'src/objectTranslations')
-const OBJECTS_PATH = path.resolve('src/objects')
+const OBJECTS_PATH = path.resolve(process.cwd(), 'src/objects')
 
 module.exports = async (config) => {
   if (!fs.existsSync(TRANSLATIONS_PATH) || !config.objectTranslations) return true
@@ -45,6 +45,7 @@ module.exports = async (config) => {
           ],
           'quickActions': 'label',
           'fields': [
+            'help',
             'label',
             { 'picklistValues': 'translation' }
           ],

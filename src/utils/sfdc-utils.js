@@ -1,10 +1,17 @@
 const SfdcConnection = require('node-salesforce-connection')
-const { parseXml } = require('./xml-utils')
-const fs = require('fs')
 const log = console.log
 const chalk = require('chalk')
 
 const sleep = async ms => new Promise((resolve) => setTimeout(resolve, ms))
+const incrementalSleep = (level0, count1, level1, count2, level2) => {
+  let count = 0
+  return () => {
+    ++count
+    if (count <= count1) return sleep(level0)
+    else if (count <= count2) return sleep(level1)
+    else return sleep(level2)
+  }
+}
 
 class SfdcConn {
   constructor (apiVersion = '47.0') {
@@ -37,11 +44,9 @@ class SfdcConn {
     return this.sfConn.soap(metadataWsdl, method, args, headers)
   }
 
-  async retrieveMetadata (packageXmlPath, fetchCustomApplications = false) {
-    const pkg = fs.readFileSync(packageXmlPath, 'utf8')
-    const pkgJson = (await parseXml(pkg)).Package
+  async retrieveMetadata (pkgJson, fetchCustomApplications = false) {
     // It seems that there's no other way to retrieve custom application visibility in profiles
-    if (fetchCustomApplications) {
+    if (fetchCustomApplications && pkgJson.types.some(x => x.name[0] === 'Profile')) {
       pkgJson.types = pkgJson.types.filter(x => x.name[0] !== 'CustomApplication')
       pkgJson.types.push({
         members: ['*'],
@@ -60,8 +65,9 @@ class SfdcConn {
   }
 
   async pollRetrieveMetadataStatus (retrieveMetadataId) {
+    const iSleep = incrementalSleep(500, 2, 1000, 5, 5000)
     while (true) {
-      await sleep(5000)
+      await iSleep()
       const res = await this.metadata('checkRetrieveStatus', {
         id: retrieveMetadataId,
         includeZip: true
@@ -72,6 +78,19 @@ class SfdcConn {
         log(chalk.grey('checking retrieve status...', res.status))
       }
     }
+  }
+
+  async describeMetadata () {
+    return this.metadata('describeMetadata', {
+      asOfVersion: this.apiVersion
+    })
+  }
+
+  async listMetadata (types) {
+    return this.metadata('listMetadata', {
+      queries: types.map(type => ({ type })),
+      asOfVersion: this.apiVersion
+    })
   }
 }
 

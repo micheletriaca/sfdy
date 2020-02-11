@@ -92,7 +92,7 @@ module.exports = async (config, sfConn = undefined) => {
   const versionedObjects = new Set(getVersionedObjects())
 
   return __(fs.readdirSync(PROFILE_PATH)).map(async f => {
-    log(chalk.grey(`---> Processing ${f}`))
+    log(chalk.cyan(`---> Processing ${f}`))
     const fContent = fs.readFileSync(path.resolve(PROFILE_PATH, f), 'utf8')
     const fJson = await parseXml(fContent)
     const isStandard = !fJson.Profile.custom || fJson.Profile.custom[0] !== 'true'
@@ -103,8 +103,8 @@ module.exports = async (config, sfConn = undefined) => {
       log(chalk.grey('done.'))
     }
 
-    if (pcfg.addDisabledUserPermissions) {
-      log(chalk.grey(`Adding disabled user permissions...`))
+    if (pcfg.addAllUserPermissions) {
+      log(chalk.grey(`Adding all user permissions...`))
       const allPermissions = await retrievePermissionsList(await remapProfileName(f))
 
       const finalPermissions = {
@@ -152,7 +152,7 @@ module.exports = async (config, sfConn = undefined) => {
               allowEdit: !!o.PermissionsEdit,
               allowRead: !!o.PermissionsRead,
               modifyAllRecords: !!o.PermissionsModifyAllRecords,
-              'object': obj.SobjectType,
+              'object': [obj.SobjectType],
               viewAllRecords: !!o.PermissionsViewAllRecords
             }
           })
@@ -165,6 +165,13 @@ module.exports = async (config, sfConn = undefined) => {
       }
 
       fJson.Profile.objectPermissions = Object.keys(finalPermissions).sort().map(x => finalPermissions[x])
+      const disabledObjects = new Set(_(fJson.Profile.objectPermissions)
+        .filter(x => Object.entries(x).every(([k, v]) => k === 'object' || v[0] === 'false' || !v[0]))
+        .map(x => x['object'][0])
+        .value())
+      if (fJson.Profile.fieldPermissions) {
+        fJson.Profile.fieldPermissions = fJson.Profile.fieldPermissions.filter(x => !disabledObjects.has(x.field[0].split('.')[0]))
+      }
       log(chalk.grey('done.'))
     }
 
@@ -182,7 +189,7 @@ module.exports = async (config, sfConn = undefined) => {
             }
           })
           .map(x => __(x))
-          .sequence()
+          .parallel(10)
           .collect()
           .toPromise(Promise)
       ]
