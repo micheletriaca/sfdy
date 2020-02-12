@@ -1,6 +1,7 @@
 const SfdcConnection = require('node-salesforce-connection')
 const log = console.log
 const chalk = require('chalk')
+const fs = require('fs')
 
 const sleep = async ms => new Promise((resolve) => setTimeout(resolve, ms))
 const incrementalSleep = (level0, count1, level1, count2, level2) => {
@@ -91,6 +92,31 @@ class SfdcConn {
       queries: types.map(type => ({ type })),
       asOfVersion: this.apiVersion
     })
+  }
+
+  async deployMetadata (base64Content, opts) {
+    return this.metadata('deploy', {
+      ZipFile: base64Content,
+      DeployOptions: opts
+    })
+  }
+
+  async pollDeployMetadataStatus (deployMetadataId, includeDetails, progressCallback, pollInterval = 10000) {
+    const iSleep = incrementalSleep(1000, 2, 2000, 5, 5000)
+    while (true) {
+      await iSleep()
+      const res = await this.metadata('checkDeployStatus', {
+        asyncProcessId: deployMetadataId,
+        includeDetails: false
+      })
+      if (progressCallback) progressCallback(res)
+      if (res.done === 'true') {
+        return !includeDetails ? res : this.metadata('checkDeployStatus', {
+          asyncProcessId: deployMetadataId,
+          includeDetails: true
+        })
+      }
+    }
   }
 }
 

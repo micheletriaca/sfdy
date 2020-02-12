@@ -32,9 +32,30 @@ module.exports = {
       t.name[0] === 'Profile' ||
       t.name[0] === 'PermissionSet'
     ))
-    return packageJson
+    return packageJson.Package
   },
-  getListOfSrcFiles: async (pattern = ['**/*']) => glob(pattern, { cwd: process.cwd() + '/src' }),
+  getListOfSrcFiles: async (packageMapping = {}, pattern = ['**/*']) => {
+    const ignoreDiffs = new Set([
+      'package.xml',
+      'lwc/.eslintrc.json',
+      'lwc/jsconfig.json'
+    ])
+    const files = _(pattern.map(x => x.replace(/^src\//, '')))
+      .map(x => x.replace(/-meta.xml$/, ''))
+      .flatMap(x => {
+        const key = x.substring(0, x.indexOf('/'))
+        const res = [x]
+        const pkgEntry = packageMapping[key]
+        if (!pkgEntry) return res
+        if (pkgEntry.metaFile === 'true') res.push(x + '-meta.xml')
+        const subx = x.replace(key + '/', '')
+        if (pkgEntry.inFolder !== 'true' && subx.indexOf('/') !== -1) res.push(key + '/' + subx.substring(0, subx.indexOf('/')) + '/**')
+        return res
+      })
+      .uniq()
+      .value()
+    return (await glob(files, { cwd: process.cwd() + '/src' })).filter(x => !ignoreDiffs.has(x))
+  },
   getPackageXml: async (opts = {}) => {
     if (opts.specificFiles && opts.specificFiles.length && opts.sfdcConnector) {
       const cachePath = path.resolve(os.tmpdir(), 'sftx' + opts.sfdcConnector.sfConn.sessionId)
@@ -43,32 +64,10 @@ module.exports = {
       fs.writeFileSync(cachePath, JSON.stringify(packageMapping))
       return module.exports.buildPackageXmlFromFiles(opts.specificFiles, _.keyBy(packageMapping, 'directoryName'))
     }
-    return parseXml(fs.readFileSync(PACKAGE_PATH))
+    return (await parseXml(fs.readFileSync(PACKAGE_PATH))).Package
   },
   buildPackageXmlFromFiles: async (files, packageMapping) => {
-    const ignoreDiffs = new Set([
-      'package.xml',
-      'lwc/.eslintrc.json',
-      'lwc/jsconfig.json'
-    ])
-
-    files = _(await module.exports.getListOfSrcFiles(files.map(x => x.replace(/^src\//, ''))))
-      .map(x => x.replace(/-meta.xml$/, ''))
-      .filter(x => !ignoreDiffs.has(x))
-      .flatMap(x => {
-        const key = x.substring(0, x.indexOf('/'))
-        const res = []
-        const pkgEntry = packageMapping[key]
-        if (!pkgEntry) return res
-        if (pkgEntry.metaFile === 'true') res.push(x + '-meta.xml')
-        const subx = x.replace(key + '/', '')
-        if (pkgEntry.inFolder !== 'true' && subx.indexOf('/') !== -1) res.push(key + '/' + subx.substring(0, subx.indexOf('/')) + '/**')
-        res.push(x)
-        return res
-      })
-      .uniq()
-      .value()
-
+    files = await module.exports.getListOfSrcFiles(packageMapping, files)
     const packageJson = await parseXml(fs.readFileSync(PACKAGE_PATH))
     const metaMap = _(files)
       .filter(x => !x.endsWith('/**'))

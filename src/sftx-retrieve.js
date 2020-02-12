@@ -21,7 +21,7 @@ program
   .option('-p, --password <password>', 'Password + Token')
   .option('-s, --sandbox', 'Use sandbox login endpoint')
   .option('-P, --profile-only', 'Retrieve profiles only')
-  .option('--files <files>', 'Retrieve specific files')
+  .option('-f, --files <files>', 'Retrieve specific files')
   .parse(process.argv)
 
 if (!program.username || !program.password) {
@@ -47,14 +47,14 @@ const config = require(configPath)
   if (program.profileOnly) log(chalk.yellow(`--profile-only=true. Retrieving profiles only...`))
   const specificFiles = (program.files && program.files.split(',').map(x => x.trim())) || []
   if (specificFiles.length) log(chalk.yellow(`--files specified. Retrieving only specific files...`))
-  const pkgJson = (await (
+  const pkgJson = await (
     program.profileOnly
       ? getProfileOnlyPackage()
       : getPackageXml({
         specificFiles,
         sfdcConnector
       })
-  )).Package
+  )
   if (specificFiles.length) log(chalk.yellow(`delta package generated`))
 
   const retrieveJob = await sfdcConnector.retrieveMetadata(pkgJson, config.profiles && config.profiles.addExtraApplications)
