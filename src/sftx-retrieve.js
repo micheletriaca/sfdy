@@ -22,6 +22,7 @@ program
   .option('-s, --sandbox', 'Use sandbox login endpoint')
   .option('-P, --profile-only', 'Retrieve profiles only')
   .option('-f, --files <files>', 'Retrieve specific files')
+  .option('-m, --meta <metadatas>', 'Retrieve specific metadata')
   .parse(process.argv)
 
 if (!program.username || !program.password) {
@@ -46,12 +47,15 @@ const config = require(configPath)
   log(chalk.yellow(`(2/4) Retrieving metadata...`))
   if (program.profileOnly) log(chalk.yellow(`--profile-only=true. Retrieving profiles only...`))
   const specificFiles = (program.files && program.files.split(',').map(x => x.trim())) || []
+  const specificMeta = (program.meta && program.meta.split(',').map(x => x.trim())) || []
   if (specificFiles.length) log(chalk.yellow(`--files specified. Retrieving only specific files...`))
+  else if (specificMeta.length) log(chalk.yellow(`--meta specified. Retrieving only specific metadata types...`))
   const pkgJson = await (
     program.profileOnly
       ? getProfileOnlyPackage()
       : getPackageXml({
         specificFiles,
+        specificMeta,
         sfdcConnector
       })
   )

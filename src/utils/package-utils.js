@@ -57,14 +57,26 @@ module.exports = {
     return (await glob(files, { cwd: process.cwd() + '/src' })).filter(x => !ignoreDiffs.has(x))
   },
   getPackageXml: async (opts = {}) => {
-    if (opts.specificFiles && opts.specificFiles.length && opts.sfdcConnector) {
+    const hasSpecificFiles = opts.specificFiles && opts.specificFiles.length
+    const hasSpecificMeta = opts.specificMeta && opts.specificMeta.length
+    if ((hasSpecificFiles || hasSpecificMeta) && opts.sfdcConnector) {
       const cachePath = path.resolve(os.tmpdir(), 'sftx' + opts.sfdcConnector.sfConn.sessionId)
       const hasCache = fs.existsSync(cachePath)
       const packageMapping = hasCache ? JSON.parse(fs.readFileSync(cachePath)) : (await opts.sfdcConnector.describeMetadata()).metadataObjects
       fs.writeFileSync(cachePath, JSON.stringify(packageMapping))
-      return module.exports.buildPackageXmlFromFiles(opts.specificFiles, _.keyBy(packageMapping, 'directoryName'))
+      if (hasSpecificFiles) {
+        return module.exports.buildPackageXmlFromFiles(opts.specificFiles, _.keyBy(packageMapping, 'directoryName'))
+      } else {
+        return module.exports.buildPackageXmlFromMeta(opts.specificMeta)
+      }
     }
     return (await parseXml(fs.readFileSync(PACKAGE_PATH))).Package
+  },
+  buildPackageXmlFromMeta: async (meta) => {
+    const packageJson = await parseXml(fs.readFileSync(PACKAGE_PATH))
+    const types = _(meta).groupBy(x => x.split('/')[0]).mapValues(x => x.map(y => y.split('/')[1] || '*')).value()
+    packageJson.Package.types = Object.entries(types).map(([k, v]) => ({ name: [k], members: v }))
+    return packageJson.Package
   },
   buildPackageXmlFromFiles: async (files, packageMapping) => {
     files = await module.exports.getListOfSrcFiles(packageMapping, files)
@@ -84,6 +96,6 @@ module.exports = {
       members: [...new Set(x[1])],
       name: [x[0]]
     }))
-    return packageJson
+    return packageJson.Package
   }
 }

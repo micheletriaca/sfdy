@@ -1,7 +1,6 @@
 const SfdcConnection = require('node-salesforce-connection')
 const log = console.log
 const chalk = require('chalk')
-const fs = require('fs')
 
 const sleep = async ms => new Promise((resolve) => setTimeout(resolve, ms))
 const incrementalSleep = (level0, count1, level1, count2, level2) => {
