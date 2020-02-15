@@ -5,12 +5,10 @@ const chalk = require('chalk')
 const log = console.log
 const fs = require('fs-extra')
 const path = require('path')
-const keyBy = require('lodash.keyby')
 const AdmZip = require('adm-zip')
 const Sfdc = require('./utils/sfdc-utils')
-const os = require('os')
 const { buildXml } = require('./utils/xml-utils')
-const { getListOfSrcFiles, getPackageXml } = require('./utils/package-utils')
+const { getListOfSrcFiles, getPackageXml, getPackageMapping } = require('./utils/package-utils')
 const buildJunitTestReport = require('./deploy/junit-test-report-builder')
 const printDeployResult = require('./deploy/result-logger')
 require('./error-handling')()
@@ -49,11 +47,8 @@ if (!program.username || !program.password) {
   const zip = new AdmZip()
   if (specificFiles.length) {
     zip.addFile('package.xml', Buffer.from(buildXml(pkgJson) + '\n', 'utf-8'))
-    const cachePath = path.resolve(os.tmpdir(), 'sftx' + sfdcConnector.sfConn.sessionId)
-    const hasCache = fs.existsSync(cachePath)
-    const packageMapping = hasCache ? JSON.parse(fs.readFileSync(cachePath)) : (await sfdcConnector.describeMetadata()).metadataObjects
-    fs.writeFileSync(cachePath, JSON.stringify(packageMapping))
-    ;(await getListOfSrcFiles(keyBy(packageMapping, 'directoryName'), specificFiles)).map(f => {
+    const packageMapping = await getPackageMapping(sfdcConnector)
+    ;(await getListOfSrcFiles(packageMapping, specificFiles)).map(f => {
       zip.addLocalFile(path.resolve(process.cwd(), 'src', f), f.substring(0, f.lastIndexOf('/')))
     })
   } else {
@@ -78,7 +73,8 @@ if (!program.username || !program.password) {
     const numProcessed = parseInt(r.numberComponentsDeployed, 10) + parseInt(r.numberComponentErrors, 10)
     if (numProcessed + '' === r.numberComponentsTotal && r.runTestsEnabled === 'true' && r.numberTestsTotal !== '0') {
       const errors = r.numberTestErrors > 0 ? chalk.red(r.numberTestErrors) : chalk.green(r.numberTestErrors)
-      log(chalk.grey(`Run tests: (${parseInt(r.numberTestsCompleted) + parseInt(r.numberTestErrors)}/${r.numberTestsTotal}) - Errors: ${errors}`))
+      const numProcessed = parseInt(r.numberTestsCompleted, 10) + parseInt(r.numberTestErrors, 10)
+      log(chalk.grey(`Run tests: (${numProcessed}/${r.numberTestsTotal}) - Errors: ${errors}`))
     } else if (r.numberComponentsTotal !== '0') {
       const errors = r.numberComponentErrors > 0 ? chalk.red(r.numberComponentErrors) : chalk.green(r.numberComponentErrors)
       log(chalk.grey(`Deploy: (${numProcessed}/${r.numberComponentsTotal}) - Errors: ${errors}`))

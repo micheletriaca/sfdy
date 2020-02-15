@@ -56,16 +56,21 @@ module.exports = {
       .value()
     return (await glob(files, { cwd: process.cwd() + '/src' })).filter(x => !ignoreDiffs.has(x))
   },
+  getPackageMapping: async sfdcConnector => {
+    const cachePath = path.resolve(os.tmpdir(), 'sftx' + sfdcConnector.sfConn.sessionId)
+    const hasCache = fs.existsSync(cachePath)
+    if (hasCache) return JSON.parse(fs.readFileSync(cachePath))
+    const packageMapping = _.keyBy((await sfdcConnector.describeMetadata()).metadataObjects, 'directoryName')
+    fs.writeFileSync(cachePath, JSON.stringify(packageMapping))
+    return packageMapping
+  },
   getPackageXml: async (opts = {}) => {
     const hasSpecificFiles = opts.specificFiles && opts.specificFiles.length
     const hasSpecificMeta = opts.specificMeta && opts.specificMeta.length
     if ((hasSpecificFiles || hasSpecificMeta) && opts.sfdcConnector) {
-      const cachePath = path.resolve(os.tmpdir(), 'sftx' + opts.sfdcConnector.sfConn.sessionId)
-      const hasCache = fs.existsSync(cachePath)
-      const packageMapping = hasCache ? JSON.parse(fs.readFileSync(cachePath)) : (await opts.sfdcConnector.describeMetadata()).metadataObjects
-      fs.writeFileSync(cachePath, JSON.stringify(packageMapping))
+      const packageMapping = await module.exports.getPackageMapping(opts.sfdcConnector)
       if (hasSpecificFiles) {
-        return module.exports.buildPackageXmlFromFiles(opts.specificFiles, _.keyBy(packageMapping, 'directoryName'))
+        return module.exports.buildPackageXmlFromFiles(opts.specificFiles, packageMapping)
       } else {
         return module.exports.buildPackageXmlFromMeta(opts.specificMeta)
       }
