@@ -110,7 +110,7 @@ class SfdcConn {
       })
       if (progressCallback) progressCallback(res)
       if (res.done === 'true') {
-        return !includeDetails ? res : this.metadata('checkDeployStatus', {
+        return !includeDetails && res.status === 'Succeeded' ? res : this.metadata('checkDeployStatus', {
           asyncProcessId: deployMetadataId,
           includeDetails: true
         })
