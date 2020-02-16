@@ -1,7 +1,7 @@
 const path = require('path')
 const fs = require('fs')
 const _ = require('highland')
-const memoize = require('lodash.memoize')
+const memoize = require('lodash').memoize
 const { parseXml } = require('./xml-utils')
 const { getMembersOf } = require('./package-utils')
 
