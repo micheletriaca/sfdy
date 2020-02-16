@@ -38,7 +38,19 @@ if (!program.username || !program.password) {
   })
   log(chalk.green(`Logged in!`))
   log(chalk.yellow(`(2/4) Building package.xml...`))
-  const specificFiles = (program.files && program.files.split(',').map(x => x.trim())) || []
+  const specificFiles = []
+  if (program.diff) {
+    const { spawnSync } = require('child_process')
+    const diff = spawnSync('git', ['diff', '--name-only', '--diff-filter=d', program.diff])
+    if (diff.status !== 0) throw Error(diff.stderr.toString('utf8'))
+    diff.stdout
+      .toString('utf8')
+      .split('\n')
+      .filter(x => x.startsWith('src/'))
+      .map(x => x.replace('src/', ''))
+      .forEach(x => specificFiles.push(x))
+  }
+  if (program.files) program.files.split(',').map(x => x.trim()).forEach(x => specificFiles.push(x))
   if (specificFiles.length) log(chalk.yellow(`--files specified. Deploying only specific files...`))
   const pkgJson = await getPackageXml({ specificFiles, sfdcConnector })
   log(chalk.green(`Built package.xml!`))
