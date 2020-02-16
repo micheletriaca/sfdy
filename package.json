@@ -7,7 +7,7 @@
   "author": "Michele Triaca",
   "license": "MIT",
   "dependencies": {
-    "adm-zip": "^0.4.14",    
+    "adm-zip": "^0.4.14",
     "chalk": "^3.0.0",
     "commander": "^2.20.3",
     "decompress": "^4.2.0",
