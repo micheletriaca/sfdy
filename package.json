@@ -1,9 +1,9 @@
 {
-  "name": "sftx",
+  "name": "sfdy",
   "version": "1.0.0",
   "description": "Tool to better handle Salesforce metadata",
-  "main": "src/sftx.js",
-  "bin": "src/sftx.js",
+  "main": "src/sfdy.js",
+  "bin": "src/sfdy.js",
   "author": "Michele Triaca",
   "license": "MIT",
   "dependencies": {

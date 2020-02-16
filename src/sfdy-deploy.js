@@ -3,7 +3,6 @@
 const program = require('commander')
 const chalk = require('chalk')
 const log = console.log
-const fs = require('fs-extra')
 const path = require('path')
 const AdmZip = require('adm-zip')
 const Sfdc = require('./utils/sfdc-utils')
@@ -30,7 +29,7 @@ if (!program.username || !program.password) {
 
 ;(async () => {
   console.time('running time')
-  log(chalk.green('SFTX V1.0'))
+  log(chalk.green('SFDY V1.0'))
   log(chalk.yellow(`(1/4) Logging in salesforce as ${program.username}...`))
   const sfdcConnector = await Sfdc.newInstance({
     username: program.username,

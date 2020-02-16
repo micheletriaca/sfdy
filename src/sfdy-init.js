@@ -1,7 +1,7 @@
 const fs = require('fs')
 const path = require('path')
 
-const configPath = path.resolve(process.cwd(), '.sftx.json')
+const configPath = path.resolve(process.cwd(), '.sfdy.json')
 
 fs.writeFileSync(configPath, JSON.stringify({
   permissionSets: {

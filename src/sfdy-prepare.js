@@ -19,8 +19,8 @@ if (!program.username || !program.password) {
   program.outputHelp(txt => { throw Error('Username and password are mandatory\n' + txt) })
 }
 
-const configPath = path.resolve(process.cwd(), '.sftx.json')
-if (!fs.existsSync(configPath)) throw Error('Missing configuration file .sftx.json')
+const configPath = path.resolve(process.cwd(), '.sfdy.json')
+if (!fs.existsSync(configPath)) throw Error('Missing configuration file .sfdy.json')
 
 const config = require(configPath)
 

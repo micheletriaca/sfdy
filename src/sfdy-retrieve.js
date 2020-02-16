@@ -28,14 +28,14 @@ if (!program.username || !program.password) {
   program.outputHelp(txt => { throw Error('Username and password are mandatory\n' + txt) })
 }
 
-const configPath = path.resolve(process.cwd(), '.sftx.json')
-if (!fs.existsSync(configPath)) throw Error('Missing configuration file .sftx.json')
+const configPath = path.resolve(process.cwd(), '.sfdy.json')
+if (!fs.existsSync(configPath)) throw Error('Missing configuration file .sfdy.json')
 
 const config = require(configPath)
 
 ;(async () => {
   console.time('running time')
-  log(chalk.green('SFTX V1.0'))
+  log(chalk.green('SFDY V1.0'))
   log(chalk.yellow(`(1/4) Logging in salesforce as ${program.username}...`))
   const sfdcConnector = await Sfdc.newInstance({
     username: program.username,

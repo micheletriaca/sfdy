@@ -57,7 +57,7 @@ module.exports = {
     return (await glob(files, { cwd: process.cwd() + '/src' })).filter(x => !ignoreDiffs.has(x))
   },
   getPackageMapping: async sfdcConnector => {
-    const cachePath = path.resolve(os.tmpdir(), 'sftx' + sfdcConnector.sfConn.sessionId)
+    const cachePath = path.resolve(os.tmpdir(), 'sfdy' + sfdcConnector.sfConn.sessionId)
     const hasCache = fs.existsSync(cachePath)
     if (hasCache) return JSON.parse(fs.readFileSync(cachePath))
     const packageMapping = _.keyBy((await sfdcConnector.describeMetadata()).metadataObjects, 'directoryName')

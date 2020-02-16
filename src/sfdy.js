@@ -10,5 +10,5 @@ program
   .command('retrieve', 'Retrieve patched metadata')
   .command('deploy', 'Deploy patched metadata')
   .command('prepare', 'Patch metadata')
-  .command('init', 'Create .sftx.json config file')
+  .command('init', 'Create .sfdy.json config file')
   .parse(process.argv)
