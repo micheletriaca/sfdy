@@ -35,7 +35,7 @@ module.exports = async (config) => {
         }
       }
 
-      if (cfg.stripUntrunslatedFields) {
+      if (cfg.stripUntranslatedFields) {
         const keysToProcess = {
           'validationRules': 'errorMessage',
           'webLinks': 'label',

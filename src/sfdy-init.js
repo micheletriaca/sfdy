@@ -8,7 +8,7 @@ fs.writeFileSync(configPath, JSON.stringify({
     stripUselessFls: true
   },
   objectTranslations: {
-    stripUntrunslatedFields: true,
+    stripUntranslatedFields: true,
     stripNotVersionedFields: true
   },
   preDeployPlugins: [],
