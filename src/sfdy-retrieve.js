@@ -14,6 +14,7 @@ const fixProfiles = require('./prepare/fix-profiles')
 const { getMembersOf, getProfileOnlyPackage, getPackageXml } = require('./utils/package-utils')
 const { printLogo } = require('./utils/branding-utils')
 const multimatch = require('multimatch')
+const pluginEngine = require('./plugin-engine')
 require('./error-handling')()
 
 program
@@ -44,6 +45,9 @@ const config = require(configPath)
     isSandbox: !!program.sandbox
   })
   log(chalk.green(`Logged in!`))
+
+  await pluginEngine.registerPlugins(config.postRetrievePlugins, sfdcConnector, program)
+
   log(chalk.yellow(`(2/4) Retrieving metadata...`))
   if (program.profileOnly) log(chalk.yellow(`--profile-only=true. Retrieving profiles only...`))
   const specificFiles = (program.files && program.files.split(',').map(x => x.trim())) || []
@@ -82,6 +86,8 @@ const config = require(configPath)
     patchProfiles ? fixProfiles(config, sfdcConnector) : Promise.resolve(),
     patchPartnerRoles ? Promise.resolve(stripPartnerRoles(config)) : Promise.resolve()
   ])
+
+  await pluginEngine.applyTransformationsAndWriteBack(specificFiles, sfdcConnector)
 
   const APPS_PATH = path.resolve(process.cwd(), 'src', 'applications')
   if (fs.existsSync(APPS_PATH) && pkgJson.types.some(x => x.name[0] === 'Profile')) {

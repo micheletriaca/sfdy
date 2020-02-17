@@ -6,9 +6,11 @@ const log = console.log
 const path = require('path')
 const AdmZip = require('adm-zip')
 const { printLogo } = require('./utils/branding-utils')
+const pluginEngine = require('./plugin-engine')
 const Sfdc = require('./utils/sfdc-utils')
 const { buildXml } = require('./utils/xml-utils')
 const { getListOfSrcFiles, getPackageXml, getPackageMapping } = require('./utils/package-utils')
+const _ = require('lodash')
 const buildJunitTestReport = require('./deploy/junit-test-report-builder')
 const printDeployResult = require('./deploy/result-logger')
 require('./error-handling')()
@@ -28,6 +30,11 @@ if (!program.username || !program.password) {
   program.outputHelp(txt => { throw Error('Username and password are mandatory\n' + txt) })
 }
 
+const configPath = path.resolve(process.cwd(), '.sfdy.json')
+// if (!fs.existsSync(configPath)) throw Error('Missing configuration file .sfdy.json')
+
+const config = require(configPath)
+
 ;(async () => {
   console.time('running time')
   printLogo()
@@ -38,6 +45,9 @@ if (!program.username || !program.password) {
     isSandbox: !!program.sandbox
   })
   log(chalk.green(`Logged in!`))
+
+  await pluginEngine.registerPlugins(config.preDeployPlugins, sfdcConnector, program)
+
   log(chalk.yellow(`(2/4) Building package.xml...`))
   const specificFiles = []
   if (program.diff) {
@@ -57,16 +67,23 @@ if (!program.username || !program.password) {
   log(chalk.green(`Built package.xml!`))
   log(chalk.yellow(`(3/4) Creating zip...`))
   const zip = new AdmZip()
+
+  const transformedXml = _(await pluginEngine.applyTransformations(specificFiles, sfdcConnector))
+    .keyBy('filename')
+    .value()
+
   if (specificFiles.length) {
     zip.addFile('package.xml', Buffer.from(buildXml(pkgJson) + '\n', 'utf-8'))
     const packageMapping = await getPackageMapping(sfdcConnector)
     ;(await getListOfSrcFiles(packageMapping, specificFiles)).map(f => {
-      zip.addLocalFile(path.resolve(process.cwd(), 'src', f), f.substring(0, f.lastIndexOf('/')))
+      if (transformedXml[f]) zip.addFile(f, Buffer.from(transformedXml[f].transformedXml, 'utf-8'))
+      else zip.addLocalFile(path.resolve(process.cwd(), 'src', f), f.substring(0, f.lastIndexOf('/')))
     })
   } else {
     zip.addLocalFile(path.resolve(process.cwd(), 'src', 'package.xml'))
     ;(await getListOfSrcFiles()).map(f => {
-      zip.addLocalFile(path.resolve(process.cwd(), 'src', f), f.substring(0, f.lastIndexOf('/')))
+      if (transformedXml[f]) zip.addFile(f, Buffer.from(transformedXml[f].transformedXml, 'utf-8'))
+      else zip.addLocalFile(path.resolve(process.cwd(), 'src', f), f.substring(0, f.lastIndexOf('/')))
     })
   }
   const base64 = zip.toBuffer().toString('base64')

@@ -11,6 +11,8 @@ fs.writeFileSync(configPath, JSON.stringify({
     stripUntrunslatedFields: true,
     stripNotVersionedFields: true
   },
+  preDeployPlugins: [],
+  postRetrievePlugins: [],
   profiles: {
     addAllUserPermissions: true,
     addDisabledVersionedObjects: true,
