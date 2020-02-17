@@ -22,7 +22,7 @@ class SfdcConn {
 
   async login ({ username, password, isSandbox = true, serverUrl }) {
     await this.sfConn.soapLogin({
-      hostname: serverUrl || `${isSandbox ? 'test' : 'login'}.salesforce.com`,
+      hostname: (serverUrl && serverUrl.replace('https://', '')) || `${isSandbox ? 'test' : 'login'}.salesforce.com`,
       apiVersion: this.apiVersion,
       username: username,
       password: password
