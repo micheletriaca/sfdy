@@ -12,6 +12,7 @@ const stripUselessFlsInPermissionSets = require('./prepare/strip-useless-fls-in-
 const stripPartnerRoles = require('./prepare/strip-partner-roles')
 const fixProfiles = require('./prepare/fix-profiles')
 const { getMembersOf, getProfileOnlyPackage, getPackageXml } = require('./utils/package-utils')
+const { printLogo } = require('./utils/branding-utils')
 const multimatch = require('multimatch')
 require('./error-handling')()
 
@@ -35,7 +36,7 @@ const config = require(configPath)
 
 ;(async () => {
   console.time('running time')
-  log(chalk.green('SFDY V1.0'))
+  printLogo()
   log(chalk.yellow(`(1/4) Logging in salesforce as ${program.username}...`))
   const sfdcConnector = await Sfdc.newInstance({
     username: program.username,

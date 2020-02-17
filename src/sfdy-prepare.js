@@ -1,7 +1,11 @@
 #!/usr/bin/env node
 
 const program = require('commander')
+const log = console.log
+const chalk = require('chalk')
+const { printLogo } = require('./utils/branding-utils')
 const fs = require('fs')
+const Sfdc = require('./utils/sfdc-utils')
 const path = require('path')
 const stripEmptyTranslations = require('./prepare/strip-empty-translations')
 const stripUselessFlsInPermissionSets = require('./prepare/strip-useless-fls-in-permission-sets')
@@ -25,8 +29,22 @@ if (!fs.existsSync(configPath)) throw Error('Missing configuration file .sfdy.js
 const config = require(configPath)
 
 ;(async () => {
+  console.time('running time')
+  printLogo()
+
+  log(chalk.yellow(`(1/2) Logging in salesforce as ${program.username}...`))
+  const sfdcConnector = await Sfdc.newInstance({
+    username: program.username,
+    password: program.password,
+    isSandbox: !!program.sandbox
+  })
+  log(chalk.green(`Logged in!`))
+  log(chalk.yellow(`(2/2) Applying patches...`))
+
   await stripEmptyTranslations(config)
   await stripUselessFlsInPermissionSets(config)
   stripPartnerRoles(config)
   await fixProfiles(config)
+  log(chalk.green(`Patches applied!`))
+  console.timeEnd('running time')
 })()

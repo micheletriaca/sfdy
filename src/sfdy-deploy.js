@@ -5,6 +5,7 @@ const chalk = require('chalk')
 const log = console.log
 const path = require('path')
 const AdmZip = require('adm-zip')
+const { printLogo } = require('./utils/branding-utils')
 const Sfdc = require('./utils/sfdc-utils')
 const { buildXml } = require('./utils/xml-utils')
 const { getListOfSrcFiles, getPackageXml, getPackageMapping } = require('./utils/package-utils')
@@ -29,7 +30,7 @@ if (!program.username || !program.password) {
 
 ;(async () => {
   console.time('running time')
-  log(chalk.green('SFDY V1.0'))
+  printLogo()
   log(chalk.yellow(`(1/4) Logging in salesforce as ${program.username}...`))
   const sfdcConnector = await Sfdc.newInstance({
     username: program.username,
