@@ -45,9 +45,6 @@ const config = require(configPath)
     isSandbox: !!program.sandbox
   })
   log(chalk.green(`Logged in!`))
-
-  await pluginEngine.registerPlugins(config.preDeployPlugins, sfdcConnector, program)
-
   log(chalk.yellow(`(2/4) Building package.xml...`))
   const specificFiles = []
   if (program.diff) {
@@ -68,19 +65,19 @@ const config = require(configPath)
   log(chalk.yellow(`(3/4) Creating zip...`))
   const zip = new AdmZip()
 
+  await pluginEngine.registerPlugins(config.preDeployPlugins, sfdcConnector, program, pkgJson)
   const transformedXml = _(await pluginEngine.applyTransformations(specificFiles, sfdcConnector))
     .keyBy('filename')
     .value()
 
+  zip.addFile('package.xml', Buffer.from(buildXml({ Package: pkgJson }) + '\n', 'utf-8'))
   if (specificFiles.length) {
-    zip.addFile('package.xml', Buffer.from(buildXml(pkgJson) + '\n', 'utf-8'))
     const packageMapping = await getPackageMapping(sfdcConnector)
     ;(await getListOfSrcFiles(packageMapping, specificFiles)).map(f => {
       if (transformedXml[f]) zip.addFile(f, Buffer.from(transformedXml[f].transformedXml, 'utf-8'))
       else zip.addLocalFile(path.resolve(process.cwd(), 'src', f), f.substring(0, f.lastIndexOf('/')))
     })
   } else {
-    zip.addLocalFile(path.resolve(process.cwd(), 'src', 'package.xml'))
     ;(await getListOfSrcFiles()).map(f => {
       if (transformedXml[f]) zip.addFile(f, Buffer.from(transformedXml[f].transformedXml, 'utf-8'))
       else zip.addLocalFile(path.resolve(process.cwd(), 'src', f), f.substring(0, f.lastIndexOf('/')))
