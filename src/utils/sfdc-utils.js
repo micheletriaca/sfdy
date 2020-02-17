@@ -20,9 +20,9 @@ class SfdcConn {
     this.isLoggedIn = false
   }
 
-  async login ({ username, password, isSandbox = true }) {
+  async login ({ username, password, isSandbox = true, serverUrl }) {
     await this.sfConn.soapLogin({
-      hostname: `${isSandbox ? 'test' : 'login'}.salesforce.com`,
+      hostname: serverUrl || `${isSandbox ? 'test' : 'login'}.salesforce.com`,
       apiVersion: this.apiVersion,
       username: username,
       password: password
@@ -120,9 +120,9 @@ class SfdcConn {
 }
 
 module.exports = {
-  newInstance: async ({ username, password, isSandbox = true }) => {
+  newInstance: async ({ username, password, isSandbox = true, serverUrl }) => {
     const res = new SfdcConn()
-    await res.login({ username, password, isSandbox })
+    await res.login({ username, password, isSandbox, serverUrl })
     return res
   }
 }

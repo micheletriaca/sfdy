@@ -19,6 +19,7 @@ program
   .option('-u, --username <username>', 'Username')
   .option('-p, --password <password>', 'Password + Token')
   .option('-s, --sandbox', 'Use sandbox login endpoint')
+  .option('--server-url <serverUrl>', 'Specify server url')
   .option('-f, --files <files>', 'Deploy specific files (comma separated)')
   .option('-d, --diff <branchRange>', 'Delta deploy from branch to branch - example develop..uat')
   .option('-t, --test-report', 'Generate junit test-report.xml')
@@ -42,7 +43,8 @@ const config = require(configPath)
   const sfdcConnector = await Sfdc.newInstance({
     username: program.username,
     password: program.password,
-    isSandbox: !!program.sandbox
+    isSandbox: !!program.sandbox,
+    serverUrl: program.serverUrl
   })
   log(chalk.green(`Logged in!`))
   log(chalk.yellow(`(2/4) Building package.xml...`))
