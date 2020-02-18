@@ -16,7 +16,7 @@ const buildJunitTestReport = (runTestResult, reportPath = 'test-reports/test-rep
         .time(parseInt(x.time) / 1000)
       if (x.stackTrace) {
         testCase
-          .error(x.message, x.type)
+          .failure(x.message, x.type)
           .stacktrace(x.stackTrace)
       }
     })

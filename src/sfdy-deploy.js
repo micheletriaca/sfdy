@@ -119,5 +119,5 @@ const config = require(configPath)
   printDeployResult(deployResult)
 
   console.timeEnd('running time')
-  process.exit(deployResult.status === 'Failed' ? 1 : 0)
+  process.exit(deployResult.status !== 'Succeeded' ? 1 : 0)
 })()
