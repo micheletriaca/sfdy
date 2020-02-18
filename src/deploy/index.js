@@ -10,10 +10,12 @@ const _ = require('lodash')
 const buildJunitTestReport = require('../deploy/junit-test-report-builder')
 const pathService = require('../services/path-service')
 const printDeployResult = require('../deploy/result-logger')
+const logService = require('../services/log-service')
+const log = logService.getLogger()
 
 module.exports = async ({ loginOpts, basePath, logger, diffCfg, files, preDeployPlugins, specifiedTests, testLevel, testReport }) => {
   if (basePath) pathService.setBasePath(basePath)
-  const log = logger || console.log
+  if (logger) logService.setLogger(logger)
   console.time('running time')
   printLogo()
   log(chalk.yellow(`(1/4) Logging in salesforce as ${loginOpts.username}...`))
@@ -96,5 +98,5 @@ module.exports = async ({ loginOpts, basePath, logger, diffCfg, files, preDeploy
   printDeployResult(deployResult)
   console.timeEnd('running time')
 
-  return d
+  return deployResult
 }

@@ -1,5 +1,5 @@
 const SfdcConnection = require('node-salesforce-connection')
-const log = console.log
+const log = require('../services/log-service').getLogger()
 const chalk = require('chalk')
 
 const sleep = async ms => new Promise((resolve) => setTimeout(resolve, ms))

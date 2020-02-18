@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 const program = require('commander')
-const log = console.log
+const log = require('./services/log-service').getLogger()
 const chalk = require('chalk')
 const { printLogo } = require('./utils/branding-utils')
 const fs = require('fs')

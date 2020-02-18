@@ -1,5 +1,5 @@
 const _ = require('highland')
-const log = console.log
+const log = require('../services/log-service').getLogger()
 const chalk = require('chalk')
 
 const counterGen = (n = 1) => () => `${n++}. `

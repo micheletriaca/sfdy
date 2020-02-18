@@ -1,4 +1,4 @@
-const log = console.log
+const log = require('../services/log-service').getLogger()
 const chalk = require('chalk')
 
 module.exports = {
