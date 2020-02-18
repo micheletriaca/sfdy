@@ -14,7 +14,7 @@ const multimatch = require('multimatch')
 const pluginEngine = require('../plugin-engine')
 const path = require('path')
 const pathService = require('../services/path-service')
-const fs = require('fs')
+const fs = require('fs-extra')
 
 module.exports = async ({ loginOpts, basePath, logger, profileOnly, files, meta, config }) => {
   if (basePath) pathService.setBasePath(basePath)

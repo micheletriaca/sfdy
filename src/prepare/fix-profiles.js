@@ -23,7 +23,7 @@ module.exports = async (config, sfConn = undefined) => {
 
   const q = _.memoize(sfConn.query.bind(sfConn))
   const remapProfileName = async f => {
-    f = f.replace('.profile', '')
+    f = f.replace('.profile', '').split(' ').map(x => decodeURIComponent(x)).join(' ')
     const fMap = {
       'Admin': 'System Administrator',
       'ReadOnly': 'Read Only',
@@ -42,7 +42,7 @@ module.exports = async (config, sfConn = undefined) => {
     const pNames = new Set(Object.values(fMap))
     const stdProfiles = await __(await q('SELECT Profile.Name FROM PermissionSet WHERE IsCustom = FALSE AND Profile.Name != NULL'))
       .filter(x => !pNames.has(x.Profile.Name))
-      .map(x => __(q(`SELECT FullName, Name FROM Profile WHERE Name = '${x.Profile.Name}'`, true)))
+      .map(x => __(q(`SELECT FullName, Name FROM Profile WHERE Name = '${x.Profile.Name}' LIMIT 1`, true)))
       .parallel(4)
       .reduce(fMap, (memo, x) => ({ ...memo, [x[0].FullName]: x[0].Name }))
       .toPromise(Promise)
