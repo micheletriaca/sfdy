@@ -9,6 +9,7 @@ const decompress = require('decompress')
 const Sfdc = require('./utils/sfdc-utils')
 const stripEmptyTranslations = require('./prepare/strip-empty-translations')
 const stripUselessFlsInPermissionSets = require('./prepare/strip-useless-fls-in-permission-sets')
+const pathService = require('./services/path-service')
 const stripPartnerRoles = require('./prepare/strip-partner-roles')
 const fixProfiles = require('./prepare/fix-profiles')
 const { getMembersOf, getProfileOnlyPackage, getPackageXml } = require('./utils/package-utils')
@@ -30,7 +31,7 @@ if (!program.username || !program.password) {
   program.outputHelp(txt => { throw Error('Username and password are mandatory\n' + txt) })
 }
 
-const configPath = path.resolve(process.cwd(), '.sfdy.json')
+const configPath = path.resolve(pathService.getBasePath(), '.sfdy.json')
 if (!fs.existsSync(configPath)) throw Error('Missing configuration file .sfdy.json')
 
 const config = require(configPath)
@@ -70,7 +71,7 @@ const config = require(configPath)
   log(chalk.green(`Retrieve completed!`))
   log(chalk.yellow(`(3/4) Unzipping...`))
   const zipBuffer = Buffer.from(retrieveResult.zipFile, 'base64')
-  await decompress(zipBuffer, path.resolve(process.cwd(), 'src'), {
+  await decompress(zipBuffer, path.resolve(pathService.getBasePath(), 'src'), {
     filter: f => program.profileOnly ? f.path.endsWith('.profile') : !/package\.xml$/.test(f.path)
   })
   log(chalk.green(`Unzipped!`))
@@ -89,7 +90,7 @@ const config = require(configPath)
 
   await pluginEngine.applyTransformationsAndWriteBack(specificFiles, sfdcConnector)
 
-  const APPS_PATH = path.resolve(process.cwd(), 'src', 'applications')
+  const APPS_PATH = path.resolve(pathService.getBasePath(), 'src', 'applications')
   if (fs.existsSync(APPS_PATH) && pkgJson.types.some(x => x.name[0] === 'Profile')) {
     const versionedApps = (await getMembersOf('CustomApplication')).map(x => x + '.app')
     if (!versionedApps.length) fs.removeSync(APPS_PATH)

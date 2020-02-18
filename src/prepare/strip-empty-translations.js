@@ -1,11 +1,12 @@
 
 const { parseXml, buildXml } = require('../utils/xml-utils')
+const pathService = require('../services/path-service')
 const path = require('path')
 const fs = require('fs')
 const _ = require('highland')
 
-const TRANSLATIONS_PATH = path.resolve(process.cwd(), 'src/objectTranslations')
-const OBJECTS_PATH = path.resolve(process.cwd(), 'src/objects')
+const TRANSLATIONS_PATH = path.resolve(pathService.getBasePath(), 'src/objectTranslations')
+const OBJECTS_PATH = path.resolve(pathService.getBasePath(), 'src/objects')
 
 module.exports = async (config) => {
   if (!fs.existsSync(TRANSLATIONS_PATH) || !config.objectTranslations) return true

@@ -3,8 +3,9 @@ const { parseXml, buildXml } = require('../utils/xml-utils')
 const path = require('path')
 const fs = require('fs')
 const _ = require('highland')
+const pathService = require('../services/path-service')
 
-const PERMISSION_SET_PATH = path.resolve(process.cwd(), 'src/permissionsets')
+const PERMISSION_SET_PATH = path.resolve(pathService.getBasePath(), 'src/permissionsets')
 
 module.exports = async (config) => {
   if (!fs.existsSync(PERMISSION_SET_PATH) || !config.permissionSets || !config.permissionSets.stripUselessFls) return true

@@ -1,7 +1,8 @@
 const path = require('path')
+const pathService = require('../services/path-service')
 const fs = require('fs')
 
-const ROLES_PATH = path.resolve(process.cwd(), 'src/roles')
+const ROLES_PATH = path.resolve(pathService.getBasePath(), 'src/roles')
 
 module.exports = (config) => {
   if (!fs.existsSync(ROLES_PATH) || !config.roles || !config.roles.stripPartnerRoles) return true

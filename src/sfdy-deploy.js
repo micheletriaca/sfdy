@@ -3,6 +3,7 @@
 const program = require('commander')
 const path = require('path')
 const deploy = require('./deploy')
+const pathService = require('./services/path-service')
 require('./error-handling')()
 
 program
@@ -21,7 +22,7 @@ if (!program.username || !program.password) {
   program.outputHelp(txt => { throw Error('Username and password are mandatory\n' + txt) })
 }
 
-const configPath = path.resolve(process.cwd(), '.sfdy.json')
+const configPath = path.resolve(pathService.getBasePath(), '.sfdy.json')
 // if (!fs.existsSync(configPath)) throw Error('Missing configuration file .sfdy.json')
 
 const config = require(configPath)

@@ -1,6 +1,7 @@
 const { getFieldMap, getVersionedObjects, getVersionedTabs, getVersionedApplications } = require('../utils/object-utils')
 const { parseXml, buildXml } = require('../utils/xml-utils')
 const connectionFactory = require('../utils/sfdc-utils')
+const pathService = require('../services/path-service')
 const multimatch = require('multimatch')
 const program = require('commander')
 const path = require('path')
@@ -10,7 +11,7 @@ const fs = require('fs')
 const __ = require('highland')
 const _ = require('lodash')
 
-const PROFILE_PATH = path.resolve(process.cwd(), 'src/profiles')
+const PROFILE_PATH = path.resolve(pathService.getBasePath(), 'src/profiles')
 
 module.exports = async (config, sfConn = undefined) => {
   if (!fs.existsSync(PROFILE_PATH) || !config.profiles) return true

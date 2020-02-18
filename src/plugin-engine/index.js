@@ -4,6 +4,7 @@ const _ = require('highland')
 const path = require('path')
 const fs = require('fs')
 const { parseXml, buildXml } = require('../utils/xml-utils')
+const pathService = require('../services/path-service')
 
 const transformations = []
 
@@ -13,7 +14,7 @@ const applyTransformations = async (fileFilter, sfdcConnector) => {
   return _(transformations)
     .flatMap(t => multimatch(files, t.pattern).map(pattern => ({ ...t, pattern })))
     .map(async t => {
-      const transformedJson = await parseXml(fs.readFileSync(path.resolve(process.cwd(), 'src', t.pattern)))
+      const transformedJson = await parseXml(fs.readFileSync(path.resolve(pathService.getBasePath(), 'src', t.pattern)))
       return {
         transformedJson: t.callback(t.pattern, transformedJson) || transformedJson,
         filename: t.pattern
@@ -38,7 +39,7 @@ module.exports = {
   },
   applyTransformationsAndWriteBack: async (fileFilter, sfdcConnector) => {
     return (await applyTransformations(fileFilter, sfdcConnector))
-      .map(t => fs.writeFileSync(path.resolve(process.cwd(), 'src', t.filename), t.transformedXml))
+      .map(t => fs.writeFileSync(path.resolve(pathService.getBasePath(), 'src', t.filename), t.transformedXml))
       .collect()
       .toPromise(Promise)
   },
@@ -49,7 +50,7 @@ module.exports = {
   },
   registerPlugins: async (plugins, sfdcConnector, username, pkgJson) => {
     await _(plugins || [])
-      .map(x => require(path.resolve(process.cwd(), x)))
+      .map(x => require(path.resolve(pathService.getBasePath(), x)))
       .map(x => _(x({
         querySfdc: sfdcConnector.query,
         environment: process.env.environment,

@@ -1,5 +1,4 @@
 const chalk = require('chalk')
-const log = console.log
 const AdmZip = require('adm-zip')
 const { printLogo } = require('../utils/branding-utils')
 const pluginEngine = require('../plugin-engine')
@@ -9,9 +8,12 @@ const path = require('path')
 const { getListOfSrcFiles, getPackageXml, getPackageMapping } = require('../utils/package-utils')
 const _ = require('lodash')
 const buildJunitTestReport = require('../deploy/junit-test-report-builder')
+const pathService = require('./services/path-service')
 const printDeployResult = require('../deploy/result-logger')
 
-module.exports = async ({ loginOpts, diffCfg, files, preDeployPlugins, specifiedTests, testLevel, testReport }) => {
+module.exports = async ({ loginOpts, basePath, logger, diffCfg, files, preDeployPlugins, specifiedTests, testLevel, testReport }) => {
+  if (basePath) pathService.setBasePath(basePath)
+  const log = logger || console.log
   console.time('running time')
   printLogo()
   log(chalk.yellow(`(1/4) Logging in salesforce as ${loginOpts.username}...`))
@@ -52,12 +54,12 @@ module.exports = async ({ loginOpts, diffCfg, files, preDeployPlugins, specified
     const packageMapping = await getPackageMapping(sfdcConnector)
     ;(await getListOfSrcFiles(packageMapping, specificFiles)).map(f => {
       if (transformedXml[f]) zip.addFile(f, Buffer.from(transformedXml[f].transformedXml, 'utf-8'))
-      else zip.addLocalFile(path.resolve(process.cwd(), 'src', f), f.substring(0, f.lastIndexOf('/')))
+      else zip.addLocalFile(path.resolve(pathService.getBasePath(), 'src', f), f.substring(0, f.lastIndexOf('/')))
     })
   } else {
     ;(await getListOfSrcFiles()).map(f => {
       if (transformedXml[f]) zip.addFile(f, Buffer.from(transformedXml[f].transformedXml, 'utf-8'))
-      else zip.addLocalFile(path.resolve(process.cwd(), 'src', f), f.substring(0, f.lastIndexOf('/')))
+      else zip.addLocalFile(path.resolve(pathService.getBasePath(), 'src', f), f.substring(0, f.lastIndexOf('/')))
     })
   }
   const base64 = zip.toBuffer().toString('base64')

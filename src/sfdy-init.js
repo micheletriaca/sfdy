@@ -1,7 +1,8 @@
 const fs = require('fs')
 const path = require('path')
+const pathService = require('./services/path-service')
 
-const configPath = path.resolve(process.cwd(), '.sfdy.json')
+const configPath = path.resolve(pathService.getBasePath(), '.sfdy.json')
 
 fs.writeFileSync(configPath, JSON.stringify({
   permissionSets: {

@@ -4,8 +4,9 @@ const path = require('path')
 const glob = require('globby')
 const _ = require('lodash')
 const os = require('os')
+const pathService = require('../services/path-service')
 
-const PACKAGE_PATH = path.resolve(process.cwd(), 'src', 'package.xml')
+const PACKAGE_PATH = path.resolve(pathService.getBasePath(), 'src', 'package.xml')
 
 module.exports = {
   getMembersOf: async pkgName => {
@@ -54,7 +55,7 @@ module.exports = {
       })
       .uniq()
       .value()
-    return (await glob(files, { cwd: process.cwd() + '/src' })).filter(x => !ignoreDiffs.has(x))
+    return (await glob(files, { cwd: pathService.getBasePath() + '/src' })).filter(x => !ignoreDiffs.has(x))
   },
   getPackageMapping: async sfdcConnector => {
     const cachePath = path.resolve(os.tmpdir(), 'sfdy' + sfdcConnector.sfConn.sessionId)

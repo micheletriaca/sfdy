@@ -4,9 +4,10 @@ const _ = require('highland')
 const memoize = require('lodash').memoize
 const { parseXml } = require('./xml-utils')
 const { getMembersOf } = require('./package-utils')
+const pathService = require('../services/path-service')
 
-const OBJECTS_PATH = path.resolve(process.cwd(), 'src/objects')
-const TABS_PATH = path.resolve(process.cwd(), 'src/tabs')
+const OBJECTS_PATH = path.resolve(pathService.getBasePath(), 'src/objects')
+const TABS_PATH = path.resolve(pathService.getBasePath(), 'src/tabs')
 
 const res = {
   getFieldMap: memoize(() => _(fs.readdirSync(OBJECTS_PATH))
