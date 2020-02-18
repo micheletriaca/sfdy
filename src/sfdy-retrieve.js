@@ -46,7 +46,7 @@ const config = require(configPath)
   })
   log(chalk.green(`Logged in!`))
 
-  await pluginEngine.registerPlugins(config.postRetrievePlugins, sfdcConnector, program)
+  await pluginEngine.registerPlugins(config.postRetrievePlugins, sfdcConnector, program.username)
 
   log(chalk.yellow(`(2/4) Retrieving metadata...`))
   if (program.profileOnly) log(chalk.yellow(`--profile-only=true. Retrieving profiles only...`))

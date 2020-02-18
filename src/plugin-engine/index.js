@@ -47,13 +47,13 @@ module.exports = {
       .collect()
       .toPromise(Promise)
   },
-  registerPlugins: async (plugins, sfdcConnector, program, pkgJson) => {
+  registerPlugins: async (plugins, sfdcConnector, username, pkgJson) => {
     await _(plugins || [])
       .map(x => require(path.resolve(process.cwd(), x)))
       .map(x => _(x({
         querySfdc: sfdcConnector.query,
         environment: process.env.environment,
-        username: program.username,
+        username,
         pkg: pkgJson
       }, module.exports.helpers)))
       .sequence()

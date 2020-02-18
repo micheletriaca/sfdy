@@ -42,7 +42,7 @@ const config = require(configPath)
   log(chalk.green(`Logged in!`))
   log(chalk.yellow(`(2/2) Applying patches...`))
 
-  await pluginEngine.registerPlugins(config.postRetrievePlugins, sfdcConnector, program)
+  await pluginEngine.registerPlugins(config.postRetrievePlugins, sfdcConnector, program.username)
   await stripEmptyTranslations(config)
   await stripUselessFlsInPermissionSets(config)
   stripPartnerRoles(config)
