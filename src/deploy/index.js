@@ -8,7 +8,7 @@ const path = require('path')
 const { getListOfSrcFiles, getPackageXml, getPackageMapping } = require('../utils/package-utils')
 const _ = require('lodash')
 const buildJunitTestReport = require('../deploy/junit-test-report-builder')
-const pathService = require('./services/path-service')
+const pathService = require('../services/path-service')
 const printDeployResult = require('../deploy/result-logger')
 
 module.exports = async ({ loginOpts, basePath, logger, diffCfg, files, preDeployPlugins, specifiedTests, testLevel, testReport }) => {
