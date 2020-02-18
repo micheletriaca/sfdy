@@ -5,13 +5,11 @@ const fs = require('fs')
 const _ = require('highland')
 const pathService = require('../services/path-service')
 
-const PERMISSION_SET_PATH = path.resolve(pathService.getBasePath(), 'src/permissionsets')
-
 module.exports = async (config) => {
-  if (!fs.existsSync(PERMISSION_SET_PATH) || !config.permissionSets || !config.permissionSets.stripUselessFls) return true
-  return _(fs.readdirSync(PERMISSION_SET_PATH))
+  if (!fs.existsSync(pathService.getPermissionSetPath()) || !config.permissionSets || !config.permissionSets.stripUselessFls) return true
+  return _(fs.readdirSync(pathService.getPermissionSetPath()))
     .map(async f => {
-      const fContent = fs.readFileSync(path.resolve(PERMISSION_SET_PATH, f), 'utf8')
+      const fContent = fs.readFileSync(path.resolve(pathService.getPermissionSetPath(), f), 'utf8')
       const fJson = await parseXml(fContent)
 
       if (fJson.PermissionSet.fieldPermissions) {
@@ -20,7 +18,7 @@ module.exports = async (config) => {
         })
       }
 
-      fs.writeFileSync(path.resolve(PERMISSION_SET_PATH, f), buildXml(fJson) + '\n')
+      fs.writeFileSync(path.resolve(pathService.getPermissionSetPath(), f), buildXml(fJson) + '\n')
     })
     .map(x => _(x))
     .sequence()

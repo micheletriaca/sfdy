@@ -11,10 +11,8 @@ const fs = require('fs')
 const __ = require('highland')
 const _ = require('lodash')
 
-const PROFILE_PATH = path.resolve(pathService.getBasePath(), 'src/profiles')
-
 module.exports = async (config, sfConn = undefined) => {
-  if (!fs.existsSync(PROFILE_PATH) || !config.profiles) return true
+  if (!fs.existsSync(pathService.getProfilePath()) || !config.profiles) return true
   if (!sfConn) {
     sfConn = await connectionFactory.newInstance({
       username: program.username,
@@ -92,9 +90,9 @@ module.exports = async (config, sfConn = undefined) => {
   const pcfg = config.profiles
   const versionedObjects = new Set(getVersionedObjects())
 
-  return __(fs.readdirSync(PROFILE_PATH)).map(async f => {
+  return __(fs.readdirSync(pathService.getProfilePath())).map(async f => {
     log(chalk.cyan(`---> Processing ${f}`))
-    const fContent = fs.readFileSync(path.resolve(PROFILE_PATH, f), 'utf8')
+    const fContent = fs.readFileSync(path.resolve(pathService.getProfilePath(), f), 'utf8')
     const fJson = await parseXml(fContent)
     const isStandard = !fJson.Profile.custom || fJson.Profile.custom[0] !== 'true'
 
@@ -237,7 +235,7 @@ module.exports = async (config, sfConn = undefined) => {
       log(chalk.grey('done.'))
     }
 
-    fs.writeFileSync(path.resolve(PROFILE_PATH, f), buildXml(fJson) + '\n')
+    fs.writeFileSync(path.resolve(pathService.getProfilePath(), f), buildXml(fJson) + '\n')
   })
     .map(x => __(x))
     .sequence()

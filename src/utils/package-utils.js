@@ -6,20 +6,18 @@ const _ = require('lodash')
 const os = require('os')
 const pathService = require('../services/path-service')
 
-const PACKAGE_PATH = path.resolve(pathService.getBasePath(), 'src', 'package.xml')
-
 module.exports = {
   getMembersOf: async pkgName => {
-    const packageJson = await parseXml(fs.readFileSync(PACKAGE_PATH))
+    const packageJson = await parseXml(fs.readFileSync(pathService.getPackagePath()))
     const block = packageJson.Package.types.find(x => x.name[0] === pkgName)
     return !block ? [] : block.members
   },
   getTypeList: async () => {
-    const packageJson = await parseXml(fs.readFileSync(PACKAGE_PATH))
+    const packageJson = await parseXml(fs.readFileSync(pathService.getPackagePath()))
     return packageJson.Package.types.map(x => x.name[0])
   },
   getProfileOnlyPackage: async () => {
-    const packageJson = await parseXml(fs.readFileSync(PACKAGE_PATH))
+    const packageJson = await parseXml(fs.readFileSync(pathService.getPackagePath()))
     packageJson.Package.types = packageJson.Package.types.filter(t => (
       t.name[0] === 'CustomApplication' ||
       t.name[0] === 'ApexClass' ||
@@ -76,17 +74,17 @@ module.exports = {
         return module.exports.buildPackageXmlFromMeta(opts.specificMeta)
       }
     }
-    return (await parseXml(fs.readFileSync(PACKAGE_PATH))).Package
+    return (await parseXml(fs.readFileSync(pathService.getPackagePath()))).Package
   },
   buildPackageXmlFromMeta: async (meta) => {
-    const packageJson = await parseXml(fs.readFileSync(PACKAGE_PATH))
+    const packageJson = await parseXml(fs.readFileSync(pathService.getPackagePath()))
     const types = _(meta).groupBy(x => x.split('/')[0]).mapValues(x => x.map(y => y.split('/')[1] || '*')).value()
     packageJson.Package.types = Object.entries(types).map(([k, v]) => ({ name: [k], members: v }))
     return packageJson.Package
   },
   buildPackageXmlFromFiles: async (files, packageMapping) => {
     files = await module.exports.getListOfSrcFiles(packageMapping, files)
-    const packageJson = await parseXml(fs.readFileSync(PACKAGE_PATH))
+    const packageJson = await parseXml(fs.readFileSync(pathService.getPackagePath()))
     const metaMap = _(files)
       .filter(x => !x.endsWith('/**'))
       .filter(x => !x.endsWith('-meta.xml'))

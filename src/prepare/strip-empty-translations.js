@@ -5,20 +5,17 @@ const path = require('path')
 const fs = require('fs')
 const _ = require('highland')
 
-const TRANSLATIONS_PATH = path.resolve(pathService.getBasePath(), 'src/objectTranslations')
-const OBJECTS_PATH = path.resolve(pathService.getBasePath(), 'src/objects')
-
 module.exports = async (config) => {
-  if (!fs.existsSync(TRANSLATIONS_PATH) || !config.objectTranslations) return true
+  if (!fs.existsSync(pathService.getTranslationsPath()) || !config.objectTranslations) return true
   const cfg = config.objectTranslations
-  return _(fs.readdirSync(TRANSLATIONS_PATH))
+  return _(fs.readdirSync(pathService.getTranslationsPath()))
     .map(async f => {
-      const fContent = fs.readFileSync(path.resolve(TRANSLATIONS_PATH, f), 'utf8')
+      const fContent = fs.readFileSync(path.resolve(pathService.getTranslationsPath(), f), 'utf8')
       const fJson = await parseXml(fContent)
 
       if (cfg.stripNotVersionedFields) {
         const objName = f.replace(/-.*/, '') + '.object'
-        const objPath = path.resolve(OBJECTS_PATH, objName)
+        const objPath = path.resolve(pathService.getObjectPath(), objName)
         const objectExists = fs.existsSync(objPath)
 
         const objFields = (
@@ -72,7 +69,7 @@ module.exports = async (config) => {
         processXml(fJson.CustomObjectTranslation, keysToProcess)
       }
 
-      fs.writeFileSync(path.resolve(TRANSLATIONS_PATH, f), buildXml(fJson) + '\n')
+      fs.writeFileSync(path.resolve(pathService.getTranslationsPath(), f), buildXml(fJson) + '\n')
     })
     .map(x => _(x))
     .sequence()

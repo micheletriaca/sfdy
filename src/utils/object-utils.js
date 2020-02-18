@@ -6,13 +6,10 @@ const { parseXml } = require('./xml-utils')
 const { getMembersOf } = require('./package-utils')
 const pathService = require('../services/path-service')
 
-const OBJECTS_PATH = path.resolve(pathService.getBasePath(), 'src/objects')
-const TABS_PATH = path.resolve(pathService.getBasePath(), 'src/tabs')
-
 const res = {
-  getFieldMap: memoize(() => _(fs.readdirSync(OBJECTS_PATH))
+  getFieldMap: memoize(() => _(fs.readdirSync(pathService.getObjectPath()))
     .map(async x => ({
-      content: await parseXml(fs.readFileSync(path.resolve(OBJECTS_PATH, x), 'utf8')),
+      content: await parseXml(fs.readFileSync(path.resolve(pathService.getObjectPath(), x), 'utf8')),
       obj: x.replace('.object', '')
     }))
     .map(x => _(x))
@@ -29,11 +26,11 @@ const res = {
     .collect()
     .map(x => new Set(x))
     .toPromise(Promise)),
-  getVersionedObjects: memoize(() => fs.readdirSync(OBJECTS_PATH).map(x => x.replace('.object', ''))),
+  getVersionedObjects: memoize(() => fs.readdirSync(pathService.getObjectPath()).map(x => x.replace('.object', ''))),
   getVersionedApplications: memoize(async () => getMembersOf('CustomApplication')),
   getVersionedTabs: memoize((allTabs) => {
-    if (!fs.existsSync(TABS_PATH)) return []
-    const versionedTabs = new Set(fs.readdirSync(TABS_PATH).map(x => x.replace('.tab', '')))
+    if (!fs.existsSync(pathService.getTabsPath())) return []
+    const versionedTabs = new Set(fs.readdirSync(pathService.getTabsPath()).map(x => x.replace('.tab', '')))
     const versionedObjects = new Set(res.getVersionedObjects())
     return allTabs.filter(x => versionedTabs.has(x.Name) || versionedObjects.has(x.SobjectName)).map(x => x.Name)
   })
