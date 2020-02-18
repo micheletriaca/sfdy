@@ -30,7 +30,9 @@ module.exports = async ({ loginOpts, basePath, logger, diffCfg, files, preDeploy
   const specificFiles = []
   if (diffCfg) {
     const { spawnSync } = require('child_process')
-    const diff = spawnSync('git', ['diff', '--name-only', '--diff-filter=d', diffCfg])
+    const diff = spawnSync('git', ['diff', '--name-only', '--diff-filter=d', diffCfg], {
+      cwd: pathService.getBasePath()
+    })
     if (diff.status !== 0) throw Error(diff.stderr.toString('utf8'))
     diff.stdout
       .toString('utf8')
