@@ -39,7 +39,7 @@ module.exports = {
       'lwc/.eslintrc.json',
       'lwc/jsconfig.json'
     ])
-    const files = _(pattern.map(x => x.replace(/^src\//, '')))
+    const files = _(pattern.map(x => x.replace(/^\/?src\//, '')))
       .map(x => x.replace(/-meta.xml$/, ''))
       .flatMap(x => {
         const key = x.substring(0, x.indexOf('/'))
