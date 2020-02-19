@@ -51,6 +51,7 @@ module.exports = {
       .toPromise(Promise)
   },
   registerPlugins: async (plugins, sfdcConnector, username, pkgJson) => {
+    transformations.length = 0
     await _(plugins || [])
       .map(x => nativeRequire(path.resolve(pathService.getBasePath(), x)))
       .map(x => x({
