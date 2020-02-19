@@ -5,6 +5,8 @@ const path = require('path')
 const fs = require('fs')
 const { parseXml, buildXml } = require('../utils/xml-utils')
 const pathService = require('../services/path-service')
+const nativeRequire = require('../utils/native-require')
+const log = require('../services/log-service').getLogger()
 
 const transformations = []
 
@@ -50,11 +52,12 @@ module.exports = {
   },
   registerPlugins: async (plugins, sfdcConnector, username, pkgJson) => {
     await _(plugins || [])
-      .map(x => require(path.resolve(pathService.getBasePath(), x)))
+      .map(x => nativeRequire(path.resolve(pathService.getBasePath(), x)))
       .map(x => _(x({
         querySfdc: sfdcConnector.query,
         environment: process.env.environment,
         username,
+        log,
         pkg: pkgJson
       }, module.exports.helpers)))
       .sequence()
