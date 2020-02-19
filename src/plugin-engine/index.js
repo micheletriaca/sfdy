@@ -53,13 +53,14 @@ module.exports = {
   registerPlugins: async (plugins, sfdcConnector, username, pkgJson) => {
     await _(plugins || [])
       .map(x => nativeRequire(path.resolve(pathService.getBasePath(), x)))
-      .map(x => _(x({
+      .map(x => x({
         querySfdc: sfdcConnector.query,
         environment: process.env.environment,
         username,
         log,
         pkg: pkgJson
-      }, module.exports.helpers)))
+      }, module.exports.helpers))
+      .map(x => _(x))
       .sequence()
       .collect()
       .toPromise(Promise)
