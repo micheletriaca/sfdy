@@ -102,7 +102,7 @@ module.exports = async (config, sfConn = undefined) => {
       log(chalk.grey('done.'))
     }
 
-    if (pcfg.addAllUserPermissions) {
+    if (pcfg.addAllUserPermissions && (!isStandard || !pcfg.stripUserPermissionsFromStandardProfiles)) {
       log(chalk.grey(`Adding all user permissions...`))
       const allPermissions = await retrievePermissionsList(await remapProfileName(f))
 
