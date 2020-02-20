@@ -13,41 +13,16 @@ module.exports = async (config) => {
       const fContent = fs.readFileSync(path.resolve(pathService.getTranslationsPath(), f), 'utf8')
       const fJson = await parseXml(fContent)
 
-      if (cfg.stripNotVersionedFields) {
-        const objName = f.replace(/-.*/, '') + '.object'
-        const objPath = path.resolve(pathService.getObjectPath(), objName)
-        const objectExists = fs.existsSync(objPath)
-
-        const objFields = (
-          objectExists
-            ? (await parseXml(fs.readFileSync(objPath, 'utf8')))
-              .CustomObject
-              .fields
-              .map(x => x.fullName[0])
-              .reduce((res, x) => ({ ...res, [x]: true }), {})
-            : {}
-        )
-
-        if (fJson.CustomObjectTranslation.fields) {
-          fJson.CustomObjectTranslation.fields = fJson.CustomObjectTranslation.fields.filter(x => objFields[x.name[0]])
-        }
-      }
-
       if (cfg.stripUntranslatedFields) {
         const keysToProcess = {
-          'validationRules': 'errorMessage',
-          'webLinks': 'label',
-          'recordTypes': [
+          'reportTypes': [
             'label',
-            'description'
+            'description',
+            { 'sections': 'label' }
           ],
-          'quickActions': 'label',
-          'fields': [
-            'help',
-            'label',
-            { 'picklistValues': 'translation' }
-          ],
-          'layouts': { 'sections': 'label' }
+          'customApplications': 'label',
+          'customLabels': 'label',
+          'customTabs': 'label'
         }
 
         const processXml = (root, keysToProcess) => {
@@ -66,7 +41,7 @@ module.exports = async (config) => {
           }, true)
         }
 
-        processXml(fJson.CustomObjectTranslation, keysToProcess)
+        processXml(fJson.Translations, keysToProcess)
       }
 
       fs.writeFileSync(path.resolve(pathService.getTranslationsPath(), f), buildXml(fJson) + '\n')
