@@ -14,6 +14,7 @@ program
   .option('-f, --files <files>', 'Deploy specific files (comma separated)')
   .option('-d, --diff <branchRange>', 'Delta deploy from branch to branch - example develop..uat')
   .option('-t, --test-report', 'Generate junit test-report.xml')
+  .option('--validate', 'Simulate a deployment')
   .option('--test-level <testLevel>', 'Override default testLevel')
   .option('--specified-tests <specifiedTests>', 'Comma separated list of tests to execute if testlevel=RunSpecifiedTests')
   .parse(process.argv)
@@ -36,6 +37,7 @@ deploy({
     sandbox: program.sandbox,
     serverUrl: program.serverUrl
   },
+  checkOnly: !!program.validate,
   preDeployPlugins: config.preDeployPlugins || [],
   specifiedTests: program.specifiedTests,
   testLevel: program.testLevel,
