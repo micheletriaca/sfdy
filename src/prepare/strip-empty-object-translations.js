@@ -47,7 +47,8 @@ module.exports = async (config) => {
             'label',
             { 'picklistValues': 'translation' }
           ],
-          'layouts': { 'sections': 'label' }
+          'layouts': { 'sections': 'label' },
+          'sharingReasons': 'label'
         }
 
         const processXml = (root, keysToProcess) => {
