@@ -78,6 +78,7 @@ module.exports = async ({ loginOpts, checkOnly, basePath, logger, diffCfg, files
     rollbackOnError: true
   }))
   log(chalk.yellow(`Data uploaded. Polling...`))
+  const typeOfDeploy = checkOnly ? 'Validate' : 'Deploy'
   const deployResult = await sfdcConnector.pollDeployMetadataStatus(deployJob.id, testReport, r => {
     const numProcessed = parseInt(r.numberComponentsDeployed, 10) + parseInt(r.numberComponentErrors, 10)
     if (numProcessed + '' === r.numberComponentsTotal && r.runTestsEnabled === 'true' && r.numberTestsTotal !== '0') {
@@ -86,9 +87,9 @@ module.exports = async ({ loginOpts, checkOnly, basePath, logger, diffCfg, files
       log(chalk.grey(`Run tests: (${numProcessed}/${r.numberTestsTotal}) - Errors: ${errors}`))
     } else if (r.numberComponentsTotal !== '0') {
       const errors = r.numberComponentErrors > 0 ? chalk.red(r.numberComponentErrors) : chalk.green(r.numberComponentErrors)
-      log(chalk.grey(`Deploy: (${numProcessed}/${r.numberComponentsTotal}) - Errors: ${errors}`))
+      log(chalk.grey(`${typeOfDeploy}: (${numProcessed}/${r.numberComponentsTotal}) - Errors: ${errors}`))
     } else {
-      log(chalk.grey(`Deploy: starting...`))
+      log(chalk.grey(`${typeOfDeploy}: starting...`))
     }
   })
 

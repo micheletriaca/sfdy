@@ -36,9 +36,9 @@ const printDeployResult = (deployResult) => {
   }
 
   if (deployResult.status === 'Succeeded') {
-    log(chalk.green(`\n*********** 💪  DEPLOYMENT SUCCEEDED 💪  ***********`))
+    log(chalk.green(`\n*********** 💪  ${deployResult.checkOnly === 'true' ? 'VALIDATION' : 'DEPLOYMENT'} SUCCEEDED 💪  ***********`))
   } else {
-    log(chalk.red('\n*********** 😭  DEPLOYMENT FAILED 😭  ***********'))
+    log(chalk.red(`\n*********** 😭  ${deployResult.checkOnly === 'true' ? 'VALIDATION' : 'DEPLOYMENT'} FAILED 😭  ***********`))
   }
 }
 
