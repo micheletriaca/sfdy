@@ -1,4 +1,4 @@
-const { getFieldMap, getVersionedObjects, getVersionedTabs, getVersionedApplications } = require('../utils/object-utils')
+const { getFieldMap, getVersionedObjects, getVersionedTabs, getVersionedApplications, mcNamesSpace } = require('../utils/object-utils')
 const { parseXml, buildXml } = require('../utils/xml-utils')
 const connectionFactory = require('../utils/sfdc-utils')
 const pathService = require('../services/path-service')
@@ -59,8 +59,8 @@ module.exports = async (config, sfConn = undefined) => {
         name: x.replace(/^Permissions/, '')
       }))
   })
-  const retrieveAllObjects = _.memoize(async (byLicenseOrByProfile = 'license') => _(await q(`SELECT 
-    Id, 
+  const retrieveAllObjects = _.memoize(async (byLicenseOrByProfile = 'license') => _(await q(`SELECT
+    Id,
     Parent.Profile.Name,
     Parent.License.Name,
     SobjectType,
@@ -221,6 +221,13 @@ module.exports = async (config, sfConn = undefined) => {
       log(chalk.grey('stripping unversioned fields...'))
       const fieldMap = await getFieldMap()
       fJson.Profile.fieldPermissions = fJson.Profile.fieldPermissions.filter(x => fieldMap.has(x.field[0]))
+      log(chalk.grey('done.'))
+    }
+
+    if (pcfg.stripMcFields) {
+      const mcPattern = new RegExp(`.*${mcNamesSpace}.*`)
+      log(chalk.grey('stripping mc fields...'))
+      fJson.Profile.fieldPermissions = fJson.Profile.fieldPermissions.filter(x => !mcPattern.test(x.field[0]))
       log(chalk.grey('done.'))
     }
 
