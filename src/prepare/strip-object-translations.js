@@ -70,14 +70,12 @@ module.exports = async (config) => {
         processXml(fJson.CustomObjectTranslation, keysToProcess)
       }
 
-      if (config.stripManagedPackageFields) {
-        if (fJson.CustomObjectTranslation.fields) {
-          fJson.CustomObjectTranslation.fields = fJson.CustomObjectTranslation.fields.filter(x => {
-            return !config.stripManagedPackageFields.some(mp => {
-              return new RegExp(`.*${mp}__.*`).test(x.name[0])
-            })
+      if (config.stripManagedPackageFields && fJson.CustomObjectTranslation.fields) {
+        fJson.CustomObjectTranslation.fields = fJson.CustomObjectTranslation.fields.filter(x => {
+          return !config.stripManagedPackageFields.some(mp => {
+            return new RegExp(`.*${mp}__.*`).test(x.name[0])
           })
-        }
+        })
       }
 
       fs.writeFileSync(path.resolve(pathService.getObjectTranslationsPath(), f), buildXml(fJson) + '\n')
