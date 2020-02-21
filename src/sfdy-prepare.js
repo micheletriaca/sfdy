@@ -44,13 +44,13 @@ const config = require(configPath)
   log(chalk.green(`Logged in!`))
   log(chalk.yellow(`(2/2) Applying patches...`))
 
-  await pluginEngine.registerPlugins(config.postRetrievePlugins, sfdcConnector, program.username)
   await stripEmptyTranslations(config)
   await stripObjectTranslations(config)
   await stripUselessFlsInPermissionSets(config)
   stripPartnerRoles(config)
   await fixProfiles(config)
 
+  await pluginEngine.registerPlugins(config.postRetrievePlugins, sfdcConnector, program.username)
   await pluginEngine.applyTransformationsAndWriteBack(undefined, sfdcConnector)
 
   log(chalk.green(`Patches applied!`))
