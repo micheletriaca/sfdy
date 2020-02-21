@@ -6,6 +6,7 @@ module.exports = {
   getBasePath: () => basePath,
   getProfilePath: () => path.resolve(basePath, 'src/profiles'),
   getObjectTranslationsPath: () => path.resolve(basePath, 'src/objectTranslations'),
+  getStandardValueSetTranslations: () => path.resolve(basePath, 'src/standardValueSetTranslations'),
   getTranslationsPath: () => path.resolve(basePath, 'src/translations'),
   getObjectPath: () => path.resolve(basePath, 'src/objects'),
   getTabsPath: () => path.resolve(basePath, 'src/tabs'),
