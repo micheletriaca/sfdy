@@ -26,5 +26,6 @@ fs.writeFileSync(configPath, JSON.stringify({
   },
   roles: {
     stripPartnerRoles: true
-  }
+  },
+  stripManagedPackageFields: []
 }, null, 2))
