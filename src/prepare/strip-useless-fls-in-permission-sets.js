@@ -19,9 +19,12 @@ module.exports = async (config) => {
         })
       }
 
-      if (config.permissionSets.stripMcFields && fJson.PermissionSet.fieldPermissions) {
-        const mcPattern = new RegExp(`.*${mcNamesSpace}.*`)
-        fJson.PermissionSet.fieldPermissions = fJson.PermissionSet.fieldPermissions.filter(x => !mcPattern.test(x.field[0]))
+      if (config.permissionSets.stripManagedPackageFields && fJson.PermissionSet.fieldPermissions) {
+        fJson.PermissionSet.fieldPermissions = fJson.PermissionSet.fieldPermissions.filter(x => {
+          return !config.permissionSets.stripManagedPackageFields.some(mp => {
+            return new RegExp(`.*${mp}__.*`).test(x.field[0])
+          })
+        })
       }
 
       fs.writeFileSync(path.resolve(pathService.getPermissionSetPath(), f), buildXml(fJson) + '\n')

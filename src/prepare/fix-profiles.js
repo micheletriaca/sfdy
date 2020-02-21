@@ -224,10 +224,13 @@ module.exports = async (config, sfConn = undefined) => {
       log(chalk.grey('done.'))
     }
 
-    if (pcfg.stripMcFields) {
-      const mcPattern = new RegExp(`.*${mcNamesSpace}.*`)
-      log(chalk.grey('stripping mc fields...'))
-      fJson.Profile.fieldPermissions = fJson.Profile.fieldPermissions.filter(x => !mcPattern.test(x.field[0]))
+    if (pcfg.stripManagedPackageFields) {
+      log(chalk.grey('stripping managed package fields...'))
+      fJson.Profile.fieldPermissions = fJson.Profile.fieldPermissions.filter(x => {
+        return !pcfg.stripManagedPackageFields.some(mp => {
+          return new RegExp(`.*${mp}__.*`).test(x.field[0])
+        })
+      })
       log(chalk.grey('done.'))
     }
 

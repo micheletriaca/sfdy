@@ -7,7 +7,7 @@ const configPath = path.resolve(pathService.getBasePath(), '.sfdy.json')
 fs.writeFileSync(configPath, JSON.stringify({
   permissionSets: {
     stripUselessFls: true,
-    stripMcFields: false
+    stripManagedPackageFields: []
   },
   objectTranslations: {
     stripUntranslatedFields: true,
@@ -24,7 +24,7 @@ fs.writeFileSync(configPath, JSON.stringify({
     addExtraApplications: ['*', '!standard__*'],
     stripUserPermissionsFromStandardProfiles: true,
     stripUnversionedFields: true,
-    stripMcFields: false
+    stripManagedPackageFields: []
   },
   roles: {
     stripPartnerRoles: true
