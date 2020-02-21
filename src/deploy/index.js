@@ -13,7 +13,7 @@ const printDeployResult = require('../deploy/result-logger')
 const logService = require('../services/log-service')
 const log = logService.getLogger()
 
-module.exports = async ({ loginOpts, checkOnly, basePath, logger, diffCfg, files, preDeployPlugins, specifiedTests, testLevel, testReport }) => {
+module.exports = async ({ loginOpts, checkOnly = false, basePath, logger, diffCfg, files, preDeployPlugins, specifiedTests, testLevel, testReport }) => {
   if (basePath) pathService.setBasePath(basePath)
   if (logger) logService.setLogger(logger)
   console.time('running time')
