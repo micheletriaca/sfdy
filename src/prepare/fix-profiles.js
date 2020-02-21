@@ -1,4 +1,4 @@
-const { getFieldMap, getVersionedObjects, getVersionedTabs, getVersionedApplications, mcNamesSpace } = require('../utils/object-utils')
+const { getFieldMap, getVersionedObjects, getVersionedTabs, getVersionedApplications } = require('../utils/object-utils')
 const { parseXml, buildXml } = require('../utils/xml-utils')
 const connectionFactory = require('../utils/sfdc-utils')
 const pathService = require('../services/path-service')

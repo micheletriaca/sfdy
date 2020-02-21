@@ -1,5 +1,4 @@
 
-const { mcNamesSpace } = require('../utils/object-utils')
 const { parseXml, buildXml } = require('../utils/xml-utils')
 const path = require('path')
 const fs = require('fs')

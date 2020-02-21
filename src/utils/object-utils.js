@@ -33,8 +33,7 @@ const res = {
     const versionedTabs = new Set(fs.readdirSync(pathService.getTabsPath()).map(x => x.replace('.tab', '')))
     const versionedObjects = new Set(res.getVersionedObjects())
     return allTabs.filter(x => versionedTabs.has(x.Name) || versionedObjects.has(x.SobjectName)).map(x => x.Name)
-  }),
-  mcNamesSpace: 'et4ae5__'
+  })
 }
 
 module.exports = res
