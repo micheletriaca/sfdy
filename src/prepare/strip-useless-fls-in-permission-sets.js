@@ -19,9 +19,9 @@ module.exports = async (config) => {
         })
       }
 
-      if (config.permissionSets.stripManagedPackageFields && fJson.PermissionSet.fieldPermissions) {
+      if (config.stripManagedPackageFields && fJson.PermissionSet.fieldPermissions) {
         fJson.PermissionSet.fieldPermissions = fJson.PermissionSet.fieldPermissions.filter(x => {
-          return !config.permissionSets.stripManagedPackageFields.some(mp => {
+          return !config.stripManagedPackageFields.some(mp => {
             return new RegExp(`.*${mp}__.*`).test(x.field[0])
           })
         })

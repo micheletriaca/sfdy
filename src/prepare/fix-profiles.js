@@ -224,10 +224,10 @@ module.exports = async (config, sfConn = undefined) => {
       log(chalk.grey('done.'))
     }
 
-    if (pcfg.stripManagedPackageFields) {
+    if (config.stripManagedPackageFields) {
       log(chalk.grey('stripping managed package fields...'))
       fJson.Profile.fieldPermissions = fJson.Profile.fieldPermissions.filter(x => {
-        return !pcfg.stripManagedPackageFields.some(mp => {
+        return !config.stripManagedPackageFields.some(mp => {
           return new RegExp(`.*${mp}__.*`).test(x.field[0])
         })
       })
