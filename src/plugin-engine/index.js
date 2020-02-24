@@ -17,8 +17,9 @@ const applyTransformations = async (fileFilter, sfdcConnector) => {
     .flatMap(t => multimatch(files, t.pattern).map(pattern => ({ ...t, pattern })))
     .map(async t => {
       const transformedJson = await parseXml(fs.readFileSync(path.resolve(pathService.getBasePath(), 'src', t.pattern)))
+      await (t.callback(t.pattern, transformedJson) || transformedJson)
       return {
-        transformedJson: t.callback(t.pattern, transformedJson) || transformedJson,
+        transformedJson,
         filename: t.pattern
       }
     })
