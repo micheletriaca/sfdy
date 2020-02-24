@@ -217,7 +217,7 @@ module.exports = async (config, sfConn = undefined) => {
       log(chalk.grey('done.'))
     }
 
-    if (pcfg.stripUnversionedFields) {
+    if (pcfg.stripUnversionedFields && fJson.Profile.fieldPermissions) {
       log(chalk.grey('stripping unversioned fields...'))
       const fieldMap = await getFieldMap()
       fJson.Profile.fieldPermissions = fJson.Profile.fieldPermissions.filter(x => fieldMap.has(x.field[0]))
@@ -234,7 +234,7 @@ module.exports = async (config, sfConn = undefined) => {
       log(chalk.grey('done.'))
     }
 
-    if (pcfg.addExtraApplications) {
+    if (pcfg.addExtraApplications && fJson.Profile.applicationVisibilities) {
       log(chalk.grey('adding extra application visibilities...'))
       const versionedApps = await getVersionedApplications()
       fJson.Profile.applicationVisibilities = fJson.Profile.applicationVisibilities
