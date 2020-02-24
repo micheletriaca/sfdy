@@ -5,7 +5,7 @@ const decompress = require('decompress')
 const Sfdc = require('../utils/sfdc-utils')
 const logService = require('../services/log-service')
 const stripEmptyTranslations = require('../prepare/strip-empty-translations')
-const stripEmptyObjectTranslations = require('../prepare/strip-empty-object-translations')
+const stripObjectTranslations = require('../prepare/strip-object-translations')
 const stripEmptyStandardValueSetTranslations = require('../prepare/strip-empty-standardvalueset-translations')
 const stripUselessFlsInPermissionSets = require('../prepare/strip-useless-fls-in-permission-sets')
 const stripPartnerRoles = require('../prepare/strip-partner-roles')
@@ -68,7 +68,7 @@ module.exports = async ({ loginOpts, basePath, logger, profileOnly, files, meta,
 
   await Promise.all([
     patchTranslations ? stripEmptyTranslations(config) : Promise.resolve(),
-    patchTranslations ? stripEmptyObjectTranslations(config) : Promise.resolve(),
+    patchTranslations ? stripObjectTranslations(config) : Promise.resolve(),
     patchTranslations ? stripEmptyStandardValueSetTranslations(config) : Promise.resolve(),
     patchPermissionSet ? stripUselessFlsInPermissionSets(config) : Promise.resolve(),
     patchProfiles ? fixProfiles(config, sfdcConnector) : Promise.resolve(),

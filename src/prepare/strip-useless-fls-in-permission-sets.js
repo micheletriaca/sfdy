@@ -6,15 +6,23 @@ const _ = require('highland')
 const pathService = require('../services/path-service')
 
 module.exports = async (config) => {
-  if (!fs.existsSync(pathService.getPermissionSetPath()) || !config.permissionSets || !config.permissionSets.stripUselessFls) return true
+  if (!fs.existsSync(pathService.getPermissionSetPath()) || !config.permissionSets) return true
   return _(fs.readdirSync(pathService.getPermissionSetPath()))
     .map(async f => {
       const fContent = fs.readFileSync(path.resolve(pathService.getPermissionSetPath(), f), 'utf8')
       const fJson = await parseXml(fContent)
 
-      if (fJson.PermissionSet.fieldPermissions) {
+      if (config.permissionSets.stripUselessFls && fJson.PermissionSet.fieldPermissions) {
         fJson.PermissionSet.fieldPermissions = fJson.PermissionSet.fieldPermissions.filter(x => {
           return (x.readable && x.readable[0] === 'true') || (x.editable && x.editable[0] === 'true')
+        })
+      }
+
+      if (config.stripManagedPackageFields && fJson.PermissionSet.fieldPermissions) {
+        fJson.PermissionSet.fieldPermissions = fJson.PermissionSet.fieldPermissions.filter(x => {
+          return !config.stripManagedPackageFields.some(mp => {
+            return new RegExp(`.*${mp}__.*`).test(x.field[0])
+          })
         })
       }
 

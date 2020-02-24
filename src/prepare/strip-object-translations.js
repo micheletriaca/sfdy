@@ -6,7 +6,7 @@ const fs = require('fs')
 const _ = require('highland')
 
 module.exports = async (config) => {
-  if (!fs.existsSync(pathService.getObjectTranslationsPath()) || !config.objectTranslations) return true
+  if (!fs.existsSync(pathService.getObjectTranslationsPath()) || (!config.objectTranslations && !config.stripManagedPackageFields)) return true
   const cfg = config.objectTranslations
   return _(fs.readdirSync(pathService.getObjectTranslationsPath()))
     .map(async f => {
@@ -68,6 +68,14 @@ module.exports = async (config) => {
         }
 
         processXml(fJson.CustomObjectTranslation, keysToProcess)
+      }
+
+      if (config.stripManagedPackageFields && fJson.CustomObjectTranslation.fields) {
+        fJson.CustomObjectTranslation.fields = fJson.CustomObjectTranslation.fields.filter(x => {
+          return !config.stripManagedPackageFields.some(mp => {
+            return new RegExp(`.*${mp}__.*`).test(x.name[0])
+          })
+        })
       }
 
       fs.writeFileSync(path.resolve(pathService.getObjectTranslationsPath(), f), buildXml(fJson) + '\n')

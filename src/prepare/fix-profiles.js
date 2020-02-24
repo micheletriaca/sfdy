@@ -59,8 +59,8 @@ module.exports = async (config, sfConn = undefined) => {
         name: x.replace(/^Permissions/, '')
       }))
   })
-  const retrieveAllObjects = _.memoize(async (byLicenseOrByProfile = 'license') => _(await q(`SELECT 
-    Id, 
+  const retrieveAllObjects = _.memoize(async (byLicenseOrByProfile = 'license') => _(await q(`SELECT
+    Id,
     Parent.Profile.Name,
     Parent.License.Name,
     SobjectType,
@@ -221,6 +221,16 @@ module.exports = async (config, sfConn = undefined) => {
       log(chalk.grey('stripping unversioned fields...'))
       const fieldMap = await getFieldMap()
       fJson.Profile.fieldPermissions = fJson.Profile.fieldPermissions.filter(x => fieldMap.has(x.field[0]))
+      log(chalk.grey('done.'))
+    }
+
+    if (config.stripManagedPackageFields) {
+      log(chalk.grey('stripping managed package fields...'))
+      fJson.Profile.fieldPermissions = fJson.Profile.fieldPermissions.filter(x => {
+        return !config.stripManagedPackageFields.some(mp => {
+          return new RegExp(`.*${mp}__.*`).test(x.field[0])
+        })
+      })
       log(chalk.grey('done.'))
     }
 
