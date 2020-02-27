@@ -9,6 +9,7 @@ const stripObjectTranslations = require('../prepare/strip-object-translations')
 const stripEmptyStandardValueSetTranslations = require('../prepare/strip-empty-standardvalueset-translations')
 const stripUselessFlsInPermissionSets = require('../prepare/strip-useless-fls-in-permission-sets')
 const stripPartnerRoles = require('../prepare/strip-partner-roles')
+const fixObjects = require('../prepare/fix-objects')
 const fixProfiles = require('../prepare/fix-profiles')
 const { getMembersOf, getProfileOnlyPackage, getPackageXml } = require('../utils/package-utils')
 const { printLogo } = require('../utils/branding-utils')
@@ -65,6 +66,7 @@ module.exports = async ({ loginOpts, basePath, logger, profileOnly, files, meta,
   const patchTranslations = pkgJson.types.some(x => x.name[0] === 'CustomObjectTranslation')
   const patchPermissionSet = pkgJson.types.some(x => x.name[0] === 'PermissionSet')
   const patchPartnerRoles = pkgJson.types.some(x => x.name[0] === 'Role')
+  const patchObjects = pkgJson.types.some(x => x.name[0] === 'CustomObject')
 
   await Promise.all([
     patchTranslations ? stripEmptyTranslations(config) : Promise.resolve(),
@@ -72,7 +74,8 @@ module.exports = async ({ loginOpts, basePath, logger, profileOnly, files, meta,
     patchTranslations ? stripEmptyStandardValueSetTranslations(config) : Promise.resolve(),
     patchPermissionSet ? stripUselessFlsInPermissionSets(config) : Promise.resolve(),
     patchProfiles ? fixProfiles(config, sfdcConnector) : Promise.resolve(),
-    patchPartnerRoles ? Promise.resolve(stripPartnerRoles(config)) : Promise.resolve()
+    patchPartnerRoles ? Promise.resolve(stripPartnerRoles(config)) : Promise.resolve(),
+    patchObjects ? fixObjects(config) : Promise.resolve()
   ])
 
   await pluginEngine.applyTransformationsAndWriteBack(specificFiles, sfdcConnector)
