@@ -1,9 +1,8 @@
 #!/usr/bin/env node
 
 const program = require('commander')
-const fs = require('fs-extra')
-const path = require('path')
 const pathService = require('./services/path-service')
+const configService = require('./services/config-service')
 const retrieve = require('./retrieve')
 require('./error-handling')()
 
@@ -20,14 +19,9 @@ if (!program.username || !program.password) {
   program.outputHelp(txt => { throw Error('Username and password are mandatory\n' + txt) })
 }
 
-const configPath = path.resolve(pathService.getBasePath(), '.sfdy.json')
-if (!fs.existsSync(configPath)) throw Error('Missing configuration file .sfdy.json')
-
-const config = require(configPath)
-
 retrieve({
   basePath: pathService.getBasePath(),
-  config,
+  config: configService.getConfig(),
   files: program.files,
   loginOpts: program,
   meta: program.meta,

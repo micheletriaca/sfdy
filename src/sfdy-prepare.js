@@ -4,11 +4,9 @@ const program = require('commander')
 const log = require('./services/log-service').getLogger()
 const chalk = require('chalk')
 const { printLogo } = require('./utils/branding-utils')
-const fs = require('fs')
 const Sfdc = require('./utils/sfdc-utils')
 const pluginEngine = require('./plugin-engine')
-const path = require('path')
-const pathService = require('./services/path-service')
+const configService = require('./services/config-service')
 const stripEmptyTranslations = require('./prepare/strip-empty-translations')
 const stripObjectTranslations = require('./prepare/strip-object-translations')
 const stripEmptyStandardValueSetTranslations = require('./prepare/strip-empty-standardvalueset-translations')
@@ -27,10 +25,7 @@ if (!program.username || !program.password) {
   program.outputHelp(txt => { throw Error('Username and password are mandatory\n' + txt) })
 }
 
-const configPath = path.resolve(pathService.getBasePath(), '.sfdy.json')
-if (!fs.existsSync(configPath)) throw Error('Missing configuration file .sfdy.json')
-
-const config = require(configPath)
+const config = configService.getConfig()
 
 ;(async () => {
   console.time('running time')
