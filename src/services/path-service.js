@@ -1,16 +1,19 @@
 const path = require('path')
 let basePath = process.cwd()
+let srcFolder = 'src'
 
 module.exports = {
   setBasePath: p => (basePath = p),
+  setSrcFolder: p => (srcFolder = p),
   getBasePath: () => basePath,
-  getProfilePath: () => path.resolve(basePath, 'src/profiles'),
-  getObjectTranslationsPath: () => path.resolve(basePath, 'src/objectTranslations'),
-  getStandardValueSetTranslations: () => path.resolve(basePath, 'src/standardValueSetTranslations'),
-  getTranslationsPath: () => path.resolve(basePath, 'src/translations'),
-  getObjectPath: () => path.resolve(basePath, 'src/objects'),
-  getTabsPath: () => path.resolve(basePath, 'src/tabs'),
-  getPermissionSetPath: () => path.resolve(basePath, 'src/permissionsets'),
-  getRolesPath: () => path.resolve(basePath, 'src/roles'),
-  getPackagePath: () => path.resolve(basePath, 'src', 'package.xml')
+  getSrcFolder: () => srcFolder,
+  getProfilePath: () => path.resolve(basePath, `${srcFolder}/profiles`),
+  getObjectTranslationsPath: () => path.resolve(basePath, `${srcFolder}/objectTranslations`),
+  getStandardValueSetTranslations: () => path.resolve(basePath, `${srcFolder}/standardValueSetTranslations`),
+  getTranslationsPath: () => path.resolve(basePath, `${srcFolder}/translations`),
+  getObjectPath: () => path.resolve(basePath, `${srcFolder}/objects`),
+  getTabsPath: () => path.resolve(basePath, `${srcFolder}/tabs`),
+  getPermissionSetPath: () => path.resolve(basePath, `${srcFolder}/permissionsets`),
+  getRolesPath: () => path.resolve(basePath, `${srcFolder}/roles`),
+  getPackagePath: () => path.resolve(basePath, srcFolder, 'package.xml')
 }

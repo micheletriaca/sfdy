@@ -16,7 +16,7 @@ const applyTransformations = async (fileFilter, sfdcConnector) => {
   return _(transformations)
     .flatMap(t => multimatch(files, t.pattern).map(pattern => ({ ...t, pattern })))
     .map(async t => {
-      const transformedJson = await parseXml(fs.readFileSync(path.resolve(pathService.getBasePath(), 'src', t.pattern)))
+      const transformedJson = await parseXml(fs.readFileSync(path.resolve(pathService.getBasePath(), pathService.getSrcFolder(), t.pattern)))
       await (t.callback(t.pattern, transformedJson) || transformedJson)
       return {
         transformedJson,
@@ -42,7 +42,7 @@ module.exports = {
   },
   applyTransformationsAndWriteBack: async (fileFilter, sfdcConnector) => {
     return (await applyTransformations(fileFilter, sfdcConnector))
-      .map(t => fs.writeFileSync(path.resolve(pathService.getBasePath(), 'src', t.filename), t.transformedXml))
+      .map(t => fs.writeFileSync(path.resolve(pathService.getBasePath(), pathService.getSrcFolder(), t.filename), t.transformedXml))
       .collect()
       .toPromise(Promise)
   },
