@@ -39,7 +39,9 @@ module.exports = {
       'lwc/.eslintrc.json',
       'lwc/jsconfig.json'
     ])
-    const files = _(pattern.map(x => x.replace(/^\/?src\//, '')))
+
+    const regex = new RegExp(`^/?${pathService.getSrcFolder()}/`)
+    const files = _(pattern.map(x => x.replace(regex, '')))
       .map(x => x.replace(/-meta.xml$/, ''))
       .flatMap(x => {
         const key = x.substring(0, x.indexOf('/'))
@@ -53,7 +55,7 @@ module.exports = {
       })
       .uniq()
       .value()
-    return (await glob(files, { cwd: pathService.getBasePath() + '/src' })).filter(x => !ignoreDiffs.has(x))
+    return (await glob(files, { cwd: pathService.getBasePath() + '/' + pathService.getSrcFolder() })).filter(x => !ignoreDiffs.has(x))
   },
   getPackageMapping: async sfdcConnector => {
     const cachePath = path.resolve(os.tmpdir(), 'sfdy' + sfdcConnector.sfConn.sessionId)

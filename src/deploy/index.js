@@ -13,8 +13,9 @@ const printDeployResult = require('../deploy/result-logger')
 const logService = require('../services/log-service')
 const log = logService.getLogger()
 
-module.exports = async ({ loginOpts, checkOnly = false, basePath, logger, diffCfg, files, preDeployPlugins, specifiedTests, testLevel, testReport }) => {
+module.exports = async ({ loginOpts, checkOnly = false, basePath, logger, diffCfg, files, preDeployPlugins, specifiedTests, testLevel, testReport, srcFolder }) => {
   if (basePath) pathService.setBasePath(basePath)
+  if (srcFolder) pathService.setSrcFolder(srcFolder)
   if (logger) logService.setLogger(logger)
   console.time('running time')
   printLogo()
@@ -37,8 +38,8 @@ module.exports = async ({ loginOpts, checkOnly = false, basePath, logger, diffCf
     diff.stdout
       .toString('utf8')
       .split('\n')
-      .filter(x => x.startsWith('src/'))
-      .map(x => x.replace('src/', ''))
+      .filter(x => x.startsWith(pathService.getSrcFolder() + '/'))
+      .map(x => x.replace(pathService.getSrcFolder() + '/', ''))
       .forEach(x => specificFiles.push(x))
   }
   if (files) files.split(',').map(x => x.trim()).forEach(x => specificFiles.push(x))
@@ -58,12 +59,12 @@ module.exports = async ({ loginOpts, checkOnly = false, basePath, logger, diffCf
     const packageMapping = await getPackageMapping(sfdcConnector)
     ;(await getListOfSrcFiles(packageMapping, specificFiles)).map(f => {
       if (transformedXml[f]) zip.addFile(f, Buffer.from(transformedXml[f].transformedXml, 'utf-8'))
-      else zip.addLocalFile(path.resolve(pathService.getBasePath(), 'src', f), f.substring(0, f.lastIndexOf('/')))
+      else zip.addLocalFile(path.resolve(pathService.getBasePath(), pathService.getSrcFolder(), f), f.substring(0, f.lastIndexOf('/')))
     })
   } else {
     ;(await getListOfSrcFiles()).map(f => {
       if (transformedXml[f]) zip.addFile(f, Buffer.from(transformedXml[f].transformedXml, 'utf-8'))
-      else zip.addLocalFile(path.resolve(pathService.getBasePath(), 'src', f), f.substring(0, f.lastIndexOf('/')))
+      else zip.addLocalFile(path.resolve(pathService.getBasePath(), pathService.getSrcFolder(), f), f.substring(0, f.lastIndexOf('/')))
     })
   }
   const base64 = zip.toBuffer().toString('base64')

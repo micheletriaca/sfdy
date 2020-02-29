@@ -16,6 +16,7 @@ program
   .option('--validate', 'Simulate a deployment')
   .option('--test-level <testLevel>', 'Override default testLevel')
   .option('--specified-tests <specifiedTests>', 'Comma separated list of tests to execute if testlevel=RunSpecifiedTests')
+  .option('--folder <folder>', 'Set alternative src folder')
   .parse(process.argv)
 
 if (!program.username || !program.password) {
@@ -37,5 +38,6 @@ deploy({
   preDeployPlugins: config.preDeployPlugins || [],
   specifiedTests: program.specifiedTests,
   testLevel: program.testLevel,
-  testReport: program.testReport
+  testReport: program.testReport,
+  srcFolder: program.folder
 }).then(deployResult => process.exit(deployResult.status !== 'Succeeded' ? 1 : 0))
