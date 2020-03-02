@@ -1,16 +1,9 @@
 
 const chalk = require('chalk')
 const log = require('../services/log-service').getLogger()
-const decompress = require('decompress')
+const patcher = require('./patcher')
 const Sfdc = require('../utils/sfdc-utils')
 const logService = require('../services/log-service')
-const stripEmptyTranslations = require('../prepare/strip-empty-translations')
-const stripObjectTranslations = require('../prepare/strip-object-translations')
-const stripEmptyStandardValueSetTranslations = require('../prepare/strip-empty-standardvalueset-translations')
-const stripUselessFlsInPermissionSets = require('../prepare/strip-useless-fls-in-permission-sets')
-const stripPartnerRoles = require('../prepare/strip-partner-roles')
-const fixObjects = require('../prepare/fix-objects')
-const fixProfiles = require('../prepare/fix-profiles')
 const { getMembersOf, getProfileOnlyPackage, getPackageXml } = require('../utils/package-utils')
 const { printLogo } = require('../utils/branding-utils')
 const multimatch = require('multimatch')
@@ -18,6 +11,7 @@ const pluginEngine = require('../plugin-engine')
 const path = require('path')
 const pathService = require('../services/path-service')
 const fs = require('fs-extra')
+const stripPartnerRoles = require('../prepare/strip-partner-roles')
 
 module.exports = async ({ loginOpts, basePath, logger, profileOnly, files, meta, config }) => {
   if (basePath) pathService.setBasePath(basePath)
@@ -57,27 +51,19 @@ module.exports = async ({ loginOpts, basePath, logger, profileOnly, files, meta,
   log(chalk.green(`Retrieve completed!`))
   log(chalk.yellow(`(3/4) Unzipping...`))
   const zipBuffer = Buffer.from(retrieveResult.zipFile, 'base64')
-  await decompress(zipBuffer, path.resolve(pathService.getBasePath(), 'src'), {
-    filter: f => profileOnly ? f.path.endsWith('.profile') : !/package\.xml$/.test(f.path)
-  })
+
   log(chalk.green(`Unzipped!`))
   log(chalk.yellow(`(4/4) Applying patches...`))
-  const patchProfiles = pkgJson.types.some(x => x.name[0] === 'Profile')
-  const patchTranslations = pkgJson.types.some(x => x.name[0] === 'CustomObjectTranslation')
-  const patchPermissionSet = pkgJson.types.some(x => x.name[0] === 'PermissionSet')
+
+  await patcher(zipBuffer, pkgJson, config)
+
   const patchPartnerRoles = pkgJson.types.some(x => x.name[0] === 'Role')
-  const patchObjects = pkgJson.types.some(x => x.name[0] === 'CustomObject')
 
   await Promise.all([
-    patchTranslations ? stripEmptyTranslations(config) : Promise.resolve(),
-    patchTranslations ? stripObjectTranslations(config) : Promise.resolve(),
-    patchTranslations ? stripEmptyStandardValueSetTranslations(config) : Promise.resolve(),
-    patchPermissionSet ? stripUselessFlsInPermissionSets(config) : Promise.resolve(),
-    patchProfiles ? fixProfiles(config, sfdcConnector) : Promise.resolve(),
-    patchPartnerRoles ? Promise.resolve(stripPartnerRoles(config)) : Promise.resolve(),
-    patchObjects ? fixObjects(config) : Promise.resolve()
+    patchPartnerRoles ? Promise.resolve(stripPartnerRoles(config)) : Promise.resolve()
   ])
 
+  // TODO: capire cosa fare da qui in poi
   await pluginEngine.applyTransformationsAndWriteBack(specificFiles, sfdcConnector)
 
   const APPS_PATH = path.resolve(pathService.getBasePath(), 'src', 'applications')
