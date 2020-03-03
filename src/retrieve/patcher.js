@@ -37,8 +37,8 @@ const patchFile = async (file, config, patchesToApply) => {
   file.xml = buildXml(fJson) + '\n'
 }
 
-module.exports = async (zipBuffer, pkgJson, config) => {
-  console.time('time')
+module.exports = (zipBuffer, pkgJson, config) => new Promise(resolve => {
+  console.time('patcher')
   console.log('patcher!')
 
   const patchesToApply = {
@@ -67,8 +67,8 @@ module.exports = async (zipBuffer, pkgJson, config) => {
           await mMakeDir(path.resolve(pathService.getBasePath(), 'src') + '/' + getFolderName(y.fileName))
           await wf(path.resolve(pathService.getBasePath(), 'src') + '/' + y.fileName, y.xml)
         }))
-        console.timeEnd('time')
+        console.timeEnd('patcher')
+        resolve()
       })
   })
-  console.log('end patcher')
-}
+})
