@@ -1,8 +1,7 @@
-const { getListOfSrcFiles, getPackageMapping } = require('../utils/package-utils')
 const multimatch = require('multimatch')
 const _ = require('highland')
+const l = require('lodash')
 const path = require('path')
-const fs = require('fs')
 const { parseXml, buildXml } = require('../utils/xml-utils')
 const pathService = require('../services/path-service')
 const nativeRequire = require('../utils/native-require')
@@ -10,61 +9,62 @@ const log = require('../services/log-service').getLogger()
 
 const transformations = []
 
-const applyTransformations = async (fileFilter, sfdcConnector) => {
-  const packageMapping = await getPackageMapping(sfdcConnector)
-  const files = await getListOfSrcFiles(packageMapping, fileFilter && fileFilter.length ? fileFilter : undefined)
-  return _(transformations)
-    .flatMap(t => multimatch(files, t.pattern).map(pattern => ({ ...t, pattern })))
-    .map(async t => {
-      const transformedJson = await parseXml(fs.readFileSync(path.resolve(pathService.getBasePath(), pathService.getSrcFolder(), t.pattern)))
-      await (t.callback(t.pattern, transformedJson) || transformedJson)
-      return {
-        transformedJson,
-        filename: t.pattern
-      }
-    })
-    .map(x => _(x))
-    .sequence()
-    .map(x => ({ ...x, transformedXml: buildXml(x.transformedJson) + '\n' }))
-}
-
 module.exports = {
-  addTransformation: transformation => {
-    transformations.push(transformation)
-  },
   helpers: {
     xmlTransformer: (pattern, callback) => {
-      module.exports.addTransformation({
+      transformations.push({
         pattern,
         callback
       })
     }
   },
-  applyTransformationsAndWriteBack: async (fileFilter, sfdcConnector) => {
-    return (await applyTransformations(fileFilter, sfdcConnector))
-      .map(t => fs.writeFileSync(path.resolve(pathService.getBasePath(), pathService.getSrcFolder(), t.filename), t.transformedXml))
-      .collect()
-      .toPromise(Promise)
-  },
-  applyTransformations: async (fileFilter, sfdcConnector) => {
-    return (await applyTransformations(fileFilter, sfdcConnector))
-      .collect()
-      .toPromise(Promise)
-  },
-  registerPlugins: async (plugins, sfdcConnector, username, pkgJson) => {
+  registerPlugins: async (plugins, sfdcConnector, username, pkgJson, config = {}) => {
     transformations.length = 0
     await _(plugins || [])
-      .map(x => nativeRequire(path.resolve(pathService.getBasePath(), x)))
-      .map(x => x({
+      .map(pluginPath => {
+        if (typeof (pluginPath) === 'function') return pluginPath
+        return nativeRequire(path.resolve(pathService.getBasePath(), pluginPath))
+      })
+      .map(plugin => plugin({
         querySfdc: sfdcConnector.query,
         environment: process.env.environment,
         username,
         log,
-        pkg: pkgJson
+        pkg: pkgJson,
+        config
       }, module.exports.helpers))
       .map(x => _(x))
       .sequence()
       .collect()
       .toPromise(Promise)
+  },
+  applyTransformations: async (targetFiles, sfdcConnector) => {
+    const fileMap = await l.keyBy(targetFiles, 'fileName')
+    console.time('transformations')
+    console.time('parsing+callback')
+    await _(transformations)
+      .flatMap(t => multimatch(Object.keys(fileMap), t.pattern).map(pattern => ({ ...t, pattern })))
+      .map(async t => {
+        const transformedJson = fileMap[t.pattern].transformedJson || await parseXml(fileMap[t.pattern].data)
+        fileMap[t.pattern].transformedJson = transformedJson
+        const rootKey = Object.keys(transformedJson)[0]
+        await (t.callback(t.pattern, transformedJson[rootKey], fileMap) || transformedJson[rootKey])
+        return t
+      })
+      .map(x => _(x))
+      .sequence()
+      .collect()
+      .tap(() => console.timeEnd('parsing+callback'))
+      .map(tL => {
+        console.time('building')
+        Object.values(l.keyBy(tL, 'pattern')).forEach(t => {
+          fileMap[t.pattern].data = buildXml(fileMap[t.pattern].transformedJson) + '\n'
+        })
+        console.timeEnd('building')
+        return tL
+      })
+      .collect()
+      .toPromise(Promise)
+    console.timeEnd('transformations')
   }
 }

@@ -13,7 +13,7 @@ const printDeployResult = require('../deploy/result-logger')
 const logService = require('../services/log-service')
 const log = logService.getLogger()
 
-module.exports = async ({ loginOpts, checkOnly = false, basePath, logger, diffCfg, files, preDeployPlugins, specifiedTests, testLevel, testReport, srcFolder }) => {
+module.exports = async ({ loginOpts, checkOnly = false, basePath, logger, diffCfg, files, preDeployPlugins, specifiedTests, testLevel, testReport, srcFolder, config }) => {
   if (basePath) pathService.setBasePath(basePath)
   if (srcFolder) pathService.setSrcFolder(srcFolder)
   if (logger) logService.setLogger(logger)
@@ -49,7 +49,7 @@ module.exports = async ({ loginOpts, checkOnly = false, basePath, logger, diffCf
   log(chalk.yellow(`(3/4) Creating zip...`))
   const zip = new AdmZip()
 
-  await pluginEngine.registerPlugins(preDeployPlugins, sfdcConnector, loginOpts.username, pkgJson)
+  await pluginEngine.registerPlugins(preDeployPlugins, sfdcConnector, loginOpts.username, pkgJson, config)
   const transformedXml = _(await pluginEngine.applyTransformations(specificFiles, sfdcConnector))
     .keyBy('filename')
     .value()

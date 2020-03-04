@@ -39,5 +39,6 @@ deploy({
   specifiedTests: program.specifiedTests,
   testLevel: program.testLevel,
   testReport: program.testReport,
-  srcFolder: program.folder
+  srcFolder: program.folder,
+  config
 }).then(deployResult => process.exit(deployResult.status !== 'Succeeded' ? 1 : 0))
