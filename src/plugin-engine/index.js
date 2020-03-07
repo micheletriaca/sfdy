@@ -24,13 +24,14 @@ module.exports = {
   },
   registerPlugins: async (plugins, sfdcConnector, username, pkgJson, config = {}) => {
     transformations.length = 0
+    filterFns.length = 0
     await _(plugins || [])
       .map(pluginPath => {
         if (typeof (pluginPath) === 'function') return pluginPath
         return nativeRequire(path.resolve(pathService.getBasePath(), pluginPath))
       })
       .map(plugin => plugin({
-        querySfdc: sfdcConnector.query,
+        sfdcConnector,
         environment: process.env.environment,
         username,
         log,

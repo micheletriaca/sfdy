@@ -123,6 +123,7 @@ module.exports = {
   newInstance: async ({ username, password, isSandbox = true, serverUrl }) => {
     const res = new SfdcConn()
     await res.login({ username, password, isSandbox, serverUrl })
+    res.query = res.query.bind(res)
     return res
   }
 }
