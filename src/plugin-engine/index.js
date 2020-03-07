@@ -38,12 +38,14 @@ module.exports = {
       .collect()
       .toPromise(Promise)
   },
-  applyTransformations: async (targetFiles, sfdcConnector) => {
+  applyTransformations: async (targetFiles, sfdcConnector, fileFilter = []) => {
     const fileMap = await l.keyBy(targetFiles, 'fileName')
+    const filePaths = Object.keys(fileMap)
+    const targetFilePaths = fileFilter.length ? multimatch(filePaths, fileFilter) : filePaths
     console.time('transformations')
     console.time('parsing+callback')
     await _(transformations)
-      .flatMap(t => multimatch(Object.keys(fileMap), t.pattern).map(pattern => ({ ...t, pattern })))
+      .flatMap(t => multimatch(targetFilePaths, t.pattern).map(pattern => ({ ...t, pattern })))
       .map(async t => {
         const transformedJson = fileMap[t.pattern].transformedJson || await parseXml(fileMap[t.pattern].data)
         fileMap[t.pattern].transformedJson = transformedJson

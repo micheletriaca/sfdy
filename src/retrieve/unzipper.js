@@ -21,7 +21,7 @@ module.exports = (zipBuffer, sfdcConnector) => new Promise(resolve => {
     const flow = _('entry', zipFile)
     zipFile.on('end', () => { flow.end() })
     flow.map(x => { x.type = x.fileName.endsWith('/') ? 'directory' : 'file'; return x })
-      .filter(x => x.type === 'file')
+      .filter(x => x.type === 'file' && x.fileName !== 'package.xml')
       .map(async x => { x.data = await getStream.buffer(await openStream(x)); return x })
       .map(x => _(x))
       .parallel(20)

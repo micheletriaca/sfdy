@@ -4,7 +4,6 @@ const { printLogo } = require('../utils/branding-utils')
 const pluginEngine = require('../plugin-engine')
 const Sfdc = require('../utils/sfdc-utils')
 const { buildXml } = require('../utils/xml-utils')
-const path = require('path')
 const { getListOfSrcFiles, getPackageXml, getPackageMapping } = require('../utils/package-utils')
 const _ = require('lodash')
 const buildJunitTestReport = require('../deploy/junit-test-report-builder')
@@ -12,6 +11,7 @@ const pathService = require('../services/path-service')
 const printDeployResult = require('../deploy/result-logger')
 const logService = require('../services/log-service')
 const log = logService.getLogger()
+const { readAllFilesInFolder } = require('../services/file-service')
 
 module.exports = async ({ loginOpts, checkOnly = false, basePath, logger, diffCfg, files, preDeployPlugins, specifiedTests, testLevel, testReport, srcFolder, config }) => {
   if (basePath) pathService.setBasePath(basePath)
@@ -46,26 +46,23 @@ module.exports = async ({ loginOpts, checkOnly = false, basePath, logger, diffCf
   if (specificFiles.length) log(chalk.yellow(`--files specified. Deploying only specific files...`))
   const pkgJson = await getPackageXml({ specificFiles, sfdcConnector })
   log(chalk.green(`Built package.xml!`))
-  log(chalk.yellow(`(3/4) Creating zip...`))
+  log(chalk.yellow(`(3/4) Creating zip & applying predeploy patches...`))
   const zip = new AdmZip()
 
+  const allFiles = readAllFilesInFolder(pathService.getSrcFolder())
   await pluginEngine.registerPlugins(preDeployPlugins, sfdcConnector, loginOpts.username, pkgJson, config)
-  const transformedXml = _(await pluginEngine.applyTransformations(specificFiles, sfdcConnector))
-    .keyBy('filename')
-    .value()
+  await pluginEngine.applyTransformations(allFiles, sfdcConnector, specificFiles)
 
   zip.addFile('package.xml', Buffer.from(buildXml({ Package: pkgJson }) + '\n', 'utf-8'))
+  const fileMap = _.keyBy(allFiles, 'fileName')
   if (specificFiles.length) {
+    const fileList = []
     const packageMapping = await getPackageMapping(sfdcConnector)
-    ;(await getListOfSrcFiles(packageMapping, specificFiles)).map(f => {
-      if (transformedXml[f]) zip.addFile(f, Buffer.from(transformedXml[f].transformedXml, 'utf-8'))
-      else zip.addLocalFile(path.resolve(pathService.getBasePath(), pathService.getSrcFolder(), f), f.substring(0, f.lastIndexOf('/')))
-    })
+    ;(await getListOfSrcFiles(packageMapping, specificFiles)).forEach(f => { fileList.push(f); zip.addFile(f, fileMap[f].data) })
+    log(chalk.yellow('The following files will be deployed:'))
+    log(chalk.grey(fileList.join('\n')))
   } else {
-    ;(await getListOfSrcFiles()).map(f => {
-      if (transformedXml[f]) zip.addFile(f, Buffer.from(transformedXml[f].transformedXml, 'utf-8'))
-      else zip.addLocalFile(path.resolve(pathService.getBasePath(), pathService.getSrcFolder(), f), f.substring(0, f.lastIndexOf('/')))
-    })
+    ;(await getListOfSrcFiles()).forEach(f => zip.addFile(f, fileMap[f].data))
   }
   const base64 = zip.toBuffer().toString('base64')
   log(chalk.green(`Zip created`))
