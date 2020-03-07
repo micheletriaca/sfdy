@@ -58,11 +58,15 @@ module.exports = async ({ loginOpts, checkOnly = false, basePath, logger, diffCf
   if (specificFiles.length) {
     const fileList = []
     const packageMapping = await getPackageMapping(sfdcConnector)
-    ;(await getListOfSrcFiles(packageMapping, specificFiles)).forEach(f => { fileList.push(f); zip.addFile(f, fileMap[f].data) })
+    ;(await getListOfSrcFiles(packageMapping, specificFiles))
+      .filter(pluginEngine.applyFilters())
+      .forEach(f => { fileList.push(f); zip.addFile(f, fileMap[f].data) })
     log(chalk.yellow('The following files will be deployed:'))
     log(chalk.grey(fileList.join('\n')))
   } else {
-    ;(await getListOfSrcFiles()).forEach(f => zip.addFile(f, fileMap[f].data))
+    ;(await getListOfSrcFiles())
+      .filter(pluginEngine.applyFilters())
+      .forEach(f => zip.addFile(f, fileMap[f].data))
   }
   const base64 = zip.toBuffer().toString('base64')
   log(chalk.green(`Zip created`))

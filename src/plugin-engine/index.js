@@ -8,6 +8,7 @@ const nativeRequire = require('../utils/native-require')
 const log = require('../services/log-service').getLogger()
 
 const transformations = []
+const filterFns = []
 
 module.exports = {
   helpers: {
@@ -16,6 +17,9 @@ module.exports = {
         pattern,
         callback
       })
+    },
+    filterMetadata: (filterFn) => {
+      filterFns.push(filterFn)
     }
   },
   registerPlugins: async (plugins, sfdcConnector, username, pkgJson, config = {}) => {
@@ -37,6 +41,12 @@ module.exports = {
       .sequence()
       .collect()
       .toPromise(Promise)
+  },
+  applyFilters: () => f => {
+    for (let i = 0; i < filterFns.length; i++) {
+      if (!filterFns[i](f.fileName, f.data)) return false
+    }
+    return true
   },
   applyTransformations: async (targetFiles, sfdcConnector, fileFilter = []) => {
     const fileMap = await l.keyBy(targetFiles, 'fileName')
