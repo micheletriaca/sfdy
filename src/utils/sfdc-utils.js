@@ -1,6 +1,7 @@
 const SfdcConnection = require('node-salesforce-connection')
 const log = require('../services/log-service').getLogger()
 const chalk = require('chalk')
+const fetch = require('node-fetch')
 
 const sleep = async ms => new Promise((resolve) => setTimeout(resolve, ms))
 const incrementalSleep = (level0, count1, level1, count2, level2) => {
@@ -32,11 +33,16 @@ class SfdcConn {
 
   async query (q, useTooling = false) {
     if (!this.isLoggedIn) throw Error('not logged in')
-    return (await this.sfConn.rest(`/services/data/v${this.apiVersion}/${useTooling ? 'tooling/' : ''}query/?q=${encodeURIComponent(q.replace(/\n|\t/g, ''))}`)).records
+    const url = 'https://' + this.sfConn.instanceHostname + `/services/data/v${this.apiVersion}/${useTooling ? 'tooling/' : ''}query/?q=${encodeURIComponent(q.replace(/\n|\t/g, ''))}`
+    return fetch(url, { headers: { 'Authorization': `Bearer ${this.sfConn.sessionId}` } })
+      .then(res => res.json())
+      .then(json => json.records)
   }
 
   async rest (path) {
-    return this.sfConn.rest(`/services/data/v${this.apiVersion}${path}`)
+    const url = 'https://' + this.sfConn.instanceHostname + `/services/data/v${this.apiVersion}${path}`
+    return fetch(url, { headers: { 'Authorization': `Bearer ${this.sfConn.sessionId}` } })
+      .then(res => res.json())
   }
 
   async metadata (method, args, wsdl = 'Metadata', headers = {}) {
