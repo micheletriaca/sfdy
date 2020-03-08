@@ -24,7 +24,8 @@ module.exports = async ({ loginOpts, checkOnly = false, basePath, logger, diffCf
     username: loginOpts.username,
     password: loginOpts.password,
     isSandbox: !!loginOpts.sandbox,
-    serverUrl: loginOpts.serverUrl
+    serverUrl: loginOpts.serverUrl,
+    apiVersion: (await getPackageXml()).version[0]
   })
   log(chalk.green(`Logged in!`))
   log(chalk.yellow(`(2/4) Building package.xml...`))

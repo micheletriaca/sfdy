@@ -126,8 +126,8 @@ class SfdcConn {
 }
 
 module.exports = {
-  newInstance: async ({ username, password, isSandbox = true, serverUrl }) => {
-    const res = new SfdcConn()
+  newInstance: async ({ username, password, isSandbox = true, serverUrl, apiVersion }) => {
+    const res = new SfdcConn(apiVersion)
     await res.login({ username, password, isSandbox, serverUrl })
     res.query = res.query.bind(res)
     return res
