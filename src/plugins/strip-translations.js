@@ -1,16 +1,3 @@
-const { parseXml } = require('../utils/xml-utils')
-const memoize = require('lodash').memoize
-
-const getObjectFields = memoize(async (objName, fileMap) => {
-  const objectExists = !!fileMap['objects/' + objName]
-  const objXml = (objectExists && await parseXml(fileMap['objects/' + objName].data)) || {}
-  const res = {}
-  for (let i = 0; i < objXml.CustomObject.fields.length; i++) {
-    res[objXml.CustomObject.fields[i].fullName[0]] = true
-  }
-  return res
-})
-
 const processXml = (root, keysToProcess) => {
   return Object.keys(keysToProcess).reduce((filterIt, key) => {
     if (!root[key]) return true
@@ -63,14 +50,6 @@ module.exports = async (context, helpers) => {
         'layouts': { 'sections': 'label' },
         'sharingReasons': 'label'
       })
-    })
-  }
-
-  if (context.config.objectTranslations.stripNotVersionedFields) {
-    helpers.xmlTransformer('objectTranslations/**/*', async (filename, fJson, fileMap) => {
-      const objName = filename.replace(/.*\//g, '').replace(/-.*/, '') + '.object'
-      const objFields = await getObjectFields(objName, fileMap)
-      fJson.fields = (fJson.fields || []).filter(x => objFields[x.name[0]])
     })
   }
 }

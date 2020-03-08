@@ -1,13 +1,7 @@
 const multimatch = require('multimatch')
 const chalk = require('chalk')
 const _ = require('lodash')
-const { remapProfileName, retrieveAllObjects } = require('./utils')
-
-const getVersionedObjects = _.memoize(allFiles => {
-  return Object.keys(allFiles)
-    .filter(x => x.startsWith('objects/'))
-    .map(x => x.replace(/^objects\/(.*)\.object$/, '$1'))
-})
+const { remapProfileName, retrieveAllObjects, getVersionedObjects } = require('./utils')
 
 module.exports = async (context, helpers, allFiles) => {
   if (!context.config.profiles.addExtraObjects && !context.config.profiles.addDisabledVersionedObjects) return

@@ -83,8 +83,8 @@ const retrieveAllObjects = _.memoize(async (byLicenseOrByProfile = 'license', co
     .value()
 })
 
-const retrieveAllTabVisibilities = _.memoize(async (profile, context) => {
-  return context.q(`SELECT
+const retrieveAllTabVisibilities = async (profile, context) => {
+  return context.sfdcConnector.query(`SELECT
     Id,
     Parent.Profile.Name,
     Visibility,
@@ -92,11 +92,18 @@ const retrieveAllTabVisibilities = _.memoize(async (profile, context) => {
     FROM PermissionSetTabSetting
     WHERE Parent.Profile.Name = '${profile}'`
   )
-})
+}
+
+const getVersionedObjects = allFiles => {
+  return new Set(Object.keys(allFiles)
+    .filter(x => x.startsWith('objects/'))
+    .map(x => x.replace(/^objects\/(.*)\.object$/, '$1')))
+}
 
 module.exports = {
   retrieveAllObjects,
   retrievePermissionsList,
   remapProfileName,
-  retrieveAllTabVisibilities
+  retrieveAllTabVisibilities,
+  getVersionedObjects
 }
