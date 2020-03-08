@@ -5,6 +5,7 @@ module.exports = [
   require('./profile-plugins/add-all-permissions-to-custom-profiles'),
   require('./profile-plugins/add-objects-to-profiles'),
   require('./profile-plugins/add-tab-visibilities-to-profiles'),
+  require('./profile-plugins/add-application-visibilities-to-profiles'),
   require('./strip-partner-roles'),
   require('./strip-translations'),
   require('./strip-unversioned-stuff')

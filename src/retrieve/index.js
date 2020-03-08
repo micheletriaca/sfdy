@@ -24,13 +24,6 @@ module.exports = async ({ loginOpts, basePath, logger, profileOnly, files, meta,
   })
   log(chalk.green(`Logged in!`))
 
-  await pluginEngine.registerPlugins(
-    [...standardPlugins, ...config.postRetrievePlugins],
-    sfdcConnector,
-    loginOpts.username,
-    null,
-    config)
-
   log(chalk.yellow(`(2/3) Retrieving metadata...`))
   if (profileOnly) log(chalk.yellow(`--profile-only=true. Retrieving profiles only...`))
   const specificFiles = (files && files.split(',').map(x => x.trim())) || []
@@ -47,6 +40,13 @@ module.exports = async ({ loginOpts, basePath, logger, profileOnly, files, meta,
       })
   )
   if (specificFiles.length) log(chalk.yellow(`delta package generated`))
+
+  await pluginEngine.registerPlugins(
+    [...standardPlugins, ...config.postRetrievePlugins],
+    sfdcConnector,
+    loginOpts.username,
+    pkgJson,
+    config)
 
   const retrieveJob = await sfdcConnector.retrieveMetadata(pkgJson)
   const retrieveResult = await sfdcConnector.pollRetrieveMetadataStatus(retrieveJob.id)
