@@ -43,7 +43,7 @@ module.exports = async ({ loginOpts, basePath, logger, profileOnly, files, meta,
   if (specificFiles.length) log(chalk.yellow(`delta package generated`))
 
   await pluginEngine.registerPlugins(
-    [...standardPlugins, ...config.postRetrievePlugins],
+    [...standardPlugins, ...(config.postRetrievePlugins || [])],
     sfdcConnector,
     loginOpts.username,
     pkgJson,

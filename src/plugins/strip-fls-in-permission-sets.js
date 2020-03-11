@@ -1,5 +1,7 @@
+const get = require('lodash').get
+
 module.exports = async (context, helpers) => {
-  if (!context.config.permissionSets.stripUselessFls) return
+  if (!get(context, 'config.permissionSets.stripUselessFls')) return
 
   helpers.xmlTransformer('permissionsets/**/*', async (filename, fJson) => {
     fJson.fieldPermissions = (fJson.fieldPermissions || []).filter(x => {

@@ -1,5 +1,6 @@
 const { parseXml } = require('../utils/xml-utils')
 const _ = require('highland')
+const get = require('lodash').get
 
 const getFieldMap = async allFiles => {
   return _(Object.values(allFiles))
@@ -27,14 +28,14 @@ const getFieldMap = async allFiles => {
 module.exports = async (context, helpers) => {
   const cachedGetFieldMap = (cache => async allFiles => cache || (cache = await getFieldMap(allFiles)))()
 
-  if (context.config.profiles.stripUnversionedFields) {
+  if (get(context, 'config.profiles.stripUnversionedFields')) {
     helpers.xmlTransformer('profiles/**/*', async (filename, fJson, fileMap) => {
       const fieldMap = await cachedGetFieldMap(fileMap)
       fJson.fieldPermissions = (fJson.fieldPermissions || []).filter(x => fieldMap.has(x.field[0]))
     })
   }
 
-  if (context.config.objectTranslations.stripNotVersionedFields) {
+  if (get(context, 'config.objectTranslations.stripNotVersionedFields')) {
     helpers.xmlTransformer('objectTranslations/**/*', async (filename, fJson, fileMap) => {
       const fieldMap = await cachedGetFieldMap(fileMap)
       fJson.fields = (fJson.fields || []).filter(x => fieldMap.has(x.field[0]))

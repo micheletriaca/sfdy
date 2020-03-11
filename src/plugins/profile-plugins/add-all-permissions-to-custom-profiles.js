@@ -1,9 +1,10 @@
 const _ = require('lodash')
 const chalk = require('chalk')
 const { remapProfileName, retrievePermissionsList } = require('./utils')
+const get = require('lodash').get
 
 module.exports = async (context, helpers) => {
-  if (!context.config.profiles.addAllUserPermissions) return
+  if (!get(context, 'config.profiles.addAllUserPermissions')) return
   context.q = _.memoize(context.sfdcConnector.query)
 
   helpers.xmlTransformer('profiles/**/*', async (filename, fJson) => {

@@ -1,3 +1,5 @@
+const get = require('lodash').get
+
 const processXml = (root, keysToProcess) => {
   return Object.keys(keysToProcess).reduce((filterIt, key) => {
     if (!root[key]) return true
@@ -15,7 +17,7 @@ const processXml = (root, keysToProcess) => {
 }
 
 module.exports = async (context, helpers) => {
-  if (context.config.objectTranslations.stripUntranslatedFields) {
+  if (get(context, 'config.objectTranslations.stripUntranslatedFields')) {
     helpers.xmlTransformer('translations/**/*', async (filename, fJson) => {
       processXml(fJson, {
         'reportTypes': [

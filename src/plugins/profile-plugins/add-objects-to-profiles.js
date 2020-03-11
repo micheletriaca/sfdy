@@ -2,11 +2,12 @@ const multimatch = require('multimatch')
 const chalk = require('chalk')
 const _ = require('lodash')
 const { remapProfileName, retrieveAllObjects, getVersionedObjects } = require('./utils')
+const get = require('lodash').get
 
 module.exports = async (context, helpers, allFiles) => {
-  if (!context.config.profiles.addExtraObjects && !context.config.profiles.addDisabledVersionedObjects) return
+  if (!get(context, 'config.profiles.addExtraObjects') && !get(context, 'config.profiles.addDisabledVersionedObjects')) return
   context.q = _.memoize(context.sfdcConnector.query)
-  const extraObjectsGlob = context.config.profiles.addExtraObjects || []
+  const extraObjectsGlob = get(context, 'config.profiles.addExtraObjects', [])
 
   helpers.xmlTransformer('profiles/**/*', async (filename, fJson, allFiles) => {
     const isCustom = fJson.custom && fJson.custom[0] === 'true'
@@ -27,7 +28,7 @@ module.exports = async (context, helpers, allFiles) => {
     const extraObjects = allObjects.filter(x => !versionedObjects.has(x))
     const missingVersionedObjects = allObjects.filter(x => !currentProfileObjects.has(x) && versionedObjects.has(x))
     const finalPermissions = {
-      ..._(!context.config.profiles.addDisabledVersionedObjects ? [] : missingVersionedObjects)
+      ..._(!get(context, 'config.profiles.addDisabledVersionedObjects') ? [] : missingVersionedObjects)
         .map(obj => ({
           allowCreate: false,
           allowDelete: false,
