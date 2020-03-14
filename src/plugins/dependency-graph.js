@@ -15,6 +15,7 @@ module.exports = async (context, helpers) => {
 
   helpers.requireMetadata('CustomObjectTranslation/*', async ({ filterPackage }) => filterPackage([
     'CustomObject',
-    'CustomField'
+    'CustomField',
+    'Layout'
   ]))
 }

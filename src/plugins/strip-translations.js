@@ -47,7 +47,9 @@ module.exports = async (context, helpers) => {
         'fields': [
           'help',
           'label',
-          { 'picklistValues': 'translation' }
+          'relationshipLabel',
+          { 'picklistValues': 'translation' },
+          { 'lookupFilter': 'errorMessage' }
         ],
         'layouts': { 'sections': 'label' },
         'sharingReasons': 'label'

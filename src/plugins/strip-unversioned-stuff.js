@@ -37,7 +37,8 @@ module.exports = async (context, helpers) => {
   if (get(context, 'config.objectTranslations.stripNotVersionedFields')) {
     helpers.xmlTransformer('objectTranslations/**/*', async (filename, fJson, requireFiles) => {
       const fieldMap = await cachedGetFieldMap(await requireFiles('objects/**/*'))
-      fJson.fields = (fJson.fields || []).filter(x => fieldMap.has(x.field[0]))
+      const objName = filename.replace(/^objectTranslations\/(.*)-.*\.objectTranslation$/, '$1')
+      fJson.fields = (fJson.fields || []).filter(x => fieldMap.has(objName + '.' + x.name[0]))
     })
   }
 }
