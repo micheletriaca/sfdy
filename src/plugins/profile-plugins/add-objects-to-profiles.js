@@ -4,16 +4,16 @@ const _ = require('lodash')
 const { remapProfileName, retrieveAllObjects, getVersionedObjects } = require('./utils')
 const get = require('lodash').get
 
-module.exports = async (context, helpers, allFiles) => {
+module.exports = async (context, helpers) => {
   if (!get(context, 'config.profiles.addExtraObjects') && !get(context, 'config.profiles.addDisabledVersionedObjects')) return
   context.q = _.memoize(context.sfdcConnector.query)
   const extraObjectsGlob = get(context, 'config.profiles.addExtraObjects', [])
 
-  helpers.xmlTransformer('profiles/**/*', async (filename, fJson, allFiles) => {
+  helpers.xmlTransformer('profiles/**/*', async (filename, fJson, requireFiles) => {
     const isCustom = fJson.custom && fJson.custom[0] === 'true'
     if (!isCustom) return
     context.log(chalk.blue(`----> Processing ${filename}: Adding objects`))
-    const versionedObjects = new Set(getVersionedObjects(allFiles))
+    const versionedObjects = new Set(getVersionedObjects(await requireFiles('objects/**/*')))
     const allObjects = (await retrieveAllObjects('license', context))['Salesforce']
       .filter(b => {
         const x = b.SobjectType

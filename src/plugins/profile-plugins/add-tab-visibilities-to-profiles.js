@@ -13,12 +13,12 @@ const getVersionedTabs = _.memoize((allTabs, allFiles) => {
   return allTabs.filter(x => versionedTabs.has(x.Name) || versionedObjects.has(x.SobjectName)).map(x => x.Name)
 })
 
-module.exports = async (context, helpers, allFiles) => {
+module.exports = async (context, helpers) => {
   const extraTabsGlob = _.get(context, 'config.profiles.addExtraTabVisibility', [])
   if (!extraTabsGlob.length) return
   context.q = _.memoize(context.sfdcConnector.query)
 
-  helpers.xmlTransformer('profiles/**/*', async (filename, fJson, allFiles) => {
+  helpers.xmlTransformer('profiles/**/*', async (filename, fJson, requireFiles) => {
     context.log(chalk.blue(`----> Processing ${filename}: Adding tabs`))
     const allTabs = [
       ...await context.q('SELECT Name, SobjectName FROM TabDefinition ORDER BY Name'),
@@ -36,10 +36,10 @@ module.exports = async (context, helpers, allFiles) => {
         .collect()
         .toPromise(Promise)
     ]
-    const versionedTabs = new Set(getVersionedTabs(allTabs, allFiles))
+    const versionedTabs = new Set(getVersionedTabs(allTabs, await requireFiles('tabs/**/*')))
     const realProfileName = await remapProfileName(filename, context)
     const visibleTabs = _.keyBy(await retrieveAllTabVisibilities(realProfileName, context), 'Name')
-    const versionedObjects = getVersionedObjects(allFiles)
+    const versionedObjects = getVersionedObjects(await requireFiles('objects/**/*'))
     const tabVisibilities = allTabs
       .filter(b => {
         if (versionedTabs.has(b.Name) || versionedObjects.has(b.SobjectName)) return true

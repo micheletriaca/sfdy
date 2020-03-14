@@ -10,7 +10,6 @@ program
   .option('-u, --username <username>', 'Username')
   .option('-p, --password <password>', 'Password + Token')
   .option('-s, --sandbox', 'Use sandbox login endpoint')
-  .option('-P, --profile-only', 'Retrieve profiles only')
   .option('-f, --files <files>', 'Retrieve specific files')
   .option('-m, --meta <metadatas>', 'Retrieve specific metadata')
   .parse(process.argv)
@@ -24,6 +23,5 @@ retrieve({
   config: configService.getConfig(),
   files: program.files,
   loginOpts: program,
-  meta: program.meta,
-  profileOnly: program.profileOnly
+  meta: program.meta
 })

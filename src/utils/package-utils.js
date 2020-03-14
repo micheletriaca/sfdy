@@ -7,32 +7,6 @@ const os = require('os')
 const pathService = require('../services/path-service')
 
 module.exports = {
-  getMembersOf: async pkgName => {
-    const packageJson = await parseXml(fs.readFileSync(pathService.getPackagePath()))
-    const block = packageJson.Package.types.find(x => x.name[0] === pkgName)
-    return !block ? [] : block.members
-  },
-  getTypeList: async () => {
-    const packageJson = await parseXml(fs.readFileSync(pathService.getPackagePath()))
-    return packageJson.Package.types.map(x => x.name[0])
-  },
-  getProfileOnlyPackage: async () => {
-    const packageJson = await parseXml(fs.readFileSync(pathService.getPackagePath()))
-    packageJson.Package.types = packageJson.Package.types.filter(t => (
-      t.name[0] === 'CustomApplication' ||
-      t.name[0] === 'ApexClass' ||
-      t.name[0] === 'ApexPage' ||
-      t.name[0] === 'CustomObject' ||
-      t.name[0] === 'CustomTab' ||
-      t.name[0] === 'CustomPermission' ||
-      t.name[0] === 'Layout' ||
-      t.name[0] === 'DataCategoryGroup' ||
-      t.name[0] === 'ExternalDataSource' ||
-      t.name[0] === 'Profile' ||
-      t.name[0] === 'PermissionSet'
-    ))
-    return packageJson.Package
-  },
   getListOfSrcFiles: async (packageMapping = {}, pattern = ['**/*']) => {
     const ignoreDiffs = new Set([
       'package.xml',

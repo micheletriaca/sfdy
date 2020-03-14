@@ -11,7 +11,7 @@ const pathService = require('../services/path-service')
 const printDeployResult = require('../deploy/result-logger')
 const logService = require('../services/log-service')
 const log = logService.getLogger()
-const { readAllFilesInFolder } = require('../services/file-service')
+const { readFiles, readAllFilesInFolder } = require('../services/file-service')
 
 module.exports = async ({ loginOpts, checkOnly = false, basePath, logger, diffCfg, files, preDeployPlugins, specifiedTests, testLevel, testReport, srcFolder, config }) => {
   if (basePath) pathService.setBasePath(basePath)
@@ -50,12 +50,15 @@ module.exports = async ({ loginOpts, checkOnly = false, basePath, logger, diffCf
   log(chalk.yellow(`(3/4) Creating zip & applying predeploy patches...`))
   const zip = new AdmZip()
 
-  const allFiles = readAllFilesInFolder(pathService.getSrcFolder())
+  const targetFiles = specificFiles.length
+    ? readFiles(pathService.getSrcFolder())
+    : readAllFilesInFolder(pathService.getSrcFolder())
+
   await pluginEngine.registerPlugins(preDeployPlugins, sfdcConnector, loginOpts.username, pkgJson, config)
-  await pluginEngine.applyTransformations(allFiles, sfdcConnector, specificFiles)
+  await pluginEngine.applyTransformations(targetFiles, sfdcConnector)
 
   zip.addFile('package.xml', Buffer.from(buildXml({ Package: pkgJson }) + '\n', 'utf-8'))
-  const fileMap = _.keyBy(allFiles, 'fileName')
+  const fileMap = _.keyBy(targetFiles, 'fileName')
   if (specificFiles.length) {
     const fileList = []
     const packageMapping = await getPackageMapping(sfdcConnector)

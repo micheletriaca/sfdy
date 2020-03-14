@@ -1,4 +1,5 @@
 module.exports = [
+  require('./dependency-graph'),
   require('./strip-managed-package-stuff'),
   require('./strip-fls-in-permission-sets'),
   require('./profile-plugins/strip-immutable-stuff-from-std-profiles'),
