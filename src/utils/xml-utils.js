@@ -2,6 +2,7 @@ const util = require('util')
 const xml2js = require('xml2js')
 
 const parser = util.promisify(new xml2js.Parser({ explicitArray: true }).parseString)
+const noArrayParser = util.promisify(new xml2js.Parser({ explicitArray: false }).parseString)
 
 const renderOpts = {
   indent: '    ',
@@ -72,5 +73,6 @@ const sfdcXmlBuilder = (tagname, value, isRoot = true, indentLevel = '') => {
 
 module.exports = {
   parseXml: parser,
+  parseXmlNoArray: noArrayParser,
   buildXml: v => sfdcXmlBuilder(Object.keys(v)[0], Object.values(v)[0])
 }

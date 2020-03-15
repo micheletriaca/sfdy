@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 const program = require('commander')
-const log = require('./services/log-service').getLogger()
+const logger = require('./services/log-service')
 const chalk = require('chalk')
 const { printLogo } = require('./utils/branding-utils')
 const Sfdc = require('./utils/sfdc-utils')
@@ -32,14 +32,14 @@ const config = configService.getConfig()
   console.time('running time')
   printLogo()
 
-  log(chalk.yellow(`(1/2) Logging in salesforce as ${program.username}...`))
+  logger.log(chalk.yellow(`(1/2) Logging in salesforce as ${program.username}...`))
   const sfdcConnector = await Sfdc.newInstance({
     username: program.username,
     password: program.password,
     isSandbox: !!program.sandbox
   })
-  log(chalk.green(`Logged in!`))
-  log(chalk.yellow(`(2/2) Applying patches...`))
+  logger.log(chalk.green(`Logged in!`))
+  logger.log(chalk.yellow(`(2/2) Applying patches...`))
 
   const basePath = path.resolve(getBasePath(), getSrcFolder())
   const allFiles = readAllFilesInFolder(basePath)
@@ -49,6 +49,6 @@ const config = configService.getConfig()
     await wf(path.join(basePath, y.fileName), y.data)
   }))
 
-  log(chalk.green(`Patches applied!`))
+  logger.log(chalk.green(`Patches applied!`))
   console.timeEnd('running time')
 })()

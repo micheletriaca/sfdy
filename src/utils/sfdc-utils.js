@@ -1,5 +1,5 @@
-const SfdcConnection = require('node-salesforce-connection')
-const log = require('../services/log-service').getLogger()
+const { buildXml, parseXmlNoArray } = require('./xml-utils')
+const logger = require('../services/log-service')
 const chalk = require('chalk')
 const fetch = require('node-fetch')
 
@@ -14,52 +14,72 @@ const incrementalSleep = (level0, count1, level1, count2, level2) => {
   }
 }
 
-class SfdcConn {
-  constructor (apiVersion = '47.0') {
-    this.apiVersion = apiVersion
-    this.sfConn = new SfdcConnection()
-    this.isLoggedIn = false
+const wsdlMap = {
+  partner: {
+    urlPath: '/services/Soap/u/',
+    namespaces: { 'xmlns': 'urn:partner.soap.sforce.com', 'xmlns:sf': 'urn:sobject.partner.soap.sforce.com' }
+  },
+  metadata: {
+    urlPath: '/services/Soap/m/',
+    namespaces: { 'xmlns': 'http://soap.sforce.com/2006/04/metadata' }
   }
+}
 
-  async login ({ username, password, isSandbox = true, serverUrl }) {
-    await this.sfConn.soapLogin({
-      hostname: (serverUrl && serverUrl.replace('https://', '')) || `${isSandbox ? 'test' : 'login'}.salesforce.com`,
-      apiVersion: this.apiVersion,
-      username: username,
-      password: password
-    })
-    this.isLoggedIn = true
+class SfdcConn {
+  async login ({ username, password, isSandbox = true, serverUrl, apiVersion }) {
+    this.apiVersion = apiVersion
+    this.instanceUrl = 'https://' + ((serverUrl && serverUrl.replace('https://', '')) || `${isSandbox ? 'test' : 'login'}.salesforce.com`)
+    const { serverUrl: instanceUrl, sessionId } = await this.metadata('login', { username, password }, 'partner')
+    this.instanceUrl = /(https:\/\/.*)\/services/.exec(instanceUrl)[1]
+    this.sessionId = sessionId
   }
 
   async query (q, useTooling = false) {
-    if (!this.isLoggedIn) throw Error('not logged in')
-    const url = 'https://' + this.sfConn.instanceHostname + `/services/data/v${this.apiVersion}/${useTooling ? 'tooling/' : ''}query/?q=${encodeURIComponent(q.replace(/\n|\t/g, ''))}`
-    return fetch(url, { headers: { 'Authorization': `Bearer ${this.sfConn.sessionId}` } })
+    const url = `${this.instanceUrl}/services/data/v${this.apiVersion}/${useTooling ? 'tooling/' : ''}query/?q=${encodeURIComponent(q.replace(/\n|\t/g, ''))}`
+    return fetch(url, { headers: { 'Authorization': `Bearer ${this.sessionId}` } })
       .then(res => res.json())
       .then(json => json.records)
   }
 
   async rest (path) {
-    const url = 'https://' + this.sfConn.instanceHostname + `/services/data/v${this.apiVersion}${path}`
-    return fetch(url, { headers: { 'Authorization': `Bearer ${this.sfConn.sessionId}` } })
-      .then(res => res.json())
+    const url = this.instanceUrl + `/services/data/v${this.apiVersion}${path}`
+    return fetch(url, { headers: { 'Authorization': `Bearer ${this.sessionId}` } }).then(res => res.json())
   }
 
-  async metadata (method, args, wsdl = 'Metadata', headers = {}) {
-    const metadataWsdl = this.sfConn.wsdl(this.apiVersion, wsdl)
-    return this.sfConn.soap(metadataWsdl, method, args, headers)
-  }
-
-  async retrieveMetadata (pkgJson, fetchCustomApplications = false) {
-    // It seems that there's no other way to retrieve custom application visibility in profiles
-    if (fetchCustomApplications && pkgJson.types.some(x => x.name[0] === 'Profile')) {
-      pkgJson.types = pkgJson.types.filter(x => x.name[0] !== 'CustomApplication')
-      pkgJson.types.push({
-        members: ['*'],
-        name: ['CustomApplication']
-      })
+  async metadata (method, args, wsdl = 'metadata') {
+    const res = await fetch(this.instanceUrl + wsdlMap[wsdl].urlPath + this.apiVersion, {
+      method: 'post',
+      body: buildXml({
+        'soapenv:Envelope': {
+          $: {
+            'xmlns:soapenv': 'http://schemas.xmlsoap.org/soap/envelope/',
+            'xmlns:xsd': 'http://www.w3.org/2001/XMLSchema',
+            'xmlns:xsi': 'http://www.w3.org/2001/XMLSchema-instance',
+            ...wsdlMap[wsdl].namespaces
+          },
+          'soapenv:Header': { SessionHeader: { sessionId: this.sessionId || '' } },
+          'soapenv:Body': { [method]: args }
+        }
+      }),
+      headers: {
+        'Content-Type': 'text/xml',
+        'SOAPAction': '""'
+      }
+    })
+    const body = (await parseXmlNoArray(await res.text()))['soapenv:Envelope']['soapenv:Body']
+    if (res.ok) {
+      return body[method + 'Response'].result
+    } else {
+      const err = new Error()
+      err.name = 'SalesforceSoapError'
+      err.message = body['soapenv:Fault'].faultstring
+      err.detail = body['soapenv:Fault']
+      err.response = res
+      throw err
     }
+  }
 
+  async retrieveMetadata (pkgJson) {
     delete pkgJson['$']
     return this.metadata('retrieve', {
       RetrieveRequest: {
@@ -81,7 +101,7 @@ class SfdcConn {
       if (res.done === 'true') {
         return res
       } else {
-        log(chalk.grey('checking retrieve status...', res.status))
+        logger.log(chalk.grey('checking retrieve status...', res.status))
       }
     }
   }
@@ -127,8 +147,8 @@ class SfdcConn {
 
 module.exports = {
   newInstance: async ({ username, password, isSandbox = true, serverUrl, apiVersion }) => {
-    const res = new SfdcConn(apiVersion)
-    await res.login({ username, password, isSandbox, serverUrl })
+    const res = new SfdcConn()
+    await res.login({ username, password, isSandbox, serverUrl, apiVersion })
     res.query = res.query.bind(res)
     return res
   }

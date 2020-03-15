@@ -7,7 +7,6 @@
   "author": "Michele Triaca",
   "license": "MIT",
   "dependencies": {
-    "adm-zip": "^0.4.14",
     "chalk": "^3.0.0",
     "commander": "^2.20.3",
     "fs-extra": "^8.1.0",
@@ -19,9 +18,9 @@
     "make-dir": "^3.0.2",
     "multimatch": "^4.0.0",
     "node-fetch": "^2.6.0",
-    "node-salesforce-connection": "^2.3.1",
     "xml2js": "^0.4.23",
-    "yauzl": "^2.10.0"
+    "yauzl": "^2.10.0",
+    "yazl": "^2.5.1"
   },
   "devDependencies": {
     "eslint": "^6.8.0",

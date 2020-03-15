@@ -1,5 +1,5 @@
 const _ = require('highland')
-const log = require('../services/log-service').getLogger()
+const logger = require('../services/log-service')
 const chalk = require('chalk')
 
 const counterGen = (n = 1) => () => `${n++}. `
@@ -7,38 +7,38 @@ const counterGen = (n = 1) => () => `${n++}. `
 const printDeployResult = (deployResult) => {
   const d = deployResult.details
   if (deployResult.status === 'Failed') {
-    log(chalk.red('Request Status: Failed'))
+    logger.log(chalk.red('Request Status: Failed'))
 
     if (d.componentFailures) {
-      log(chalk.red('\nAll Component Failures:'))
+      logger.log(chalk.red('\nAll Component Failures:'))
       const errCounter = counterGen()
       _([d.componentFailures]).flatten().each(x => {
-        log(chalk.red(`${errCounter()} ${x.fileName} -- Error: ${x.problem} (line ${x.lineNumber}, column ${x.columnNumber})`))
+        logger.log(chalk.red(`${errCounter()} ${x.fileName} -- Error: ${x.problem} (line ${x.lineNumber}, column ${x.columnNumber})`))
       })
     }
 
     if (d.runTestResult && d.runTestResult.failures) {
-      log(chalk.red('\nAll Test Failures:'))
+      logger.log(chalk.red('\nAll Test Failures:'))
       const errCounter = counterGen()
       _([d.runTestResult.failures]).flatten().each(x => {
-        log(chalk.red(`${errCounter()} ${x.name}.${x.methodName} -- ${x.message}`))
-        log(chalk.red(`    Stacktrace: ${x.stackTrace}`))
+        logger.log(chalk.red(`${errCounter()} ${x.name}.${x.methodName} -- ${x.message}`))
+        logger.log(chalk.red(`    Stacktrace: ${x.stackTrace}`))
       })
     }
 
     if (d.runTestResult && d.runTestResult.codeCoverageWarnings) {
-      log(chalk.red('\nCode Coverage Failures:'))
+      logger.log(chalk.red('\nCode Coverage Failures:'))
       const errCounter = counterGen()
       _([d.runTestResult.codeCoverageWarnings]).flatten().each(x => {
-        log(chalk.red(`${errCounter()} ${x.name} -- ${x.message}`))
+        logger.log(chalk.red(`${errCounter()} ${x.name} -- ${x.message}`))
       })
     }
   }
 
   if (deployResult.status === 'Succeeded') {
-    log(chalk.green(`\n*********** 💪  ${deployResult.checkOnly === 'true' ? 'VALIDATION' : 'DEPLOYMENT'} SUCCEEDED 💪  ***********`))
+    logger.log(chalk.green(`\n*********** 💪  ${deployResult.checkOnly === 'true' ? 'VALIDATION' : 'DEPLOYMENT'} SUCCEEDED 💪  ***********`))
   } else {
-    log(chalk.red(`\n*********** 😭  ${deployResult.checkOnly === 'true' ? 'VALIDATION' : 'DEPLOYMENT'} FAILED 😭  ***********`))
+    logger.log(chalk.red(`\n*********** 😭  ${deployResult.checkOnly === 'true' ? 'VALIDATION' : 'DEPLOYMENT'} FAILED 😭  ***********`))
   }
 }
 

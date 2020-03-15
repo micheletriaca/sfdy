@@ -5,6 +5,7 @@ const glob = require('globby')
 const _ = require('lodash')
 const os = require('os')
 const pathService = require('../services/path-service')
+const crypto = require('crypto')
 
 module.exports = {
   getListOfSrcFiles: async (packageMapping = {}, pattern = ['**/*']) => {
@@ -32,7 +33,8 @@ module.exports = {
     return (await glob(files, { cwd: pathService.getBasePath() + '/' + pathService.getSrcFolder() })).filter(x => !ignoreDiffs.has(x))
   },
   getPackageMapping: async sfdcConnector => {
-    const cachePath = path.resolve(os.tmpdir(), 'sfdy' + sfdcConnector.sfConn.sessionId)
+    const cacheKey = crypto.createHash('md5').update(sfdcConnector.sessionId).digest('hex')
+    const cachePath = path.resolve(os.tmpdir(), 'sfdy' + cacheKey)
     const hasCache = fs.existsSync(cachePath)
     if (hasCache) return JSON.parse(fs.readFileSync(cachePath))
     const packageMapping = _.keyBy((await sfdcConnector.describeMetadata()).metadataObjects, 'directoryName')
