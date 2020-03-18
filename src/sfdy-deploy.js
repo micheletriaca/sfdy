@@ -36,6 +36,7 @@ deploy({
   },
   checkOnly: !!program.validate,
   preDeployPlugins: config.preDeployPlugins || [],
+  renderers: config.renderers || [],
   specifiedTests: program.specifiedTests,
   testLevel: program.testLevel,
   testReport: program.testReport,

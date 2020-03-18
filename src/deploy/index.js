@@ -12,8 +12,24 @@ const pathService = require('../services/path-service')
 const printDeployResult = require('../deploy/result-logger')
 const logger = require('../services/log-service')
 const { readFiles } = require('../services/file-service')
+const path = require('path')
+const nativeRequire = require('../utils/native-require')
 
-module.exports = async ({ loginOpts, checkOnly = false, basePath, logger: _logger, diffCfg, files, preDeployPlugins, specifiedTests, testLevel, testReport, srcFolder, config }) => {
+module.exports = async ({
+  loginOpts,
+  checkOnly = false,
+  basePath,
+  logger: _logger,
+  diffCfg,
+  files,
+  preDeployPlugins = [],
+  renderers = [],
+  specifiedTests,
+  testLevel,
+  testReport,
+  srcFolder,
+  config
+}) => {
   if (basePath) pathService.setBasePath(basePath)
   if (srcFolder) pathService.setSrcFolder(srcFolder)
   if (_logger) logger.setLogger(_logger)
@@ -54,7 +70,11 @@ module.exports = async ({ loginOpts, checkOnly = false, basePath, logger: _logge
   const targetFiles = readFiles(pathService.getSrcFolder(), filesToRead)
   const fileMap = _.keyBy(targetFiles, 'fileName')
 
-  await pluginEngine.registerPlugins(preDeployPlugins, sfdcConnector, loginOpts.username, pkgJson, config)
+  const plugins = [
+    ...(renderers.map(x => nativeRequire(path.resolve(pathService.getBasePath(), x)).untransform)),
+    ...preDeployPlugins
+  ]
+  await pluginEngine.registerPlugins(plugins, sfdcConnector, loginOpts.username, pkgJson, config)
   await pluginEngine.applyTransformations(targetFiles, sfdcConnector)
 
   logger.time('zip creation')

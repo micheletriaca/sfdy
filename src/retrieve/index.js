@@ -8,6 +8,8 @@ const { printLogo } = require('../utils/branding-utils')
 const pluginEngine = require('../plugin-engine')
 const standardPlugins = require('../plugins')
 const pathService = require('../services/path-service')
+const nativeRequire = require('../utils/native-require')
+const path = require('path')
 
 module.exports = async ({ loginOpts, basePath, logger: _logger, files, meta, config }) => {
   if (basePath) pathService.setBasePath(basePath)
@@ -37,7 +39,11 @@ module.exports = async ({ loginOpts, basePath, logger: _logger, files, meta, con
   if (specificFiles.length) logger.log(chalk.yellow(`delta package generated`))
 
   await pluginEngine.registerPlugins(
-    [...standardPlugins, ...(config.postRetrievePlugins || [])],
+    [
+      ...standardPlugins,
+      ...(config.postRetrievePlugins || []),
+      ...((config.renderers || []).map(x => nativeRequire(path.resolve(pathService.getBasePath(), x)).transform))
+    ],
     sfdcConnector,
     loginOpts.username,
     pkgJson,

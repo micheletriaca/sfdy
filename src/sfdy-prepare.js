@@ -9,6 +9,9 @@ const pluginEngine = require('./plugin-engine')
 const configService = require('./services/config-service')
 const { readAllFilesInFolder } = require('./services/file-service')
 const { getBasePath, getSrcFolder } = require('./services/path-service')
+const { getPackageXml } = require('./utils/package-utils')
+const pathService = require('./services/path-service')
+const standardPlugins = require('./plugins')
 const path = require('path')
 const fs = require('fs')
 const util = require('util')
@@ -20,6 +23,7 @@ program
   .option('-u, --username <username>', 'Username')
   .option('-p, --password <password>', 'Password + Token')
   .option('-s, --sandbox', 'Use sandbox login endpoint')
+  .option('--skip-untransform', 'Skip untransform phase')
   .parse(process.argv)
 
 if (!program.username || !program.password) {
@@ -33,17 +37,26 @@ const config = configService.getConfig()
   printLogo()
 
   logger.log(chalk.yellow(`(1/2) Logging in salesforce as ${program.username}...`))
+  const packageXml = await getPackageXml()
   const sfdcConnector = await Sfdc.newInstance({
     username: program.username,
     password: program.password,
-    isSandbox: !!program.sandbox
+    isSandbox: !!program.sandbox,
+    apiVersion: packageXml.version[0]
   })
   logger.log(chalk.green(`Logged in!`))
   logger.log(chalk.yellow(`(2/2) Applying patches...`))
 
   const basePath = path.resolve(getBasePath(), getSrcFolder())
   const allFiles = readAllFilesInFolder(basePath)
-  await pluginEngine.registerPlugins(config.postRetrievePlugins, sfdcConnector, program.username)
+  const renderers = config.renderers || []
+  const plugins = [
+    ...(!program.skipUntransform ? renderers.map(x => require(path.resolve(pathService.getBasePath(), x)).untransform) : []),
+    ...standardPlugins,
+    ...(config.postRetrievePlugins || []),
+    ...renderers.map(x => require(path.resolve(pathService.getBasePath(), x)).transform)
+  ]
+  await pluginEngine.registerPlugins(plugins, sfdcConnector, program.username, packageXml, config)
   await pluginEngine.applyTransformations(allFiles, sfdcConnector)
   await Promise.all(allFiles.filter(y => y.transformedJson).map(async y => {
     await wf(path.join(basePath, y.fileName), y.data)
