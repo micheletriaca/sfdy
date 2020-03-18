@@ -14,7 +14,8 @@ module.exports = async (context, helpers) => {
     if (!isCustom) return
     context.log(chalk.blue(`----> Processing ${filename}: Adding objects`))
     const versionedObjects = new Set(getVersionedObjects(await requireFiles('objects/**/*')))
-    const allObjects = (await retrieveAllObjects('license', context))['Salesforce']
+    const allObjectsPerLicense = await retrieveAllObjects('license', context)
+    const allObjects = allObjectsPerLicense['Salesforce']
       .filter(b => {
         const x = b.SobjectType
         if (versionedObjects.has(x)) return true
@@ -25,8 +26,8 @@ module.exports = async (context, helpers) => {
     const currentProfileObjectData = (await retrieveAllObjects('profile', context))[profileRealName] || []
     const currentProfileObjectDataMap = _.keyBy(currentProfileObjectData, 'SobjectType')
     const currentProfileObjects = new Set(_.map(currentProfileObjectData, 'SobjectType'))
-    const extraObjects = allObjects.filter(x => !versionedObjects.has(x))
-    const missingVersionedObjects = allObjects.filter(x => !currentProfileObjects.has(x) && versionedObjects.has(x))
+    const extraObjects = allObjects.filter(x => !versionedObjects.has(x.SobjectType))
+    const missingVersionedObjects = allObjects.filter(x => !currentProfileObjects.has(x.SobjectType) && versionedObjects.has(x.SobjectType))
     const finalPermissions = {
       ..._(!get(context, 'config.profiles.addDisabledVersionedObjects') ? [] : missingVersionedObjects)
         .map(obj => ({
@@ -63,7 +64,10 @@ module.exports = async (context, helpers) => {
 
     fJson.objectPermissions = Object.keys(finalPermissions).sort().map(x => finalPermissions[x])
     const disabledObjects = new Set(_(fJson.objectPermissions)
-      .filter(x => Object.entries(x).every(([k, v]) => k === 'object' || v[0] === 'false' || !v[0]))
+      .filter(x => Object.entries(x).every(([k, v]) => {
+        v = Array.isArray(v) ? v : [v]
+        return k === 'object' || v[0] === 'false' || !v[0]
+      }))
       .map(x => x['object'][0])
       .value())
     if (fJson.fieldPermissions) {

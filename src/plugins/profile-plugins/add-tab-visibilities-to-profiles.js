@@ -4,13 +4,14 @@ const _ = require('lodash')
 const __ = require('highland')
 const { remapProfileName, retrieveAllTabVisibilities, getVersionedObjects } = require('./utils')
 
-const getVersionedTabs = _.memoize((allTabs, allFiles) => {
-  const versionedObjects = getVersionedObjects(allFiles)
-  const versionedTabs = new Set(Object.keys(allFiles)
-    .filter(x => x.startsWith('tabs/'))
-    .map(x => x.replace(/^tabs\/(.*)\.tab$/, '$1')))
+const getVersionedTabs = _.memoize((allTabs, allFiles, versionedObjects) => {
+  const versionedTabs = new Set(allFiles
+    .filter(x => x.fileName.startsWith('tabs/'))
+    .map(x => x.fileName.replace(/^tabs\/(.*)\.tab$/, '$1')))
 
-  return allTabs.filter(x => versionedTabs.has(x.Name) || versionedObjects.has(x.SobjectName)).map(x => x.Name)
+  return allTabs
+    .filter(x => versionedTabs.has(x.Name) || versionedObjects.has(x.SobjectName))
+    .map(x => x.Name)
 })
 
 module.exports = async (context, helpers) => {
@@ -36,20 +37,21 @@ module.exports = async (context, helpers) => {
         .collect()
         .toPromise(Promise)
     ]
-    const versionedTabs = new Set(getVersionedTabs(allTabs, await requireFiles('tabs/**/*')))
+    const versionedObjects = getVersionedObjects(await requireFiles('objects/**/*'))
+    const versionedTabs = new Set(getVersionedTabs(allTabs, await requireFiles('tabs/**/*'), versionedObjects))
     const realProfileName = await remapProfileName(filename, context)
     const visibleTabs = _.keyBy(await retrieveAllTabVisibilities(realProfileName, context), 'Name')
-    const versionedObjects = getVersionedObjects(await requireFiles('objects/**/*'))
     const tabVisibilities = allTabs
       .filter(b => {
         if (versionedTabs.has(b.Name) || versionedObjects.has(b.SobjectName)) return true
         else return multimatch(b.Name, extraTabsGlob).length > 0
       })
+
     const finalTabs = {
       ..._(tabVisibilities)
         .map(tab => ({
-          tab: tab.Name,
-          visibility: (!visibleTabs[tab.Name] && 'Hidden') || visibleTabs[tab.Name].Visibility
+          tab: [tab.Name],
+          visibility: [(!visibleTabs[tab.Name] && 'Hidden') || visibleTabs[tab.Name].Visibility]
         }))
         .keyBy('tab')
         .value(),
