@@ -1,7 +1,7 @@
 const { buildXml, parseXmlNoArray } = require('./xml-utils')
 const logger = require('../services/log-service')
 const chalk = require('chalk')
-const fetch = require('node-fetch')
+const fetch = require('node-fetch').default
 
 const sleep = async ms => new Promise((resolve) => setTimeout(resolve, ms))
 const incrementalSleep = (level0, count1, level1, count2, level2) => {
