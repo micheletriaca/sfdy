@@ -21,7 +21,7 @@ fs.writeFileSync(configPath, JSON.stringify({
     addExtraTabVisibility: ['*', '!*__?', '!*Account', '*Lead'],
     addExtraApplications: ['*', '!standard__*'],
     stripUserPermissionsFromStandardProfiles: true,
-    stripUnversionedFields: true
+    stripUnversionedStuff: true
   },
   roles: {
     stripPartnerRoles: true

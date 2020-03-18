@@ -27,10 +27,16 @@ const getFieldMap = async objectFileNames => {
 module.exports = async (context, helpers) => {
   const cachedGetFieldMap = (cache => async allFiles => cache || (cache = await getFieldMap(allFiles)))()
 
-  if (get(context, 'config.profiles.stripUnversionedFields')) {
+  if (get(context, 'config.profiles.stripUnversionedStuff')) {
     helpers.xmlTransformer('profiles/**/*', async (filename, fJson, requireFiles) => {
       const fieldMap = await cachedGetFieldMap(await requireFiles('objects/**/*'))
       fJson.fieldPermissions = (fJson.fieldPermissions || []).filter(x => fieldMap.has(x.field[0]))
+
+      const classes = new Set((await requireFiles('classes/**/*')).map(x => x.fileName))
+      fJson.classAccesses = (fJson.classAccesses || []).filter(x => classes.has('classes/' + x.apexClass[0] + '.cls'))
+
+      const pages = new Set((await requireFiles('pages/**/*')).map(x => x.fileName))
+      fJson.pageAccesses = (fJson.pageAccesses || []).filter(x => pages.has('pages/' + x.apexPage[0] + '.page'))
     })
   }
 
