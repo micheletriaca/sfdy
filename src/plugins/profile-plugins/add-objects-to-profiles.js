@@ -68,7 +68,7 @@ module.exports = async (context, helpers) => {
         v = Array.isArray(v) ? v : [v]
         return k === 'object' || v[0] === 'false' || !v[0]
       }))
-      .map(x => x['object'][0])
+      .map(x => Array.isArray(x['object']) ? x['object'][0] : x['object'])
       .value())
     if (fJson.fieldPermissions) {
       fJson.fieldPermissions = fJson.fieldPermissions.filter(x => !disabledObjects.has(x.field[0].split('.')[0]))
