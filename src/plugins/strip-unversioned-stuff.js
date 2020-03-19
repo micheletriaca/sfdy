@@ -37,6 +37,9 @@ module.exports = async (context, helpers) => {
 
       const pages = new Set((await requireFiles('pages/**/*')).map(x => x.fileName))
       fJson.pageAccesses = (fJson.pageAccesses || []).filter(x => pages.has('pages/' + x.apexPage[0] + '.page'))
+
+      const layouts = new Set((await requireFiles('layouts/**/*')).map(x => x.fileName))
+      fJson.layoutAssignments = (fJson.layoutAssignments || []).filter(x => layouts.has('layouts/' + x.layout[0] + '.layout'))
     })
   }
 

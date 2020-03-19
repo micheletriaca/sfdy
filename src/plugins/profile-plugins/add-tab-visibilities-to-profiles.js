@@ -4,14 +4,13 @@ const _ = require('lodash')
 const __ = require('highland')
 const { remapProfileName, retrieveAllTabVisibilities, getVersionedObjects } = require('./utils')
 
-const getVersionedTabs = _.memoize((allTabs, allFiles, versionedObjects) => {
-  const versionedTabs = new Set(allFiles
-    .filter(x => x.fileName.startsWith('tabs/'))
-    .map(x => x.fileName.replace(/^tabs\/(.*)\.tab$/, '$1')))
-
-  return allTabs
-    .filter(x => versionedTabs.has(x.Name) || versionedObjects.has(x.SobjectName))
-    .map(x => x.Name)
+const getVersionedTabs = _.memoize((allTabs, versionedTabs, versionedObjects) => {
+  return versionedTabs
+    .map(x => x.fileName.replace(/^tabs\/(.*)\.tab$/, '$1'))
+    .concat(allTabs
+      .filter(x => versionedObjects.has(x.SobjectName))
+      .map(x => x.Name)
+    )
 })
 
 module.exports = async (context, helpers) => {
