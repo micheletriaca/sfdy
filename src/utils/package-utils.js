@@ -30,7 +30,7 @@ module.exports = {
       })
       .uniq()
       .value()
-    return (await glob(files, { cwd: pathService.getBasePath() + '/' + pathService.getSrcFolder() })).filter(x => !ignoreDiffs.has(x))
+    return (await glob(files, { cwd: pathService.getSrcFolder(true) })).filter(x => !ignoreDiffs.has(x))
   },
   getPackageMapping: async sfdcConnector => {
     const cacheKey = crypto.createHash('md5').update(sfdcConnector.sessionId).digest('hex')

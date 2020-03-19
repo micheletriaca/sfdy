@@ -8,7 +8,7 @@ const Sfdc = require('./utils/sfdc-utils')
 const pluginEngine = require('./plugin-engine')
 const configService = require('./services/config-service')
 const { readAllFilesInFolder } = require('./services/file-service')
-const { getBasePath, getSrcFolder } = require('./services/path-service')
+const { getSrcFolder } = require('./services/path-service')
 const { getPackageXml } = require('./utils/package-utils')
 const pathService = require('./services/path-service')
 const standardPlugins = require('./plugins')
@@ -47,7 +47,7 @@ const config = configService.getConfig()
   logger.log(chalk.green(`Logged in!`))
   logger.log(chalk.yellow(`(2/2) Applying patches...`))
 
-  const basePath = path.resolve(getBasePath(), getSrcFolder())
+  const basePath = getSrcFolder(true)
   const allFiles = readAllFilesInFolder(basePath)
   const renderers = config.renderers || []
   const plugins = [

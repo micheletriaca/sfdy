@@ -19,9 +19,9 @@ const requireFiles = inMemoryFiles => {
   return async requiredFiles => {
     if (cache.has(requiredFiles)) return cache.get(requiredFiles)
     logger.time('requireFiles')
-    const storedFiles = await globby(requiredFiles, { cwd: pathService.getBasePath() + '/' + pathService.getSrcFolder() })
+    const storedFiles = await globby(requiredFiles, { cwd: pathService.getSrcFolder(true) })
     const inMemoryFileMatches = multimatch(l.map(inMemoryFiles, 'fileName'), requiredFiles)
-    const absSrcPath = path.join(pathService.getBasePath(), pathService.getSrcFolder())
+    const absSrcPath = pathService.getSrcFolder(true)
     l.difference(storedFiles, inMemoryFileMatches).forEach(f => {
       inMemoryFiles.push({
         fileName: f,

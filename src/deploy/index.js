@@ -67,7 +67,7 @@ module.exports = async ({
 
   const packageMapping = await getPackageMapping(sfdcConnector)
   const filesToRead = await getListOfSrcFiles(packageMapping, specificFiles.length ? specificFiles : ['**/*'])
-  const targetFiles = readFiles(pathService.getSrcFolder(), filesToRead)
+  const targetFiles = readFiles(pathService.getSrcFolder(true), filesToRead)
   const fileMap = _.keyBy(targetFiles, 'fileName')
 
   const plugins = [

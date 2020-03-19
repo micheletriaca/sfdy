@@ -49,8 +49,8 @@ module.exports = async ({ loginOpts, basePath, logger: _logger, files, meta, con
     pkgJson,
     config)
 
-  const packageJsonWithDependences = await pluginEngine.buildFinalPackageXml(pkgJson, await getPackageXml())
-  const retrieveJob = await sfdcConnector.retrieveMetadata(packageJsonWithDependences)
+  const packageJsonWithDependencies = await pluginEngine.buildFinalPackageXml(pkgJson, await getPackageXml())
+  const retrieveJob = await sfdcConnector.retrieveMetadata(packageJsonWithDependencies)
   const retrieveResult = await sfdcConnector.pollRetrieveMetadataStatus(retrieveJob.id)
   logger.log(chalk.green(`Retrieve completed!`))
   logger.log(chalk.yellow(`(3/3) Unzipping & applying patches...`))
