@@ -74,7 +74,7 @@ module.exports = async ({
     ...preDeployPlugins
   ]
   await pluginEngine.registerPlugins(plugins, sfdcConnector, loginOpts.username, pkgJson, config)
-  await pluginEngine.applyTransformations(targetFiles, sfdcConnector)
+  await pluginEngine.applyTransformations(targetFiles)
 
   logger.time('zip creation')
   const zip = new yazl.ZipFile()

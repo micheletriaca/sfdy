@@ -170,7 +170,7 @@ class SfdcConn {
     return this.metadata('deploy', bodyStream, { rawBody: true })
   }
 
-  async pollDeployMetadataStatus (deployMetadataId, includeDetails, progressCallback, pollInterval = 10000) {
+  async pollDeployMetadataStatus (deployMetadataId, includeDetails, progressCallback) {
     const iSleep = incrementalSleep(1000, 2, 2000, 5, 5000)
     while (true) {
       await iSleep()

@@ -81,7 +81,7 @@ module.exports = {
     }
     return true
   },
-  applyTransformations: async (targetFiles, sfdcConnector) => {
+  applyTransformations: async (targetFiles) => {
     const fileMap = await l.keyBy(targetFiles, 'fileName')
     const filePaths = Object.keys(fileMap)
     logger.time('transformations')

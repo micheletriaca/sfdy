@@ -57,7 +57,7 @@ const config = configService.getConfig()
     ...renderers.map(x => require(path.resolve(pathService.getBasePath(), x)).transform)
   ]
   await pluginEngine.registerPlugins(plugins, sfdcConnector, program.username, packageXml, config)
-  await pluginEngine.applyTransformations(allFiles, sfdcConnector)
+  await pluginEngine.applyTransformations(allFiles)
   await Promise.all(allFiles.filter(y => y.transformedJson).map(async y => {
     await wf(path.join(basePath, y.fileName), y.data)
   }))

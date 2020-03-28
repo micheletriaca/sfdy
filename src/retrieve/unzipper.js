@@ -46,7 +46,7 @@ module.exports = async (zipBuffer, sfdcConnector, pkgJson) => {
         .parallel(20)
         .toArray(async entries => {
           logger.timeLog('unzipper')
-          await pluginEngine.applyTransformations(entries, sfdcConnector)
+          await pluginEngine.applyTransformations(entries)
           await Promise.all(entries.map(async y => {
             await mMakeDir(path.resolve(pathService.getBasePath(), 'src', getFolderName(y.fileName)))
             await wf(path.resolve(pathService.getBasePath(), 'src', y.fileName), y.data)

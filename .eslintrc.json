@@ -16,6 +16,7 @@
   },
   "rules": {
     "no-var": "error",
-    "prefer-const": "error"    
+    "prefer-const": "error",
+    "no-unused-vars": ["error", { "args": "after-used" }]
   }
 }
