@@ -7,6 +7,7 @@
   "author": "Michele Triaca",
   "license": "MIT",
   "dependencies": {
+    "base64-stream": "^1.0.0",
     "chalk": "^3.0.0",
     "commander": "^2.20.3",
     "fs-extra": "^8.1.0",

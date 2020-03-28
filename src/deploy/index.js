@@ -6,7 +6,6 @@ const Sfdc = require('../utils/sfdc-utils')
 const { buildXml } = require('../utils/xml-utils')
 const { getListOfSrcFiles, getPackageXml, getPackageMapping } = require('../utils/package-utils')
 const _ = require('lodash')
-const __ = require('highland')
 const buildJunitTestReport = require('../deploy/junit-test-report-builder')
 const pathService = require('../services/path-service')
 const printDeployResult = require('../deploy/result-logger')
@@ -94,18 +93,13 @@ module.exports = async ({
   }
 
   zip.end()
-  const base64 = await __(zip.outputStream)
-    .reduce([], (accumulator, data) => { accumulator.push(data); return accumulator })
-    .map(chunks => Buffer.concat(chunks).toString('base64'))
-    .toPromise(Promise)
-
   logger.timeEnd('zip creation')
   logger.log(chalk.green(`Zip created`))
   logger.log(chalk.yellow('(4/4) Uploading...'))
   const testOptions = {}
   if (specifiedTests) testOptions.runTests = specifiedTests.split(',').map(x => x.trim())
   if (testLevel) testOptions.testLevel = testLevel
-  const deployJob = await sfdcConnector.deployMetadata(base64, Object.assign(testOptions, {
+  const deployJob = await sfdcConnector.deployMetadata(zip.outputStream, Object.assign(testOptions, {
     checkOnly,
     singlePackage: true,
     rollbackOnError: true

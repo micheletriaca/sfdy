@@ -2,6 +2,8 @@ const { buildXml, parseXmlNoArray } = require('./xml-utils')
 const logger = require('../services/log-service')
 const chalk = require('chalk')
 const fetch = require('node-fetch').default
+const { Base64Encode } = require('base64-stream')
+const _ = require('highland')
 
 const sleep = async ms => new Promise((resolve) => setTimeout(resolve, ms))
 const incrementalSleep = (level0, count1, level1, count2, level2) => {
@@ -12,6 +14,29 @@ const incrementalSleep = (level0, count1, level1, count2, level2) => {
     else if (count <= count2) return sleep(level1)
     else return sleep(level2)
   }
+}
+
+const wrapStream = (prefix, suffix) => source => {
+  let prefixAdded = false
+
+  return source.consume((err, x, push, next) => {
+    if (err) {
+      push(err)
+      next()
+    } else if (x === _.nil) {
+      if (suffix) {
+        push(null, Buffer.from(suffix))
+      }
+      push(null, _.nil)
+    } else {
+      if (!prefixAdded && prefix) {
+        push(null, Buffer.from(prefix))
+        prefixAdded = true
+      }
+      push(null, x)
+      next()
+    }
+  })
 }
 
 const wsdlMap = {
@@ -29,7 +54,7 @@ class SfdcConn {
   async login ({ username, password, isSandbox = true, serverUrl, apiVersion }) {
     this.apiVersion = apiVersion
     this.instanceUrl = 'https://' + ((serverUrl && serverUrl.replace('https://', '')) || `${isSandbox ? 'test' : 'login'}.salesforce.com`)
-    const { serverUrl: instanceUrl, sessionId } = await this.metadata('login', { username, password }, 'partner')
+    const { serverUrl: instanceUrl, sessionId } = await this.metadata('login', { username, password }, { wsdl: 'partner' })
     this.instanceUrl = /(https:\/\/.*)\/services/.exec(instanceUrl)[1]
     this.sessionId = sessionId
   }
@@ -46,36 +71,49 @@ class SfdcConn {
     return fetch(url, { headers: { 'Authorization': `Bearer ${this.sessionId}` } }).then(res => res.json())
   }
 
-  async metadata (method, args, wsdl = 'metadata') {
+  buildMetadataBody (method, args, wsdl = 'metadata') {
+    return buildXml({
+      'soapenv:Envelope': {
+        $: {
+          'xmlns:soapenv': 'http://schemas.xmlsoap.org/soap/envelope/',
+          'xmlns:xsd': 'http://www.w3.org/2001/XMLSchema',
+          'xmlns:xsi': 'http://www.w3.org/2001/XMLSchema-instance',
+          ...wsdlMap[wsdl].namespaces
+        },
+        'soapenv:Header': { SessionHeader: { sessionId: this.sessionId || '' } },
+        'soapenv:Body': { [method]: args }
+      }
+    })
+  }
+
+  async metadata (method, args, { wsdl = 'metadata', rawBody = false, rawResponse = false } = {}) {
     const res = await fetch(this.instanceUrl + wsdlMap[wsdl].urlPath + this.apiVersion, {
       method: 'post',
-      body: buildXml({
-        'soapenv:Envelope': {
-          $: {
-            'xmlns:soapenv': 'http://schemas.xmlsoap.org/soap/envelope/',
-            'xmlns:xsd': 'http://www.w3.org/2001/XMLSchema',
-            'xmlns:xsi': 'http://www.w3.org/2001/XMLSchema-instance',
-            ...wsdlMap[wsdl].namespaces
-          },
-          'soapenv:Header': { SessionHeader: { sessionId: this.sessionId || '' } },
-          'soapenv:Body': { [method]: args }
-        }
-      }),
+      body: rawBody ? args : this.buildMetadataBody(method, args, wsdl),
       headers: {
         'Content-Type': 'text/xml',
         'SOAPAction': '""'
       }
     })
-    const body = (await parseXmlNoArray(await res.text()))['soapenv:Envelope']['soapenv:Body']
-    if (res.ok) {
-      return body[method + 'Response'].result
+    if (rawResponse) {
+      if (res.ok) return res
+      else {
+        const err = new Error('SalesforceSoapError')
+        err.name = 'SalesforceSoapError'
+        err.response = res
+        throw err
+      }
     } else {
-      const err = new Error()
-      err.name = 'SalesforceSoapError'
-      err.message = body['soapenv:Fault'].faultstring
-      err.detail = body['soapenv:Fault']
-      err.response = res
-      throw err
+      const body = (await parseXmlNoArray(await res.text()))['soapenv:Envelope']['soapenv:Body']
+      if (res.ok) return body[method + 'Response'].result
+      else {
+        const err = new Error()
+        err.name = 'SalesforceSoapError'
+        err.message = body['soapenv:Fault'].faultstring
+        err.detail = body['soapenv:Fault']
+        err.response = res
+        throw err
+      }
     }
   }
 
@@ -119,11 +157,17 @@ class SfdcConn {
     })
   }
 
-  async deployMetadata (base64Content, opts) {
-    return this.metadata('deploy', {
-      ZipFile: base64Content,
+  async deployMetadata (contentStream, opts) {
+    const [preBody, postBody] = this.buildMetadataBody('deploy', {
+      ZipFile: '$$ZIPFILE$$',
       DeployOptions: opts
-    })
+    }).split('$$ZIPFILE$$')
+
+    const bodyStream = _(contentStream.pipe(new Base64Encode()))
+      .through(wrapStream(preBody, postBody))
+      .toNodeStream()
+
+    return this.metadata('deploy', bodyStream, { rawBody: true })
   }
 
   async pollDeployMetadataStatus (deployMetadataId, includeDetails, progressCallback, pollInterval = 10000) {
