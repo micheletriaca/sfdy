@@ -18,6 +18,8 @@ It has been built to work around strange behaviours and known limitations of the
 
 `sfdy` is meant to be mainly used as a command line tool. It can also be used a library since it exposes a small [API](#use-sfdy-as-a-library).
 
+Type `sfdy --help` to see available commands. Type `sfdy [command] --help` to see available options for a specific command
+
 ## Why not SFDX?
 
 [SFDX](https://developer.salesforce.com/tools/sfdxcli) is a tool to work with scratch orgs and with modular projects. 
@@ -41,7 +43,7 @@ then go to the root folder of a Salesforce project, and type
 $ sfdy init
 ```
 
-this command creates a .sfdy.json file with the configuration of the 'standard' patches (more on this [later](#apply-standard-patches-to-metadata-after-retrieve))
+this command creates a `.sfdy.json` file with the configuration of the 'standard' patches (more on this [later](#apply-standard-patches-to-metadata-after-retrieve))
 
 ## Features
 1. [Retrieve full metadata (based on package.xml)](#retrieve-full-metadata)
