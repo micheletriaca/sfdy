@@ -8,6 +8,7 @@ It has been built to work around strange behaviours and known limitations of the
 1. [Why not SFDX?](#why-not-sfdx)
 1. [Installation](#installation)
 1. [Features](#features)
+1. [Changelog](#changelog)
 
 ## Requirements
 
@@ -209,7 +210,7 @@ All the standard plugins are built usign the plugin engine of `sfdy`, so the bes
 A plugin is a `.js` file that exports a function with this signature:
 
 ```javascript
-module.exports = async (context, helpers) => {
+module.exports = async (context, helpers, utils) => {
   //TODO -> Plugin implementation
 }
 ```
@@ -225,16 +226,35 @@ module.exports = async (context, helpers) => {
 
 #### `helpers`
 
-* `xmlTransformer (pattern, callback)` - This helper let the developer to easily transform one or more metadata (identified by `pattern`), using a `callback` function. See [examples](#examples) to understand how to use it
-* `modifyRawContent (pattern, callback)` - This helper let the developer to manipulate the whole metadata file. It is useful if you want to edit a file that is not an xml, or if you want to apply drastical transformationss
+* `xmlTransformer (pattern, callback1)` - This helper allows the developer to easily transform one or more metadata (identified by `pattern`), using a `callback` function. See [examples](#examples) to understand how to use it
+* `modifyRawContent (pattern, callback2)` - This helper allows the developer to manipulate the whole metadata file. It is useful if you want to edit a file that is not an xml, or if you want to apply drastical transformations
 * `filterMetadata (filterFn)` - This helper can be used in a post-retrieve plugin to filter out unwanted metadata
-* `requireMetadata (pattern, callback)` - This helper can be used to define dependencies between metadata. For example, a `Profile` must be retrieved together with `CustomObject` in order to retrieve the list of `fieldPermissions`. If you define such a dependency using `requireMetadata`, when you retrieve a `Profile`, all dependent metadata are automatically included in the `package.xml` and eventually discarded at the end of the retrieve operation
+* `requireMetadata (pattern, callback3)` - This helper can be used to define dependencies between metadata. For example, a `Profile` must be retrieved together with `CustomObject` in order to retrieve the list of `fieldPermissions`. If you define such a dependency using `requireMetadata`, when you retrieve a `Profile`, all dependent metadata are automatically included in the `package.xml` and eventually discarded at the end of the retrieve operation
 
-The `callback` function will be invoked passing 3 parameters:
+`callback1 (filename, fJson)`:
 
-* `filename` - The current filename if 
-* `fJson` (`xmlTransformer`) || `file` (`modifyRawContent`) - `fJson` is a JSON representation of the XML. `file` is an object containing a `data` field. `data` is a buffer containing the whole file. You can modify data to modify the file
-* `{ parseXml, buildXml, parseXmlNoArray }` - Helpers function. See [here](src/utils/xml-utils.js)
+* `filename` - The current filename
+* `fJson`  -  JSON representation of the XML. You can modify the object to modify the XML
+
+`callback2 (filename, file)`:
+
+* `filename` - The current filename
+* `file` is an object containing a `data` field. `data` is a buffer containing the whole file. You can modify `data` to modify the file
+
+`filterFn (filename)`:
+
+* `filename` - The current filename, including the path (for example `classes/MyClass.cls`)
+
+`callback3 ({ filterPackage, requirePackage })`:
+
+* `filterPackage (arrayOfMetadata)` - A function taking an array of metadata that should be included together with metadata matched by `pattern`. The 'companions' will be retrieved only if they are present in the stored `package.xml`. For example, if you retrieve a profile, the profile will be retrieved together with the versioned `CustomObject`
+
+* `requirePackage (arrayOfMetadata)` - The same as `filterPackage`, but the included metadata will be added to `package.xml` regardless if they were present before or not. In this case `arrayOfMetadata` is an array of 'pseudo' glob patterns (ex. `['CustomApplication/*', 'CustomObject/Account']`)
+
+### utils `{ parseXml, buildXml, parseXmlNoArray }`
+
+Helpers function. See [here](src/utils/xml-utils.js)
+
 
 To instruct `sfdy` to use your plugin, you have to configure the path of your plugin in the `.sfdy.json` file:
 
@@ -310,10 +330,10 @@ A renderer is a `.js` file that exports an object with this signature:
 
 ```javascript
 module.exports = {
-  transform: async (context, helpers) => {
+  transform: async (context, helpers, utils) => {
     //TODO -> Transform
   },
-  untransform: async (context, helpers) => {
+  untransform: async (context, helpers, utils) => {
     //TODO -> Untransform
   }
 }
@@ -352,4 +372,53 @@ module.exports = {
 
 ### Use `sfdy` as a library
 
-TODO
+Is simple as that:
+
+```
+$ npm i sfdy
+```
+
+#### retrieve
+```js
+const retrieve = require('sfdy/src/retrieve')
+
+retrieve({
+  basePath: 'root/folder',
+  config: {
+    //.sfdy.json like config
+  },
+  files: [ /*specific files*/ ],
+  loginOpts: {
+    serverUrl: creds.url,
+    username: creds.username,
+    password: creds.password
+  },
+  meta: [/*specific meta*/]
+  logger: (msg: string) => logger.appendLine(msg)
+}).then(() => console.log('Done!'))
+```
+
+#### deploy
+
+```js
+const deploy = require('sfdy/src/deploy')
+
+deploy({
+  logger: (msg: string) => logger.appendLine(msg),
+  preDeployPlugins,
+  renderers,
+  basePath: 'root/folder',
+  loginOpts: {
+    serverUrl: creds.url,
+    username: creds.username,
+    password: creds.password
+  },
+  checkOnly,
+  files: ['specific', 'files']
+}).then(() => console.log('Done!'))
+```
+
+
+## Changelog
+
+* 1.1.0 - First release
