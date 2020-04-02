@@ -2,7 +2,7 @@ const multimatch = require('multimatch')
 const _ = require('highland')
 const l = require('lodash')
 const path = require('path')
-const { parseXml, buildXml } = require('../utils/xml-utils')
+const { parseXml, buildXml, parseXmlNoArray } = require('../utils/xml-utils')
 const pathService = require('../services/path-service')
 const nativeRequire = require('../utils/native-require')
 const logger = require('../services/log-service')
@@ -40,7 +40,15 @@ module.exports = {
     xmlTransformer: (pattern, callback) => {
       transformations.push({
         pattern,
-        callback
+        callback,
+        type: 'xmlTransformer'
+      })
+    },
+    modifyRawContent: (pattern, callback) => {
+      transformations.push({
+        pattern,
+        callback,
+        type: 'modifyRawContent'
       })
     },
     filterMetadata: (filterFn) => {
@@ -69,7 +77,7 @@ module.exports = {
         log: logger.log,
         pkg: l.cloneDeep(pkgJson),
         config
-      }, module.exports.helpers))
+      }, module.exports.helpers, { parseXml, buildXml, parseXmlNoArray }))
       .map(x => _(x))
       .sequence()
       .collect()
@@ -90,15 +98,24 @@ module.exports = {
     await _(transformations)
       .flatMap(t => multimatch(filePaths, t.pattern).map(pattern => ({ ...t, pattern })))
       .map(async t => {
-        const transformedJson = fileMap[t.pattern].transformedJson || await parseXml(fileMap[t.pattern].data)
-        fileMap[t.pattern].transformedJson = transformedJson
-        const rootKey = Object.keys(transformedJson)[0]
-        await (t.callback(
-          t.pattern,
-          transformedJson[rootKey],
-          cachedRequireFiles
-        ) || transformedJson[rootKey])
-        return t
+        if (t.type === 'xmlTransformer') {
+          const transformedJson = fileMap[t.pattern].transformedJson || await parseXml(fileMap[t.pattern].data)
+          fileMap[t.pattern].transformedJson = transformedJson
+          const rootKey = Object.keys(transformedJson)[0]
+          await (t.callback(
+            t.pattern,
+            transformedJson[rootKey],
+            cachedRequireFiles
+          ) || transformedJson[rootKey])
+          return t
+        } else {
+          await (t.callback(
+            t.pattern,
+            fileMap[t.pattern],
+            cachedRequireFiles
+          ))
+          return t
+        }
       })
       .map(x => _(x))
       .sequence()
@@ -107,7 +124,9 @@ module.exports = {
       .map(tL => {
         logger.time('building')
         Object.values(l.keyBy(tL, 'pattern')).forEach(t => {
-          fileMap[t.pattern].data = buildXml(fileMap[t.pattern].transformedJson) + '\n'
+          if (t.type === 'xmlTransformer') {
+            fileMap[t.pattern].data = buildXml(fileMap[t.pattern].transformedJson) + '\n'
+          }
         })
         logger.timeEnd('building')
         return tL
