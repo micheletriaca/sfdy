@@ -1,6 +1,6 @@
 {
   "name": "sfdy",
-  "version": "1.0.30",
+  "version": "1.1.0",
   "description": "Tool to better handle Salesforce metadata",
   "main": "src/sfdy.js",
   "bin": "src/sfdy.js",
@@ -10,15 +10,15 @@
     "url": "https://github.com/micheletriaca/sfdy"
   },
   "engines": {
-		"node": ">=10"
+    "node": ">=10"
   },
   "keywords": [
-		"salesforce",
-		"metadata",
-		"ant",
-		"tooling",
-		"sfdx"
-	],    
+    "salesforce",
+    "metadata",
+    "ant",
+    "tooling",
+    "sfdx"
+  ],
   "homepage": "https://github.com/micheletriaca/sfdy#readmes",
   "dependencies": {
     "base64-stream": "^1.0.0",
