@@ -6,6 +6,20 @@
   "bin": "src/sfdy.js",
   "author": "Michele Triaca",
   "license": "MIT",
+  "repository": {
+    "url": "https://github.com/micheletriaca/sfdy"
+  },
+  "engines": {
+		"node": ">=10"
+  },
+  "keywords": [
+		"salesforce",
+		"metadata",
+		"ant",
+		"tooling",
+		"sfdx"
+	],    
+  "homepage": "https://github.com/micheletriaca/sfdy#readmes",
   "dependencies": {
     "base64-stream": "^1.0.0",
     "chalk": "^3.0.0",
