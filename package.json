@@ -19,7 +19,7 @@
     "tooling",
     "sfdx"
   ],
-  "homepage": "https://github.com/micheletriaca/sfdy#readmes",
+  "homepage": "https://github.com/micheletriaca/sfdy#readme",
   "dependencies": {
     "base64-stream": "^1.0.0",
     "chalk": "^3.0.0",
