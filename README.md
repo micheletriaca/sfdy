@@ -29,7 +29,7 @@ Even if you use scratch orgs, however, soon or later you'll have to deploy your 
 
 Moreover, DX requires the developer to break down their entire Enterprise org into individual projects, but sometimes this is not possible/advisable. Salesforce metadata are deeply interconnected, and every module is very likely to use a subset of common functionalities (standard objects, layout, flexipages). It is often a nightmare to divide an enterprise project in modules, because those modules are not really independent from each other. 
 
-Finally, this tool solve some problems that SFDX does not address, and give the developer an easy way to customize a Salesforce CI process the way HE wants. To have the best possible experience, use this tool in conjunction with the vscode plugin [fast-sfdc](). patches and even your custom plugins are automatically applied in both your CI flow and your local development environment!
+Finally, this tool solve some problems that SFDX does not address, and give the developer an easy way to customize a Salesforce CI process the way HE wants. To have the best possible experience, use this tool in conjunction with the vscode plugin [fast-sfdc](https://marketplace.visualstudio.com/items?itemName=m1ck83.fast-sfdc). patches and even your custom plugins are automatically applied in both your CI flow and your local development environment!
 
 ## Installation
 
