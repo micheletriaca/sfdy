@@ -436,4 +436,9 @@ deploy({
 
 ## Changelog
 
-* 1.1.0 - First release
+* 1.2.0
+  * [destructive changesets](#deploy-a-destructive-changeset) support
+  * `README.md` improvements. Thanks [tr4uma](https://github.com/tr4uma)
+
+* 1.1.0
+  * First release
