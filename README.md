@@ -50,6 +50,7 @@ this command creates a `.sfdy.json` file with the configuration of the 'standard
 1. [Retrieve partial metadata (glob pattern or metadata-based)](#retrieve-partial-metadata)
 1. [Deploy full metadata (based on package.xml)](#deploy-full-metadata)
 1. [Deploy partial metadata (glob pattern or diff between 2 git branches)](#deploy-partial-metadata)
+1. [Deploy a destructive changeset (glob pattern or metadata-based)](#deploy-a-destructive-changeset)
 1. [Apply 'standard' patches to metadata after retrieve](#apply-standard-patches-to-metadata-after-retrieve)
 1. [Build your own plugins (pre-deploy and after-retrieve)](#build-your-own-plugins)
 1. [Build your own renderers](#build-your-own-renderers)
@@ -119,6 +120,17 @@ $ sfdy deploy -u USERNAME -p PASSWORD -s --diff='aheadBranch..behindBranch'
 The `--diff` flag is used to compute the list of files that needs to be deployed comparing 2 git branches. (examples: `--diff='HEAD..origin/myBranch'` or `--diff='branch1..branch2`). As an example of use case, you can trigger a deploy to the DEV environment when you create a pull-request to the dev branch. The deploy will contain only the files that have been modified in the pull-request
 
 > **Warning:** the --diff option requires git. The salesforce project must obviously be versioned
+
+### Deploy a destructive changeset
+
+Just run a [partial deploy](#deploy-partial-metadata) passing the `--destructive` flag
+```
+$ sfdy deploy -u USERNAME -p PASSWORD -s --files='objects/*,!objects/Account*,site*/**/*' --destructive
+```
+
+> **Warning:** Full destructive deploy is deliberately not supported
+
+> **Warning:** This command deletes the metadata files from Salesforce, but they remain on the filesystem
 
 ### Apply 'standard' patches to metadata after retrieve
 

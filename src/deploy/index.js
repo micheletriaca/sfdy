@@ -17,6 +17,7 @@ const nativeRequire = require('../utils/native-require')
 module.exports = async ({
   loginOpts,
   checkOnly = false,
+  destructive = false,
   basePath,
   logger: _logger,
   diffCfg,
@@ -60,6 +61,9 @@ module.exports = async ({
   }
   if (files) files.split(',').map(x => x.trim()).forEach(x => specificFiles.push(x))
   if (specificFiles.length) logger.log(chalk.yellow(`--files specified. Deploying only specific files...`))
+  if (!specificFiles.length && destructive) {
+    throw Error('Full destructive changeset is too dangerous. You must specify --files or --diff option')
+  }
   const pkgJson = await getPackageXml({ specificFiles, sfdcConnector })
   logger.log(chalk.green(`Built package.xml!`))
   logger.log(chalk.yellow(`(3/4) Creating zip & applying predeploy patches...`))
@@ -71,25 +75,31 @@ module.exports = async ({
 
   const plugins = [
     ...(renderers.map(x => nativeRequire(path.resolve(pathService.getBasePath(), x)).untransform)),
-    ...preDeployPlugins
+    ...(destructive ? [] : preDeployPlugins)
   ]
   await pluginEngine.registerPlugins(plugins, sfdcConnector, loginOpts.username, pkgJson, config)
   await pluginEngine.applyTransformations(targetFiles)
 
   logger.time('zip creation')
   const zip = new yazl.ZipFile()
-  zip.addBuffer(Buffer.from(buildXml({ Package: pkgJson }) + '\n', 'utf-8'), 'package.xml')
-  const fileList = []
-  filesToRead
-    .filter(pluginEngine.applyFilters())
-    .forEach(f => {
-      if (specificFiles.length) fileList.push(f)
-      zip.addBuffer(fileMap[f].data, f)
-    })
+  zip.addBuffer(Buffer.from(buildXml({ Package: pkgJson }) + '\n', 'utf-8'), destructive ? 'destructiveChanges.xml' : 'package.xml')
+  if (destructive) {
+    zip.addBuffer(Buffer.from(buildXml({ Package: { version: pkgJson.version } }) + '\n', 'utf-8'), 'package.xml')
+    logger.log(chalk.yellow('The following files will be deleted:'))
+    logger.log(chalk.grey(filesToRead.filter(pluginEngine.applyFilters()).join('\n')))
+  } else {
+    const fileList = []
+    filesToRead
+      .filter(pluginEngine.applyFilters())
+      .forEach(f => {
+        if (specificFiles.length) fileList.push(f)
+        zip.addBuffer(fileMap[f].data, f)
+      })
 
-  if (fileList.length) {
-    logger.log(chalk.yellow('The following files will be deployed:'))
-    logger.log(chalk.grey(fileList.join('\n')))
+    if (fileList.length) {
+      logger.log(chalk.yellow('The following files will be deployed:'))
+      logger.log(chalk.grey(fileList.join('\n')))
+    }
   }
 
   zip.end()
