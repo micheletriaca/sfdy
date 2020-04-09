@@ -24,12 +24,12 @@ Type `sfdy --help` to see available commands. Type `sfdy [command] --help` to se
 
 [SFDX](https://developer.salesforce.com/tools/sfdxcli) is a tool to work with scratch orgs and with modular projects. 
 
-In a typical salesforce project, the development starts in a scratch org or in a classic sandbox. 
-Even if you use scratch orgs, however, soon or later you'll have to deploy your sfdx project to a classic sandbox (a shared, persistant development sandbox used to test integrations, an UAT sandbox, etc.). After the code is in a classic sandbox, we are right back where we started.
+In a typical salesforce project, development starts in a scratch org or in a classic sandbox. 
+Even if you use scratch orgs, however, sooner or later you'll have to deploy your sfdx project to a classic sandbox (a shared, persistant development sandbox used to test integrations, an UAT sandbox, etc.). After the code is deployed to a classic sandbox, we are right back where we started.
 
-Moreover, DX requires the developer to break down their entire Enterprise org into individual projects, but sometimes this is not possible/advisable. Salesforce metadata are deeply interconnected, and every module is very likely to use a subset of common functionalities (standard objects, layout, flexipages). It is often a nightmare to divide an enterprise project in modules, because those modules are not really independent from each other. 
+Moreover, DX requires the developer to break down their entire Enterprise org into individual projects, but sometimes this is not possible/advisable or the sub-projects are still too big to be worked on by a single developer. Salesforce metadata are deeply interconnected, and every module is very likely to use a subset of common functionalities (standard objects, layout, flexipages). It is often a nightmare to divide an enterprise project in modules, because those modules are not really independent from each other. 
 
-Finally, this tool solve some problems that SFDX does not address, and give the developer an easy way to customize a Salesforce CI process the way HE wants. To have the best possible experience, use this tool in conjunction with the vscode plugin [fast-sfdc](https://marketplace.visualstudio.com/items?itemName=m1ck83.fast-sfdc). patches and even your custom plugins are automatically applied in both your CI flow and your local development environment!
+Finally, this tool solves some problems that SFDX does not address, and gives the developer an easy way to customize a Salesforce CI process the way HE/SHE wants. To have the best possible experience, use this tool in conjunction with the vscode plugin [fast-sfdc](https://marketplace.visualstudio.com/items?itemName=m1ck83.fast-sfdc). patches and even your custom plugins are automatically applied in both your CI flow and your local development environment!
 
 ## Installation
 
@@ -43,7 +43,7 @@ then go to the root folder of a Salesforce project, and type
 $ sfdy init
 ```
 
-this command creates a `.sfdy.json` file with the configuration of the 'standard' patches (more on this [later](#apply-standard-patches-to-metadata-after-retrieve))
+this command creates a `.sfdy.json` file whithin the root folder of your current workspace with the configuration of the 'standard' patches (more on this [later](#apply-standard-patches-to-metadata-after-retrieve))
 
 ## Features
 1. [Retrieve full metadata (based on package.xml)](#retrieve-full-metadata)
@@ -76,7 +76,7 @@ The `-s` flag should be used when connecting to a sandbox.
 $ sfdy retrieve -u USERNAME -p PASSWORD -s --files='objects/*,!objects/Account*,site*/**/*'
 ```
 
-This command will retrieve all objects present in the local `objects` folder, except those whose name starts with `Account`, and will retrieve all metadata (present in the local project) whose folder starts with `site` (for example `sites`, `siteDotCom`)
+This command will retrieve all objects present in the local `objects` folder, except those which name starts with `Account`, and will retrieve all metadata (present in the local project) which folder starts with `site` (for example `sites`, `siteDotCom`)
 
 The --files consists in a comma-separated list of [glob pattern](https://www.npmjs.com/package/globby)
 #### using --meta
@@ -87,7 +87,7 @@ $ sfdy retrieve -u USERNAME -p PASSWORD -s --meta='CustomObject/Account,FlexiPag
 
 This command will retrieve the Account object and all the flexipages present on the target salesforce environment
 
-> **Warning:** the --meta option builds an ad-hoc package.xml to retrieve the data. Glob patterns cannot be used in this case. You can use a wildcard only if that metadata supports it
+> **Warning:** the --meta option builds an ad-hoc package.xml to retrieve the data. Glob patterns cannot be used in this case. You can use a wildcard only if that metadata type supports it
 
 ### Deploy full metadata
 
@@ -107,7 +107,7 @@ The `-s` flag should be used when connecting to a sandbox.
 $ sfdy deploy -u USERNAME -p PASSWORD -s --files='objects/*,!objects/Account*,site*/**/*'
 ```
 
-This command will deploy all objects present in the local `objects` folder, except those whose name starts with `Account`, and will deploy all metadata (present in the local project) whose folder starts with `site` (for example `sites`, `siteDotCom`)
+This command will deploy all objects present in the local `objects` folder, except those which name starts with `Account`, and will deploy all metadata (present in the local project) which folder starts with `site` (for example `sites`, `siteDotCom`)
 
 The --files consists in a comma-separated list of [glob pattern](https://www.npmjs.com/package/globby)
 
@@ -119,7 +119,7 @@ $ sfdy deploy -u USERNAME -p PASSWORD -s --diff='aheadBranch..behindBranch'
 
 The `--diff` flag is used to compute the list of files that needs to be deployed comparing 2 git branches. (examples: `--diff='HEAD..origin/myBranch'` or `--diff='branch1..branch2`). As an example of use case, you can trigger a deploy to the DEV environment when you create a pull-request to the dev branch. The deploy will contain only the files that have been modified in the pull-request
 
-> **Warning:** the --diff option requires git. The salesforce project must obviously be versioned
+> **Warning:** the --diff option requires git. To use this feature you should be versioning your Salesforce project
 
 ### Deploy a destructive changeset
 
@@ -134,7 +134,7 @@ $ sfdy deploy -u USERNAME -p PASSWORD -s --files='objects/*,!objects/Account*,si
 
 ### Apply 'standard' patches to metadata after retrieve
 
-Sfdy provides a number of ready to use patches that you may find useful.
+Sfdy provides a number of ready-to-use patches that you may find useful.
 All these patches serve 2 purposes:
 
 1. **Remove useless metadata** (not translated fields, useless FLS in permission sets, roles that are automatically managed by salesforce, profile permissions in standard profiles, stuff created by managed packages at installation time)
@@ -188,34 +188,34 @@ The configuration file is a JSON object:
 | Patch | Metadata | Description |
 | --- | --- | --- |
 | stripUntranslatedFields | Translations, CustomObjectTranslation, GlobalValueSetTranslation, StandardValueSetTranslation  | if `stripUntranslatedFields` is `true`, untranslated tags are removed from the XML. |
-| stripNotVersionedFields | CustomObjectTranslation | if `stripNotVersionedFields` is `true`, translated fields that are not present in the filesystem in the corresponding `.object` files, are removed from the XML. |
+| stripNotVersionedFields | CustomObjectTranslation | if `stripNotVersionedFields` is `true`, translated fields that are not present in the file system in the corresponding `.object` files, are removed from the XML. |
 
 #### profiles
 
 | Patch | Description |
 | --- | --- |
 | addAllUserPermissions | Salesforce does not retrieve disabled `userPermissions`. If `addAllUserPermissions` is `true`, all permissions are retrieved |
-| addDisabledVersionedObjects | Salesforce does not retrieve totally disabled objects. If `addDisabledVersionedObjects` is `true`, sfdy retrieves also `objectsPermissions` of objects that are versioned (present in the filesystem) but are disabled for the profile |
-| addExtraObjects | Sometimes you want to explicitly configure the access level to some objects even if you're not interested in versioning the whole object. Now you can. `addExtraObjects` is an array of glob patterns of the objects whose `objectPermissions` you want to add to the profile (the glob patterns match against the `<member>` content in `package.xml`) |
-| addExtraTabVisibility | Sometimes you want to explicitly set the `TabVisibility` of some tabs even if you're not interested in versioning the object/tab. Now you can. `addExtraTabVisibility` is an array of glob patterns of the tabs whose `tabVisibilities` you want to add to the profile (the glob patterns match against the `<member>` content in `package.xml`) |
+| addDisabledVersionedObjects | Salesforce does not retrieve totally disabled objects. If `addDisabledVersionedObjects` is `true`, sfdy retrieves also `objectsPermissions` of objects that are present in the file system (and of course tracked by version control systems)) but are disabled for the profile |
+| addExtraObjects | Sometimes you want to explicitly configure the access level to some objects even if you're not interested in versioning the whole object metadata. Now you can. `addExtraObjects` is an array of glob patterns of the objects of which `objectPermissions` you want to add to the profile (the glob patterns match against the `<member>` content in `package.xml`) |
+| addExtraTabVisibility | Sometimes you want to explicitly set the `TabVisibility` of some tabs even if you're not interested in versioning the object/tab metadata. Now you can. `addExtraTabVisibility` is an array of glob patterns of the tabs whose `tabVisibilities` you want to add to the profile (the glob patterns match against the `<member>` content in `package.xml`) |
 | stripUserPermissionsFromStandardProfiles | User Permissions are not editable in standard profiles, and they change almost every Salesforce release causing errors that can be avoided. Set this flag to `true` to automatically remove them |
-| stripUnversionedStuff | This flag 'sanitize' the profiles, removing `fieldPermissions`, `classAccesses`, `pageAccesses`, `layoutAssignments` that are not related to versioned stuff. I can't really see any reason not to enable this option, that can help to avoid errors made by developers during versioning |
+| stripUnversionedStuff | This flag 'sanitizes' the profiles, removing `fieldPermissions`, `classAccesses`, `pageAccesses`, `layoutAssignments` that are not related to stuff tracked under version control. I can't really see any reason not to enable this option, that can help avoiding errors made by developers during code/metadata versioning |
 
 #### roles
 
 | Patch | Description |
 | --- | --- |
-| stripPartnerRoles | if `stripPartnerRoles` is `true`, roles that ends with `PartnerUser[0-9]*.role` are removed even if a `*` is used in `package.xml`. They are automatically created by Salesforce when you create a partner account, so there's no need to version them |
+| stripPartnerRoles | if `stripPartnerRoles` is `true`, roles that end with `PartnerUser[0-9]*.role` are removed even if a `*` is used in `package.xml`. They are automatically created by Salesforce when you create a Partner Account, so there's no need to track them them using version control |
 
 #### other
 
 | Patch | Metadata | Description |
 | --- | --- | --- |
-| stripManagedPackageFields | CustomObject, PermissionSet, Profile | Array of namespaces of stuff created by managed packages (eg Marketing Cloud) that we don't want to version. This plugin removes `fields`, `picklistValues`, `weblinks` from `CustomObject` and `fieldPermissions` from `Profile` and `PermisissionSet` |
+| stripManagedPackageFields | CustomObject, PermissionSet, Profile | Array of namespaces of stuff created by managed packages (eg Marketing Cloud) that we don't want to track changes using Version Control. This plugin removes `fields`, `picklistValues`, `weblinks` from `CustomObject` and `fieldPermissions` from `Profile` and `PermisissionSet` |
 
 ### Build your own plugins
 
-`sfdy` offer a convenient way to develop your own plugin. This is really useful in many occasions. Typical use cases are change endpoints of named credentials or email addresses in workflow's email alerts on the basis of the target org, but the possibilities are endless. You can even query salesforce (rest api or tooling api) to conditionally apply transformations of the metadata on the basis of information coming from the target org.
+`sfdy` offers a convenient way to develop your own plugin. This is really useful in many cases. Typical use cases are: changing named credentials' endpoints or email addresses in workflow's email alerts based on the target org, but the possibilities are endless. You can even query salesforce (rest api or tooling api) to conditionally apply transformations of the metadata on the basis of information coming from the target org.
 
 
 All the standard plugins are built usign the plugin engine of `sfdy`, so the best reference to understand how to develop a custom plugin is to look at the [plugins](src/plugins) folder in which all the standard plugins reside.
@@ -241,9 +241,9 @@ module.exports = async (context, helpers, utils) => {
 #### `helpers`
 
 * `xmlTransformer (pattern, callback1)` - This helper allows the developer to easily transform one or more metadata (identified by `pattern`), using a `callback` function. See [examples](#examples) to understand how to use it
-* `modifyRawContent (pattern, callback2)` - This helper allows the developer to manipulate the whole metadata file. It is useful if you want to edit a file that is not an xml, or if you want to apply drastical transformations
+* `modifyRawContent (pattern, callback2)` - This helper allows the developer to manipulate the whole metadata file. It is useful if you want to edit a file that is not an xml, or if you want to apply drastic transformations
 * `filterMetadata (filterFn)` - This helper can be used in a post-retrieve plugin to filter out unwanted metadata
-* `requireMetadata (pattern, callback3)` - This helper can be used to define dependencies between metadata. For example, a `Profile` must be retrieved together with `CustomObject` in order to retrieve the list of `fieldPermissions`. If you define such a dependency using `requireMetadata`, when you retrieve a `Profile`, all dependent metadata are automatically included in the `package.xml` and eventually discarded at the end of the retrieve operation
+* `requireMetadata (pattern, callback3)` - This helper can be used to define dependencies between metadata. For example, a `Profile` must be retrieved together with `CustomObject` metadata in order to retrieve the list of `fieldPermissions`. By defining such a dependency using `requireMetadata`, whenever you retrieve a `Profile`, all dependent metadata are automatically included in the `package.xml` and eventually discarded at the end of the retrieve operation, just to retrieve all the relted parts of the original metadata you wanted to retrieve
 
 `callback1 (filename, fJson)`:
 
@@ -261,9 +261,9 @@ module.exports = async (context, helpers, utils) => {
 
 `callback3 ({ filterPackage, requirePackage })`:
 
-* `filterPackage (arrayOfMetadata)` - A function taking an array of metadata that should be included together with metadata matched by `pattern`. The 'companions' will be retrieved only if they are present in the stored `package.xml`. For example, if you retrieve a profile, the profile will be retrieved together with the versioned `CustomObject`
+* `filterPackage (arrayOfMetadata)` - A function taking an array of metadata that should be included together with metadata matched by `pattern`. The 'companions' will be retrieved only if they are present in the stored `package.xml`. For example, if you retrieve a profile, the profile will be retrieved together with the referenced `CustomObject`
 
-* `requirePackage (arrayOfMetadata)` - The same as `filterPackage`, but the included metadata will be added to `package.xml` regardless if they were present before or not. In this case `arrayOfMetadata` is an array of 'pseudo' glob patterns (ex. `['CustomApplication/*', 'CustomObject/Account']`)
+* `requirePackage (arrayOfMetadata)` - The same as `filterPackage`, but the included metadata will be added to `package.xml` whether they were present before or not. In this case `arrayOfMetadata` is an array of 'pseudo' glob patterns (ex. `['CustomApplication/*', 'CustomObject/Account']`)
 
 ### utils `{ parseXml, buildXml, parseXmlNoArray }`
 
@@ -353,9 +353,9 @@ module.exports = {
 }
 ```
 
-The `transform` function is applied after retrieve and after the execution of the post retrieve plugins. The `untransform` function is applied as soon as you start a deploy, before the application of the pre deploy plugins and the actual deploy.
+The `transform` function is applied after the retrieve operation and after the execution of the post-retrieve plugins. The `untransform` function is applied as soon as you start a deploy, before the application of the pre deploy plugins and the actual deploy.
 
-A renderer can be used to totally transform the metadata in the format you like. For example you could think to split a `.object` file in different files, one for `fields` and one per `recordtypes`, or to even convert everything in json, or to represent some information as a `.csv` file. You can do what best fit your needs.
+A renderer can be used to totally transform the metadata in the format you like. For example, you could think to split a `.object` file in different files, one for `fields` and one per `recordtypes`, or to even convert everything in json, or to represent some information as a `.csv` file. You can do what best fit your needs.
 
 To instruct `sfdy` to use your renderer, you have to configure the path of your renderer in the `.sfdy.json` file:
 
@@ -364,6 +364,7 @@ To instruct `sfdy` to use your renderer, you have to configure the path of your 
   "renderers": ["sfdy-plugins/my-awesome-renderer.js"]
 }
 ```
+> **Tip:** You do not have to include the renderer whithin your salesforce project to be able to use it, so you can use your plugin referencing it from all of your project workspaces!
 
 #### Example - Store profiles as json files
 
@@ -386,7 +387,7 @@ module.exports = {
 
 ### Use `sfdy` as a library
 
-Is simple as that:
+It's as simple as that:
 
 ```
 $ npm i sfdy
