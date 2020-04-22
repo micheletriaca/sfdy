@@ -114,10 +114,10 @@ The --files consists in a comma-separated list of [glob pattern](https://www.npm
 #### using --diff
 
 ```
-$ sfdy deploy -u USERNAME -p PASSWORD -s --diff='aheadBranch..behindBranch'
+$ sfdy deploy -u USERNAME -p PASSWORD -s --diff='behindBranch..aheadBranch'
 ```
 
-The `--diff` flag is used to compute the list of files that needs to be deployed comparing 2 git branches. (examples: `--diff='HEAD..origin/myBranch'` or `--diff='branch1..branch2`). As an example of use case, you can trigger a deploy to the DEV environment when you create a pull-request to the dev branch. The deploy will contain only the files that have been modified in the pull-request
+The `--diff` flag is used to compute the list of files that needs to be deployed comparing 2 git branches. (examples: `--diff='origin/myBranch..HEAD'` or `--diff='branch1..branch2`). As an example of use case, you can trigger a deploy to the DEV environment when you create a pull-request to the dev branch. The deploy will contain only the files that have been modified in the pull-request
 
 > **Warning:** the --diff option requires git. To use this feature you should be versioning your Salesforce project
 
