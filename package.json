@@ -24,6 +24,7 @@
     "base64-stream": "^1.0.0",
     "chalk": "^3.0.0",
     "commander": "^2.20.3",
+    "del": "^5.1.0",
     "fs-extra": "^8.1.0",
     "get-stream": "^5.1.0",
     "globby": "^11.0.0",

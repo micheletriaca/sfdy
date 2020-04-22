@@ -8,10 +8,14 @@ const nativeRequire = require('../utils/native-require')
 const logger = require('../services/log-service')
 const globby = require('globby')
 const fs = require('fs')
+const del = require('del')
 
 const transformations = []
 const filterFns = []
 const requireMetadata = []
+const remappers = []
+
+const filesToClean = new Set()
 
 const requireFiles = inMemoryFiles => {
   const cache = new Map()
@@ -35,6 +39,9 @@ const requireFiles = inMemoryFiles => {
   }
 }
 
+const addFiles = inMemoryFiles => f => inMemoryFiles.push(f)
+const cleanFiles = (...files) => files.forEach(f => filesToClean.add(f))
+
 module.exports = {
   helpers: {
     xmlTransformer: (pattern, callback) => {
@@ -54,6 +61,12 @@ module.exports = {
     filterMetadata: (filterFn) => {
       filterFns.push(filterFn)
     },
+    addRemapper: (regexp, callback) => {
+      remappers.push({
+        regexp,
+        callback
+      })
+    },
     requireMetadata: (pattern, callback) => {
       requireMetadata.push({
         pattern,
@@ -65,6 +78,7 @@ module.exports = {
     transformations.length = 0
     filterFns.length = 0
     requireMetadata.length = 0
+    remappers.length = 0
     await _(plugins || [])
       .map(pluginPath => {
         if (typeof (pluginPath) === 'function') return pluginPath
@@ -89,6 +103,16 @@ module.exports = {
     }
     return true
   },
+  applyRemappers: targetFiles => {
+    return targetFiles.map(f => {
+      return remappers.filter(r => r.regexp.test(f)).reduce((res, r) => r.callback(res, r.regexp), f)
+    })
+  },
+  applyCleans: async () => {
+    await del([...filesToClean], {
+      cwd: path.join(pathService.getBasePath(), pathService.getSrcFolder())
+    })
+  },
   applyTransformations: async (targetFiles) => {
     const fileMap = await l.keyBy(targetFiles, 'fileName')
     const filePaths = Object.keys(fileMap)
@@ -105,14 +129,18 @@ module.exports = {
           await (t.callback(
             t.pattern,
             transformedJson[rootKey],
-            cachedRequireFiles
+            cachedRequireFiles,
+            addFiles(targetFiles),
+            cleanFiles
           ) || transformedJson[rootKey])
           return t
         } else {
           await (t.callback(
             t.pattern,
             fileMap[t.pattern],
-            cachedRequireFiles
+            cachedRequireFiles,
+            addFiles(targetFiles),
+            cleanFiles
           ))
           return t
         }

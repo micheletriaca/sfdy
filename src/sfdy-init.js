@@ -26,5 +26,8 @@ fs.writeFileSync(configPath, JSON.stringify({
   roles: {
     stripPartnerRoles: true
   },
+  staticResources: {
+    useBundleRenderer: ['*']
+  },
   stripManagedPackageFields: []
 }, null, 2))

@@ -2,6 +2,7 @@ const chalk = require('chalk')
 const yazl = require('yazl')
 const { printLogo } = require('../utils/branding-utils')
 const pluginEngine = require('../plugin-engine')
+const stdRenderers = require('../renderers')
 const Sfdc = require('../utils/sfdc-utils')
 const { buildXml } = require('../utils/xml-utils')
 const { getListOfSrcFiles, getPackageXml, getPackageMapping } = require('../utils/package-utils')
@@ -36,16 +37,17 @@ module.exports = async ({
   console.time('running time')
   printLogo()
   logger.log(chalk.yellow(`(1/4) Logging in salesforce as ${loginOpts.username}...`))
+  const apiVersion = (await getPackageXml()).version[0]
   const sfdcConnector = await Sfdc.newInstance({
     username: loginOpts.username,
     password: loginOpts.password,
     isSandbox: !!loginOpts.sandbox,
     serverUrl: loginOpts.serverUrl,
-    apiVersion: (await getPackageXml()).version[0]
+    apiVersion
   })
   logger.log(chalk.green(`Logged in!`))
   logger.log(chalk.yellow(`(2/4) Building package.xml...`))
-  const specificFiles = []
+  let specificFiles = []
   if (diffCfg) {
     const { spawnSync } = require('child_process')
     const diff = spawnSync('git', ['diff', '--name-only', '--diff-filter=d', diffCfg], {
@@ -61,41 +63,49 @@ module.exports = async ({
   }
   if (files) files.split(',').map(x => x.trim()).forEach(x => specificFiles.push(x))
   if (specificFiles.length) logger.log(chalk.yellow(`--files specified. Deploying only specific files...`))
+
+  const plugins = [
+    ...(stdRenderers.map(x => x.untransform)),
+    ...(renderers.map(x => nativeRequire(path.resolve(pathService.getBasePath(), x)).untransform)),
+    ...(destructive ? [] : preDeployPlugins)
+  ]
+  await pluginEngine.registerPlugins(plugins, sfdcConnector, loginOpts.username, await getPackageXml({ specificFiles, sfdcConnector }), config)
+
+  specificFiles = pluginEngine.applyRemappers(specificFiles)
   if (!specificFiles.length && destructive) {
     throw Error('Full destructive changeset is too dangerous. You must specify --files or --diff option')
   }
-  const pkgJson = await getPackageXml({ specificFiles, sfdcConnector })
+
   logger.log(chalk.green(`Built package.xml!`))
   logger.log(chalk.yellow(`(3/4) Creating zip & applying predeploy patches...`))
 
   const packageMapping = await getPackageMapping(sfdcConnector)
   const filesToRead = await getListOfSrcFiles(packageMapping, specificFiles.length ? specificFiles : ['**/*'])
   const targetFiles = readFiles(pathService.getSrcFolder(true), filesToRead)
-  const fileMap = _.keyBy(targetFiles, 'fileName')
-
-  const plugins = [
-    ...(renderers.map(x => nativeRequire(path.resolve(pathService.getBasePath(), x)).untransform)),
-    ...(destructive ? [] : preDeployPlugins)
-  ]
-  await pluginEngine.registerPlugins(plugins, sfdcConnector, loginOpts.username, pkgJson, config)
   await pluginEngine.applyTransformations(targetFiles)
+
+  const fileMap = _.keyBy(targetFiles, 'fileName')
 
   logger.time('zip creation')
   const zip = new yazl.ZipFile()
-  zip.addBuffer(Buffer.from(buildXml({ Package: pkgJson }) + '\n', 'utf-8'), destructive ? 'destructiveChanges.xml' : 'package.xml')
   if (destructive) {
-    zip.addBuffer(Buffer.from(buildXml({ Package: { version: pkgJson.version } }) + '\n', 'utf-8'), 'package.xml')
+    zip.addBuffer(Buffer.from(buildXml({ Package: { version: apiVersion } }) + '\n', 'utf-8'), 'package.xml')
     logger.log(chalk.yellow('The following files will be deleted:'))
-    logger.log(chalk.grey(filesToRead.filter(pluginEngine.applyFilters()).join('\n')))
+    const fileList = targetFiles.filter(pluginEngine.applyFilters()).map(x => x.fileName)
+    logger.log(chalk.grey(fileList.join('\n')))
+    const pkgJson = await getPackageXml({ specificFiles: fileList, sfdcConnector, skipParseGlobPatterns: true })
+    zip.addBuffer(Buffer.from(buildXml({ Package: pkgJson }) + '\n', 'utf-8'), 'destructiveChanges.xml')
   } else {
     const fileList = []
-    filesToRead
+    targetFiles
       .filter(pluginEngine.applyFilters())
+      .map(x => x.fileName)
       .forEach(f => {
         if (specificFiles.length) fileList.push(f)
         zip.addBuffer(fileMap[f].data, f)
       })
-
+    const pkgJson = await getPackageXml({ specificFiles: fileList, sfdcConnector, skipParseGlobPatterns: true })
+    zip.addBuffer(Buffer.from(buildXml({ Package: pkgJson }) + '\n', 'utf-8'), 'package.xml')
     if (fileList.length) {
       logger.log(chalk.yellow('The following files will be deployed:'))
       logger.log(chalk.grey(fileList.join('\n')))
