@@ -7,6 +7,7 @@ const { getPackageXml } = require('../utils/package-utils')
 const { printLogo } = require('../utils/branding-utils')
 const pluginEngine = require('../plugin-engine')
 const standardPlugins = require('../plugins')
+const standardRenderers = require('../renderers').map(x => x.transform)
 const pathService = require('../services/path-service')
 const nativeRequire = require('../utils/native-require')
 const path = require('path')
@@ -27,10 +28,12 @@ module.exports = async ({ loginOpts, basePath, logger: _logger, files, meta, con
   logger.log(chalk.green(`Logged in!`))
 
   logger.log(chalk.yellow(`(2/3) Retrieving metadata...`))
-  const specificFiles = (files && files.split(',').map(x => x.trim())) || []
+  let specificFiles = (files && files.split(',').map(x => x.trim())) || []
   const specificMeta = (meta && meta.split(',').map(x => x.trim())) || []
-  if (specificFiles.length) logger.log(chalk.yellow(`--files specified. Retrieving only specific files...`))
-  else if (specificMeta.length) logger.log(chalk.yellow(`--meta specified. Retrieving only specific metadata types...`))
+  if (specificFiles.length) {
+    logger.log(chalk.yellow(`--files specified. Retrieving only specific files...`))
+    specificFiles = pluginEngine.applyRemappers(specificFiles)
+  } else if (specificMeta.length) logger.log(chalk.yellow(`--meta specified. Retrieving only specific metadata types...`))
   const pkgJson = await getPackageXml({
     specificFiles,
     specificMeta,
@@ -42,6 +45,7 @@ module.exports = async ({ loginOpts, basePath, logger: _logger, files, meta, con
     [
       ...standardPlugins,
       ...(config.postRetrievePlugins || []),
+      ...standardRenderers,
       ...((config.renderers || []).map(x => nativeRequire(path.resolve(pathService.getBasePath(), x)).transform))
     ],
     sfdcConnector,

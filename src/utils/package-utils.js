@@ -47,7 +47,7 @@ module.exports = {
     if ((hasSpecificFiles || hasSpecificMeta) && opts.sfdcConnector) {
       const packageMapping = await module.exports.getPackageMapping(opts.sfdcConnector)
       if (hasSpecificFiles) {
-        return module.exports.buildPackageXmlFromFiles(opts.specificFiles, packageMapping)
+        return module.exports.buildPackageXmlFromFiles(opts.specificFiles, packageMapping, opts.skipParseGlobPatterns)
       } else {
         return module.exports.buildPackageXmlFromMeta(opts.specificMeta)
       }
@@ -60,8 +60,8 @@ module.exports = {
     packageJson.Package.types = Object.entries(types).map(([k, v]) => ({ name: [k], members: v }))
     return packageJson.Package
   },
-  buildPackageXmlFromFiles: async (files, packageMapping) => {
-    files = await module.exports.getListOfSrcFiles(packageMapping, files)
+  buildPackageXmlFromFiles: async (files, packageMapping, skipParseGlobPatterns = false) => {
+    if (!skipParseGlobPatterns) files = await module.exports.getListOfSrcFiles(packageMapping, files)
     const packageJson = await parseXml(fs.readFileSync(pathService.getPackagePath()))
     const metaMap = _(files)
       .filter(x => !x.endsWith('/**'))

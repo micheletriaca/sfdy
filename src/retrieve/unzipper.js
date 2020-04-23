@@ -27,7 +27,6 @@ module.exports = async (zipBuffer, sfdcConnector, pkgJson) => {
       zipFile.on('end', () => { flow.end() })
       flow.map(x => { x.type = x.fileName.endsWith('/') ? 'directory' : 'file'; return x })
         .filter(x => x.type === 'file' && x.fileName !== 'package.xml')
-        .filter(pluginEngine.applyFilters())
         .filter(x => {
           const idx = x.fileName.indexOf('/')
           const folderName = x.fileName.substring(0, idx)
@@ -47,10 +46,13 @@ module.exports = async (zipBuffer, sfdcConnector, pkgJson) => {
         .toArray(async entries => {
           logger.timeLog('unzipper')
           await pluginEngine.applyTransformations(entries)
-          await Promise.all(entries.map(async y => {
-            await mMakeDir(path.resolve(pathService.getBasePath(), 'src', getFolderName(y.fileName)))
-            await wf(path.resolve(pathService.getBasePath(), 'src', y.fileName), y.data)
-          }))
+          await pluginEngine.applyCleans()
+          await Promise.all(entries
+            .filter(pluginEngine.applyFilters())
+            .map(async y => {
+              await mMakeDir(path.resolve(pathService.getBasePath(), 'src', getFolderName(y.fileName)))
+              await wf(path.resolve(pathService.getBasePath(), 'src', y.fileName), y.data)
+            }))
           logger.timeEnd('unzipper')
           resolve()
         })

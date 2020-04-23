@@ -51,7 +51,7 @@ this command creates a `.sfdy.json` file whithin the root folder of your current
 1. [Deploy full metadata (based on package.xml)](#deploy-full-metadata)
 1. [Deploy partial metadata (glob pattern or diff between 2 git branches)](#deploy-partial-metadata)
 1. [Deploy a destructive changeset (glob pattern or metadata-based)](#deploy-a-destructive-changeset)
-1. [Apply 'standard' patches to metadata after retrieve](#apply-standard-patches-to-metadata-after-retrieve)
+1. [Apply 'standard' patches and renderers to metadata](#apply-standard-patches-and-renderers-to-metadata)
 1. [Build your own plugins (pre-deploy and after-retrieve)](#build-your-own-plugins)
 1. [Build your own renderers](#build-your-own-renderers)
 1. [Use `sfdy` as a library](#use-sfdy-as-a-library)
@@ -132,7 +132,7 @@ $ sfdy deploy -u USERNAME -p PASSWORD -s --files='objects/*,!objects/Account*,si
 
 > **Warning:** This command deletes the metadata files from Salesforce, but they remain on the filesystem
 
-### Apply 'standard' patches to metadata after retrieve
+### Apply 'standard' patches and renderers to metadata
 
 Sfdy provides a number of ready-to-use patches that you may find useful.
 All these patches serve 2 purposes:
@@ -141,6 +141,8 @@ All these patches serve 2 purposes:
 2. **Add useful metadata**. We want our repo to really be the 'source of truth' (ALL profile permissions, not only the enabled ones. ALL object permissions. Profile configuration of objects/applications/tabs that we DON'T want to version because they're not used or we're not the mantainer of those metadata)
 
 All of these patches can be disabled, so you can incrementally adopt them or skip a specific patch if you don't find it useful.
+
+In addition to metadata patching, `sfdy` provides an out-of-the-box renderer to handle static resource bundles. 
 
 First of all, create the configuration file `.sfdy.json` in the root folder of the salesforce project:
 
@@ -172,6 +174,9 @@ The configuration file is a JSON object:
   },
   "roles": {
     "stripPartnerRoles": true
+  },
+  "staticResources": {
+    "useBundleRenderer": ["*.resource"]
   },
   "stripManagedPackageFields": ["et4ae5"]
 }
@@ -207,6 +212,12 @@ The configuration file is a JSON object:
 | --- | --- |
 | stripPartnerRoles | if `stripPartnerRoles` is `true`, roles that end with `PartnerUser[0-9]*.role` are removed even if a `*` is used in `package.xml`. They are automatically created by Salesforce when you create a Partner Account, so there's no need to track them them using version control |
 
+#### staticResources
+
+| Renderer | Metadata | Description |
+| --- | --- | --- |
+| useBundleRenderer | StaticResource | glob pattern to identify static resource files to handle as an uncompressed bundle. The `contentType` of the `.resource-meta.xml` file must be `application/zip`. This renderer retrieves directly the uncompressed folder instead of the `.resource` file. If you deploy a single file inside the bundle, the `.resource` file is rebuilded behind the scenes and deployed in place of the single specified file
+
 #### other
 
 | Patch | Metadata | Description |
@@ -215,13 +226,13 @@ The configuration file is a JSON object:
 
 ### Build your own plugins
 
-`sfdy` offers a convenient way to develop your own plugin. This is really useful in many cases. Typical use cases are: changing named credentials' endpoints or email addresses in workflow's email alerts based on the target org, but the possibilities are endless. You can even query salesforce (rest api or tooling api) to conditionally apply transformations of the metadata on the basis of information coming from the target org.
+`sfdy` offers a convenient way to develop your own plugins. This is really useful in many cases. A simple  use case may be changing named credential's endpoints or email addresses in workflow's email alerts based on the target org, but the possibilities are endless. You can even query salesforce (rest api or tooling api) to conditionally apply transformations to the metadata on the basis of information coming from the target org.
 
 
 All the standard plugins are built usign the plugin engine of `sfdy`, so the best reference to understand how to develop a custom plugin is to look at the [plugins](src/plugins) folder in which all the standard plugins reside.
 
 
-A plugin is a `.js` file that exports a function with this signature:
+A plugin is a `.js` module that exports a function with this signature:
 
 ```javascript
 module.exports = async (context, helpers, utils) => {
@@ -244,26 +255,41 @@ module.exports = async (context, helpers, utils) => {
 * `modifyRawContent (pattern, callback2)` - This helper allows the developer to manipulate the whole metadata file. It is useful if you want to edit a file that is not an xml, or if you want to apply drastic transformations
 * `filterMetadata (filterFn)` - This helper can be used in a post-retrieve plugin to filter out unwanted metadata
 * `requireMetadata (pattern, callback3)` - This helper can be used to define dependencies between metadata. For example, a `Profile` must be retrieved together with `CustomObject` metadata in order to retrieve the list of `fieldPermissions`. By defining such a dependency using `requireMetadata`, whenever you retrieve a `Profile`, all dependent metadata are automatically included in the `package.xml` and eventually discarded at the end of the retrieve operation, just to retrieve all the relted parts of the original metadata you wanted to retrieve
+* `addRemapper (regex, callback4)` - This helper can be used to map an arbitrary file to a file representing a Salesforce metadata. For example, it can be used to instruct `sfdy` to deploy/retrieve a `.resource` file when you deploy/retrieve a file inside an uncompressed bundle. `regex` is a `RegExp` object defining the matching patterns
 
-`callback1 (filename, fJson)`:
+##### `callback1 (filename, fJson, requireFiles, addFiles, cleanFiles)`:
 
 * `filename` - The current filename
 * `fJson`  -  JSON representation of the XML. You can modify the object to modify the XML
+* `requireFiles (filenames: string[]): Promise<Entry[]>` - An async function taking an array of glob patterns and returning an array of `{ fileName: string, data: Buffer }` objects representing files. The files are taken from memory if you are requiring files that you are retrieving/deploying, otherwise they are searched in the filesystem. These files will be added to the files that will be retrieved/deployed unless you specify a filter with the `filterMetadata` helper. This helper is useful when you want to act on a metadata on the basis on another one (for example you need to retrieve the versioned fields from a `.object` file to add/delete FLS from `profiles`).
+* `addFiles (entries: Entry[])` - A function taking an array of `{ fileName: string, data: Buffer }` objects representing files. This function is similar to `requireFiles`. The main difference is that `requireFiles` looks for existing files, while `addFiles` let you add arbitrary data to the retrieved/deployed files. For this reason, it is best suited to be used in a `renderer`
+* `cleanFiles (filenames: string[])` - A function taking an array of glob patterns. This function let you specify files that should be deleted. It should be used in the context of an after retrieve plugin or a transform renderer (for example it is used to clean up an uncompressed staticresource bundle before uncompressing the `.resource` file coming from Salesforce)
 
-`callback2 (filename, file)`:
+
+
+##### `callback2 (filename, file, requireFiles, addFiles, cleanFiles)`:
 
 * `filename` - The current filename
 * `file` is an object containing a `data` field. `data` is a buffer containing the whole file. You can modify `data` to modify the file
+* `requireFiles (filenames: string[]): Promise<Entry[]>` - See [callback1](#callback1-filename-fJson-requireFiles-addFiles-cleanFiles)
+* `addFiles (entries: Entry[])` - See [callback1](#callback1-filename-fJson-requireFiles-addFiles-cleanFiles)
+* `cleanFiles (filenames: string[])` - See [callback1](#callback1-filename-fJson-requireFiles-addFiles-cleanFiles)
 
-`filterFn (filename)`:
+##### `filterFn (filename)`:
 
-* `filename` - The current filename, including the path (for example `classes/MyClass.cls`)
+* `filename: string` - The current filename, including the path (for example `classes/MyClass.cls`)
 
-`callback3 ({ filterPackage, requirePackage })`:
+##### `callback3 ({ filterPackage, requirePackage })`:
 
-* `filterPackage (arrayOfMetadata)` - A function taking an array of metadata that should be included together with metadata matched by `pattern`. The 'companions' will be retrieved only if they are present in the stored `package.xml`. For example, if you retrieve a profile, the profile will be retrieved together with the referenced `CustomObject`
+* `filterPackage (arrayOfMetadata: string[])` - A function taking an array of metadata that should be included together with metadata matched by `pattern`. The 'companions' will be retrieved only if they are present in the stored `package.xml`. For example, if you retrieve a profile, the profile will be retrieved together with the referenced `CustomObject`
 
-* `requirePackage (arrayOfMetadata)` - The same as `filterPackage`, but the included metadata will be added to `package.xml` whether they were present before or not. In this case `arrayOfMetadata` is an array of 'pseudo' glob patterns (ex. `['CustomApplication/*', 'CustomObject/Account']`)
+* `requirePackage (arrayOfMetadata: string[])` - The same as `filterPackage`, but the included metadata will be added to `package.xml` whether they were present before or not. In this case `arrayOfMetadata` is an array of 'pseudo' glob patterns (ex. `['CustomApplication/*', 'CustomObject/Account']`)
+
+##### `callback4 (fileName, regexp): string`:
+
+* `fileName: string` - The current filename, including the path (for example `classes/MyClass.cls`)
+* `regexp: RegExp` - The regexp originally passed to the helper
+* return value: a string representing the mapped filename
 
 ### utils `{ parseXml, buildXml, parseXmlNoArray }`
 
@@ -334,7 +360,7 @@ module.exports = async ({ environment, log }, helpers) => {
 
 See [this](src/plugins/profile-plugins/add-all-permissions-to-custom-profiles.js)
 
-#### Define dependencies between metadata
+##### Define dependencies between metadata
 
 See [this](src/plugins/dependency-graph.js)
 
@@ -384,6 +410,10 @@ module.exports = {
   }
 }
 ```
+
+#### Example - Handle zip staticresources as uncompressed folders
+
+See [here](src/renderers/static-resource-bundle.js)
 
 ### Use `sfdy` as a library
 
@@ -435,6 +465,11 @@ deploy({
 
 
 ## Changelog
+
+* 1.3.0
+  * Added `addRemapper` helper function
+  * Added `addFiles`, `cleanFiles` utility functions to plugin helpers. (See [here](#callback1-filename-fJson-requireFiles-addFiles-cleanFiles))
+  * Static resource bundle [renderer](#apply-standard-patches-to-metadata-after-retrieve)
 
 * 1.2.0
   * [destructive changesets](#deploy-a-destructive-changeset) support
