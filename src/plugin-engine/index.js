@@ -79,6 +79,8 @@ module.exports = {
     filterFns.length = 0
     requireMetadata.length = 0
     remappers.length = 0
+    filesToClean.clear()
+
     await _(plugins || [])
       .map(pluginPath => {
         if (typeof (pluginPath) === 'function') return pluginPath
