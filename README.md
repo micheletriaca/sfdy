@@ -271,9 +271,9 @@ module.exports = async (context, helpers, utils) => {
 
 * `filename` - The current filename
 * `file` is an object containing a `data` field. `data` is a buffer containing the whole file. You can modify `data` to modify the file
-* `requireFiles (filenames: string[]): Promise<Entry[]>` - See [callback1](#callback1-filename-fJson-requireFiles-addFiles-cleanFiles)
-* `addFiles (entries: Entry[])` - See [callback1](#callback1-filename-fJson-requireFiles-addFiles-cleanFiles)
-* `cleanFiles (filenames: string[])` - See [callback1](#callback1-filename-fJson-requireFiles-addFiles-cleanFiles)
+* `requireFiles (filenames: string[]): Promise<Entry[]>` - See [callback1](#callback1-filename-fjson-requirefiles-addfiles-cleanfiles)
+* `addFiles (entries: Entry[])` - See [callback1](#callback1-filename-fjson-requirefiles-addfiles-cleanfiles)
+* `cleanFiles (filenames: string[])` - See [callback1](#callback1-filename-fjson-requirefiles-addfiles-cleanfiles)
 
 ##### `filterFn (filename)`:
 
@@ -468,7 +468,7 @@ deploy({
 
 * 1.3.1
   * README.md fixes
-  
+
 * 1.3.0
   * Added `addRemapper` helper function
   * Added `addFiles`, `cleanFiles` utility functions to plugin helpers. (See [here](#callback1-filename-fjson-requirefiles-addfiles-cleanfiles))
