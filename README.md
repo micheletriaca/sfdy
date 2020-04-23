@@ -1,7 +1,7 @@
 # sfdy
 
 sfdy is a command line tool to work with the [Salesforce Metadata API](https://developer.salesforce.com/docs/atlas.en-us.api_meta.meta/api_meta/meta_intro.htm). 
-It has been built to work around strange behaviours and known limitations of the api, and to simplify the implementation of a continuous integration process. It applies [useful patches](#apply-standard-patches-to-metadata-after-retrieve) to avoid common problems when deploying metadata, and it exposes a simple interface to [build your own plugins](#build-your-own-plugins)
+It has been built to work around strange behaviours and known limitations of the api, and to simplify the implementation of a continuous integration process. It applies [useful patches](#apply-standard-patches-and-renderers-to-metadata) to avoid common problems when deploying metadata, and it exposes a simple interface to [build your own plugins](#build-your-own-plugins)
 
 1. [Requirements](#requirements)
 1. [Usage](#usage)
@@ -43,7 +43,7 @@ then go to the root folder of a Salesforce project, and type
 $ sfdy init
 ```
 
-this command creates a `.sfdy.json` file whithin the root folder of your current workspace with the configuration of the 'standard' patches (more on this [later](#apply-standard-patches-to-metadata-after-retrieve))
+this command creates a `.sfdy.json` file whithin the root folder of your current workspace with the configuration of the 'standard' patches (more on this [later](#apply-standard-patches-and-renderers-to-metadata))
 
 ## Features
 1. [Retrieve full metadata (based on package.xml)](#retrieve-full-metadata)
@@ -466,10 +466,13 @@ deploy({
 
 ## Changelog
 
+* 1.3.1
+  * README.md fixes
+  
 * 1.3.0
   * Added `addRemapper` helper function
-  * Added `addFiles`, `cleanFiles` utility functions to plugin helpers. (See [here](#callback1-filename-fJson-requireFiles-addFiles-cleanFiles))
-  * Static resource bundle [renderer](#apply-standard-patches-to-metadata-after-retrieve)
+  * Added `addFiles`, `cleanFiles` utility functions to plugin helpers. (See [here](#callback1-filename-fjson-requirefiles-addfiles-cleanfiles))
+  * Static resource bundle [renderer](#apply-standard-patches-and-renderers-to-metadata)
 
 * 1.2.0
   * [destructive changesets](#deploy-a-destructive-changeset) support
