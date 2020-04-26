@@ -6,8 +6,6 @@ const multimatch = require('multimatch')
 
 module.exports = {
   transform: async ({ config }, helpers) => {
-    if (!_.get(config, 'staticResources.useBundleRenderer.length')) return
-
     const filesToFilter = new Set()
 
     helpers.filterMetadata(fileName => {
@@ -20,7 +18,7 @@ module.exports = {
         const dir = resourceName.replace('.resource', '')
         cleanFiles(dir)
 
-        if (!multimatch(resourceName, config.staticResources.useBundleRenderer.map(x => `staticresources/${x}`)).length) return
+        if (!multimatch(resourceName, _.get(config, 'staticResources.useBundleRenderer', []).map(x => `staticresources/${x}`)).length) return
 
         filesToFilter.add(resourceName)
         cleanFiles(resourceName)
@@ -51,13 +49,11 @@ module.exports = {
   },
 
   untransform: async ({ config }, helpers) => {
-    if (!_.get(config, 'staticResources.useBundleRenderer.length')) return
-
     helpers.xmlTransformer('staticresources/*-meta.xml', async (filename, xml, requireFiles, addFiles) => {
       if (xml.contentType[0] === 'application/zip') {
         const resourceName = filename.replace('-meta.xml', '')
         const folder = resourceName.replace('.resource', '')
-        if (!multimatch(resourceName, config.staticResources.useBundleRenderer.map(x => `staticresources/${x}`)).length) return
+        if (!multimatch(resourceName, _.get(config, 'staticResources.useBundleRenderer', []).map(x => `staticresources/${x}`)).length) return
         const filesToZip = await requireFiles(`${folder}/**/*`)
         return new Promise(resolve => {
           const zip = new yazl.ZipFile()
