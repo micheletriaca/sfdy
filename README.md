@@ -78,7 +78,7 @@ $ sfdy retrieve -u USERNAME -p PASSWORD -s --files='objects/*,!objects/Account*,
 
 This command will retrieve all objects present in the local `objects` folder, except those which name starts with `Account`, and will retrieve all metadata (present in the local project) which folder starts with `site` (for example `sites`, `siteDotCom`)
 
-The --files consists in a comma-separated list of [glob pattern](https://www.npmjs.com/package/globby)
+The --files consists in a comma-separated list of [glob patterns](https://www.npmjs.com/package/globby)
 #### using --meta
 
 ```
@@ -109,7 +109,7 @@ $ sfdy deploy -u USERNAME -p PASSWORD -s --files='objects/*,!objects/Account*,si
 
 This command will deploy all objects present in the local `objects` folder, except those which name starts with `Account`, and will deploy all metadata (present in the local project) which folder starts with `site` (for example `sites`, `siteDotCom`)
 
-The --files consists in a comma-separated list of [glob pattern](https://www.npmjs.com/package/globby)
+The --files consists in a comma-separated list of [glob patterns](https://www.npmjs.com/package/globby)
 
 #### using --diff
 
@@ -465,6 +465,10 @@ deploy({
 
 
 ## Changelog
+
+* 1.3.2
+  * README.md fixes
+  * Static resource bundle renderer cleans `.resource` file when active, and the uncompressed folder when inactive
 
 * 1.3.1
   * README.md fixes
