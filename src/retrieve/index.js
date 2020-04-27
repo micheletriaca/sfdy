@@ -33,7 +33,13 @@ module.exports = async ({ loginOpts, basePath, logger: _logger, files, meta, con
   if (specificFiles.length) {
     logger.log(chalk.yellow(`--files specified. Retrieving only specific files...`))
     specificFiles = pluginEngine.applyRemappers(specificFiles)
-  } else if (specificMeta.length) logger.log(chalk.yellow(`--meta specified. Retrieving only specific metadata types...`))
+    logger.log(chalk.yellow('The following files will be retrieved:'))
+    logger.log(chalk.grey(specificFiles.join('\n')))
+  } else if (specificMeta.length) {
+    logger.log(chalk.yellow(`--meta specified. Retrieving only specific metadata types...`))
+    logger.log(chalk.yellow('The following metadata will be retrieved:'))
+    logger.log(chalk.grey(specificMeta.join('\n')))
+  }
   const pkgJson = await getPackageXml({
     specificFiles,
     specificMeta,
