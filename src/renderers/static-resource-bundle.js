@@ -8,6 +8,10 @@ module.exports = {
   transform: async ({ config }, helpers) => {
     const filesToFilter = new Set()
 
+    helpers.addRemapper(/^staticresources\/([^/]+)\/.*$/, (filename, regexp) => {
+      return `staticresources/${filename.match(regexp)[1]}.resource`
+    })
+
     helpers.filterMetadata(fileName => {
       return !filesToFilter.has(fileName)
     })
