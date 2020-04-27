@@ -466,6 +466,10 @@ deploy({
 
 ## Changelog
 
+* 1.3.3
+  * Bugfixing
+  * `--files` option: now you can pass specific file paths (not glob patterns) even if the files are not present in the filesystem
+
 * 1.3.2
   * README.md fixes
   * Static resource bundle renderer cleans `.resource` file when active, and the uncompressed folder when inactive
