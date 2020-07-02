@@ -47,6 +47,7 @@ module.exports = async ({
   })
   logger.log(chalk.green(`Logged in!`))
   logger.log(chalk.yellow(`(2/4) Building package.xml...`))
+  const specificFilesMode = diffCfg !== undefined || files !== undefined
   let specificFiles = []
   if (diffCfg) {
     const { spawnSync } = require('child_process')
@@ -54,14 +55,13 @@ module.exports = async ({
       cwd: pathService.getBasePath()
     })
     if (diff.status !== 0) throw Error(diff.stderr.toString('utf8'))
-    diff.stdout
+    specificFiles = diff.stdout
       .toString('utf8')
       .split('\n')
       .filter(x => x.startsWith(pathService.getSrcFolder() + '/'))
       .map(x => x.replace(pathService.getSrcFolder() + '/', ''))
-      .forEach(x => specificFiles.push(x))
   }
-  if (files) files.split(',').map(x => x.trim()).forEach(x => specificFiles.push(x))
+  if (files !== undefined) specificFiles = files.split(',').map(x => x.trim()).filter(x => x)
   if (specificFiles.length) logger.log(chalk.yellow(`--files specified. Deploying only specific files...`))
 
   const plugins = [
@@ -72,6 +72,12 @@ module.exports = async ({
   await pluginEngine.registerPlugins(plugins, sfdcConnector, loginOpts.username, await getPackageXml({ specificFiles, sfdcConnector }), config)
 
   specificFiles = pluginEngine.applyRemappers(specificFiles)
+
+  if (specificFilesMode && !specificFiles.length) {
+    logger.log(chalk.yellow('No files to deploy. Deploy skipped'))
+    return { status: 'Succeeded' }
+  }
+
   if (!specificFiles.length && destructive) {
     throw Error('Full destructive changeset is too dangerous. You must specify --files or --diff option')
   }
@@ -80,7 +86,7 @@ module.exports = async ({
   logger.log(chalk.yellow(`(3/4) Creating zip & applying predeploy patches...`))
 
   const packageMapping = await getPackageMapping(sfdcConnector)
-  const filesToRead = await getListOfSrcFiles(packageMapping, specificFiles.length ? specificFiles : ['**/*'])
+  const filesToRead = await getListOfSrcFiles(packageMapping, specificFilesMode ? specificFiles : ['**/*'])
   const targetFiles = readFiles(pathService.getSrcFolder(true), filesToRead)
   await pluginEngine.applyTransformations(targetFiles)
 
