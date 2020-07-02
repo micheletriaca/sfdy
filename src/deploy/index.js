@@ -47,21 +47,25 @@ module.exports = async ({
   })
   logger.log(chalk.green(`Logged in!`))
   logger.log(chalk.yellow(`(2/4) Building package.xml...`))
+
   const specificFilesMode = diffCfg !== undefined || files !== undefined
-  let specificFiles = []
-  if (diffCfg) {
-    const { spawnSync } = require('child_process')
-    const diff = spawnSync('git', ['diff', '--name-only', '--diff-filter=d', diffCfg], {
-      cwd: pathService.getBasePath()
-    })
+  const getFiles = () => (files && files.split(',').map(x => x.trim())) || []
+  const getDiffFiles = () => {
+    if (!diffCfg) return []
+    const diff = require('child_process').spawnSync(
+      'git',
+      ['diff', '--name-only', '--diff-filter=d', diffCfg],
+      { cwd: pathService.getBasePath() }
+    )
     if (diff.status !== 0) throw Error(diff.stderr.toString('utf8'))
-    specificFiles = diff.stdout
+    return diff.stdout
       .toString('utf8')
       .split('\n')
       .filter(x => x.startsWith(pathService.getSrcFolder() + '/'))
       .map(x => x.replace(pathService.getSrcFolder() + '/', ''))
   }
-  if (files !== undefined) specificFiles = files.split(',').map(x => x.trim()).filter(x => x)
+
+  let specificFiles = [...new Set([...getDiffFiles(), ...getFiles()])]
   if (specificFiles.length) logger.log(chalk.yellow(`--files specified. Deploying only specific files...`))
 
   const plugins = [
@@ -78,7 +82,7 @@ module.exports = async ({
     return { status: 'Succeeded' }
   }
 
-  if (!specificFiles.length && destructive) {
+  if (!specificFilesMode && destructive) {
     throw Error('Full destructive changeset is too dangerous. You must specify --files or --diff option')
   }
 
