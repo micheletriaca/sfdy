@@ -466,6 +466,9 @@ deploy({
 
 ## Changelog
 
+* 1.3.6
+  * Bugfixing: `--diff` and `--files` flag can be used together
+
 * 1.3.5
   * Bugfixing: [Handle --diff that find no diff in src foldes](issues/8)
 
