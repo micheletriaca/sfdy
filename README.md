@@ -466,6 +466,9 @@ deploy({
 
 ## Changelog
 
+* 1.3.5
+  * Bugfixing: [Handle --diff that find no diff in src foldes](issues/8)
+
 * 1.3.4
   * Bugfixing: [Delta deploy of foldered metadata (Report, Document, Email, Dashboard) fails](issues/10)
   * Minor Bugfixing
