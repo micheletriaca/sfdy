@@ -466,6 +466,10 @@ deploy({
 
 ## Changelog
 
+* 1.3.4
+  * Bugfixing: [Delta deploy of foldered metadata (Report, Document, Email, Dashboard) fails](issues/10)
+  * Minor Bugfixing
+
 * 1.3.3
   * Bugfixing
   * `--files` option: now you can pass specific file paths (not glob patterns) even if the files are not present in the filesystem
