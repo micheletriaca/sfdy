@@ -17,7 +17,7 @@ module.exports = {
 
     const regex = new RegExp(`^/?${pathService.getSrcFolder()}/`)
     const files = _(pattern.map(x => x.replace(regex, '')))
-      .map(x => x.replace(/-meta.xml$/, ''))
+      .map(x => /((reports)|(dashboards)|(documents)|(email))\/[^/]+-meta.xml/.test(x) ? x : x.replace(/-meta.xml$/, ''))
       .flatMap(x => {
         const key = x.substring(0, x.indexOf('/'))
         const res = [x]
@@ -70,11 +70,12 @@ module.exports = {
     const packageJson = await parseXml(fs.readFileSync(pathService.getPackagePath()))
     const metaMap = _(files)
       .filter(x => !x.endsWith('/**'))
-      .filter(x => !x.endsWith('-meta.xml'))
+      .filter(x => /((reports)|(dashboards)|(documents)|(email))\/[^/]+-meta.xml/.test(x) || !x.endsWith('-meta.xml'))
       .groupBy(f => packageMapping[f.substring(0, f.indexOf('/'))].xmlName)
       .mapValues(x => x.map(y => {
         const key = y.substring(0, y.indexOf('/'))
         y = y.replace(key + '/', '').replace((packageMapping[key].suffix && '.' + packageMapping[key].suffix) || '', '')
+        if (packageMapping[key].inFolder === 'true') y = y.replace(/-meta.xml$/, '')
         if (packageMapping[key].inFolder !== 'true' && y.indexOf('/') !== -1) y = y.substring(0, y.indexOf('/'))
         return y
       }))
