@@ -57,8 +57,8 @@ const retrievePermissionsList = _.memoize(async (profileName, context) => {
   return Object.keys(res)
     .filter(x => x.startsWith('Permissions'))
     .map(x => ({
-      enabled: res[x],
-      name: x.replace(/^Permissions/, '')
+      enabled: [!!res[x] + ''],
+      name: [x.replace(/^Permissions/, '')]
     }))
 })
 
