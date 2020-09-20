@@ -466,6 +466,9 @@ deploy({
 
 ## Changelog
 
+* 1.4.0
+  * Transformer api. Api to load unrendered files in memory
+
 * 1.3.6
   * Bugfixing: `--diff` and `--files` flag can be used together
 
