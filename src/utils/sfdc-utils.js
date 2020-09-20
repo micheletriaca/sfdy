@@ -51,12 +51,17 @@ const wsdlMap = {
 }
 
 class SfdcConn {
-  async login ({ username, password, isSandbox = true, serverUrl, apiVersion }) {
+  async login ({ username, password, isSandbox = true, serverUrl, apiVersion, sessionId, instanceHostname }) {
     this.apiVersion = apiVersion
-    this.instanceUrl = 'https://' + ((serverUrl && serverUrl.replace('https://', '')) || `${isSandbox ? 'test' : 'login'}.salesforce.com`)
-    const { serverUrl: instanceUrl, sessionId } = await this.metadata('login', { username, password }, { wsdl: 'partner' })
-    this.instanceUrl = /(https:\/\/.*)\/services/.exec(instanceUrl)[1]
-    this.sessionId = sessionId
+    if (!sessionId || !instanceHostname) {
+      this.instanceUrl = 'https://' + ((serverUrl && serverUrl.replace('https://', '')) || `${isSandbox ? 'test' : 'login'}.salesforce.com`)
+      const { serverUrl: instanceUrl, sessionId } = await this.metadata('login', { username, password }, { wsdl: 'partner' })
+      this.instanceUrl = /(https:\/\/.*)\/services/.exec(instanceUrl)[1]
+      this.sessionId = sessionId
+    } else {
+      this.sessionId = sessionId
+      this.instanceUrl = 'https://' + instanceHostname
+    }
   }
 
   async query (q, useTooling = false) {
@@ -190,9 +195,9 @@ class SfdcConn {
 }
 
 module.exports = {
-  newInstance: async ({ username, password, isSandbox = true, serverUrl, apiVersion }) => {
+  newInstance: async ({ username, password, isSandbox = true, serverUrl, apiVersion, sessionId, instanceHostname }) => {
     const res = new SfdcConn()
-    await res.login({ username, password, isSandbox, serverUrl, apiVersion })
+    await res.login({ username, password, isSandbox, serverUrl, apiVersion, sessionId, instanceHostname })
     res.query = res.query.bind(res)
     return res
   }
