@@ -17,7 +17,7 @@ module.exports = {
 
     const regex = new RegExp(`^/?${pathService.getSrcFolder()}/`)
     const files = _(pattern.map(x => x.replace(regex, '')))
-      .map(x => /((reports)|(dashboards)|(documents)|(email))\/[^/]+-meta.xml/.test(x) ? x : x.replace(/-meta.xml$/, ''))
+      .map(x => /((reports)|(dashboards)|(documents)|(email))(\/[^/]+)+-meta.xml/.test(x) ? x : x.replace(/-meta.xml$/, ''))
       .flatMap(x => {
         const key = x.substring(0, x.indexOf('/'))
         const res = [x]

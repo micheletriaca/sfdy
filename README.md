@@ -466,6 +466,9 @@ deploy({
 
 ## Changelog
 
+* 1.4.1
+  * Bugfixing: fixed issue when deploying with --diff a report in a nested folder
+
 * 1.4.0
   * Transformer api. Api to load unrendered files in memory
 
