@@ -466,6 +466,9 @@ deploy({
 
 ## Changelog
 
+* 1.4.2
+  * Bugfixing: fixed issue when deploying ExperienceBundle
+
 * 1.4.1
   * Bugfixing: fixed issue when deploying with --diff a report in a nested folder
 
