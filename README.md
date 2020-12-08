@@ -229,7 +229,7 @@ The configuration file is a JSON object:
 `sfdy` offers a convenient way to develop your own plugins. This is really useful in many cases. A simple  use case may be changing named credential's endpoints or email addresses in workflow's email alerts based on the target org, but the possibilities are endless. You can even query salesforce (rest api or tooling api) to conditionally apply transformations to the metadata on the basis of information coming from the target org.
 
 
-All the standard plugins are built usign the plugin engine of `sfdy`, so the best reference to understand how to develop a custom plugin is to look at the [plugins](src/plugins) folder in which all the standard plugins reside.
+All the standard plugins are built using the plugin engine of `sfdy`, so the best reference to understand how to develop a custom plugin is to look at the [plugins](src/plugins) folder in which all the standard plugins reside.
 
 
 A plugin is a `.js` module that exports a function with this signature:
@@ -465,6 +465,9 @@ deploy({
 
 
 ## Changelog
+
+* 1.4.3
+  * Bugfixing: fixed exclusion glob pattern when using `--files` option
 
 * 1.4.2
   * Bugfixing: fixed issue when deploying ExperienceBundle

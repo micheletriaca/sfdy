@@ -38,9 +38,11 @@ module.exports = {
 
     const globPatterns = files.filter(f => glob.hasMagic(f))
     const rawFiles = files.filter(f => !glob.hasMagic(f))
-    const filesFromGlobPatterns = await glob(globPatterns, { cwd: pathService.getSrcFolder(true) })
-    const allFiles = new Set([...filesFromGlobPatterns, ...rawFiles])
-    return [...allFiles].filter(x => !ignoreDiffs.has(x))
+    if (!globPatterns.length) return rawFiles.filter(x => !ignoreDiffs.has(x))
+    else {
+      const filesFromGlobPatterns = await glob(files, { cwd: pathService.getSrcFolder(true) })
+      return filesFromGlobPatterns.filter(x => !ignoreDiffs.has(x))
+    }
   },
   getPackageMapping: async sfdcConnector => {
     const cacheKey = crypto.createHash('md5').update(sfdcConnector.sessionId).digest('hex')
