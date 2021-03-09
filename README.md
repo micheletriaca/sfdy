@@ -128,6 +128,12 @@ Just run a [partial deploy](#deploy-partial-metadata) passing the `--destructive
 $ sfdy deploy -u USERNAME -p PASSWORD -s --files='objects/*,!objects/Account*,site*/**/*' --destructive
 ```
 
+You can also run a destructive deploy changeset with a custom destructiveChanges.xml path:
+
+```
+$ sfdy deploy -u USERNAME -p PASSWORD -s --destructive <destructiveChanges.xml path>
+```
+
 > **Warning:** Full destructive deploy is deliberately not supported
 
 > **Warning:** This command deletes the metadata files from Salesforce, but they remain on the filesystem
