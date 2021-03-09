@@ -19,7 +19,7 @@ module.exports = async ({
   loginOpts,
   checkOnly = false,
   destructive = false,
-  package,
+  destructivePackage,
   basePath,
   logger: _logger,
   diffCfg,
@@ -83,8 +83,8 @@ module.exports = async ({
     return { status: 'Succeeded' }
   }
 
-  if ((specificFilesMode || !package) && destructive) {
-    throw Error('Full destructive changeset is too dangerous. You must specify --files, --diff or --package option')
+  if ((specificFilesMode || !destructivePackage) && destructive) {
+    throw Error('Full destructive changeset is too dangerous. You must specify --files, --diff or --destructive-package option')
   }
 
   logger.log(chalk.green(`Built package.xml!`))
@@ -107,9 +107,9 @@ module.exports = async ({
     logger.log(chalk.grey(fileList.join('\n')))
     const pkgJson = await getPackageXml({ specificFiles: fileList, sfdcConnector, skipParseGlobPatterns: true })
     zip.addBuffer(Buffer.from(buildXml({ Package: pkgJson }) + '\n', 'utf-8'), 'destructiveChanges.xml')
-    } else if (package) {
-      logger.log(chalk.yellow(`Metadata specified in ${package} will be deleted`))
-      const pkgJson = await getPackageXml({ specificPackage: package, sfdcConnector, skipParseGlobPatterns: true })
+    } else if (destructivePackage) {
+      logger.log(chalk.yellow(`Metadata specified in ${destructivePackage} will be deleted`))
+      const pkgJson = await getPackageXml({ specificPackage: destructivePackage, sfdcConnector, skipParseGlobPatterns: true })
       zip.addBuffer(Buffer.from(buildXml({ Package: pkgJson }) + '\n', 'utf-8'), 'destructiveChanges.xml')
     }
   } else {
