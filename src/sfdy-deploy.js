@@ -14,7 +14,7 @@ program
   .option('-d, --diff <branchRange>', 'Delta deploy from branch to branch - example develop..uat')
   .option('-t, --test-report', 'Generate junit test-report.xml')
   .option('--destructive', 'Deploy a destructive changeset')
-  .option('--package', 'Specify a different package.xml name (useful with destructive changeset)')
+  .option('--package <file>', 'Specify a different package.xml name (useful with destructive changeset)')
   .option('--validate', 'Simulate a deployment')
   .option('--test-level <testLevel>', 'Override default testLevel')
   .option('--specified-tests <specifiedTests>', 'Comma separated list of tests to execute if testlevel=RunSpecifiedTests')

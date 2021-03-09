@@ -83,7 +83,7 @@ module.exports = async ({
     return { status: 'Succeeded' }
   }
 
-  if ((!specificFilesMode || !package) && destructive) {
+  if ((specificFilesMode || !package) && destructive) {
     throw Error('Full destructive changeset is too dangerous. You must specify --files, --diff or --package option')
   }
 
