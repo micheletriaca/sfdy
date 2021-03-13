@@ -66,7 +66,7 @@ module.exports = {
       }
     }
     if (hasSpecificPackage) {
-      return (await parseXml(fs.readFileSync(`${pathService.getBasePath()}/${opts.specificPackage}`))).Package
+      return (await parseXml(fs.readFileSync(path.resolve(pathService.getBasePath(), opts.specificPackage)))).Package
     } else {
       return (await parseXml(fs.readFileSync(pathService.getPackagePath()))).Package
     }
