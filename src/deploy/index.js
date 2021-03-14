@@ -102,11 +102,11 @@ module.exports = async ({
   if (destructive) {
     zip.addBuffer(Buffer.from(buildXml({ Package: { version: apiVersion } }) + '\n', 'utf-8'), 'package.xml')
     if (specificFilesMode) {
-    logger.log(chalk.yellow('The following files will be deleted:'))
-    const fileList = targetFiles.filter(pluginEngine.applyFilters()).map(x => x.fileName)
-    logger.log(chalk.grey(fileList.join('\n')))
-    const pkgJson = await getPackageXml({ specificFiles: fileList, sfdcConnector, skipParseGlobPatterns: true })
-    zip.addBuffer(Buffer.from(buildXml({ Package: pkgJson }) + '\n', 'utf-8'), 'destructiveChanges.xml')
+      logger.log(chalk.yellow('The following files will be deleted:'))
+      const fileList = targetFiles.filter(pluginEngine.applyFilters()).map(x => x.fileName)
+      logger.log(chalk.grey(fileList.join('\n')))
+      const pkgJson = await getPackageXml({ specificFiles: fileList, sfdcConnector, skipParseGlobPatterns: true })
+      zip.addBuffer(Buffer.from(buildXml({ Package: pkgJson }) + '\n', 'utf-8'), 'destructiveChanges.xml')
     } else if (destructivePackage && typeof destructivePackage === 'string') {
       logger.log(chalk.yellow(`Metadata specified in ${destructivePackage} will be deleted`))
       const pkgJson = await getPackageXml({ specificPackage: destructivePackage, sfdcConnector, skipParseGlobPatterns: true })
