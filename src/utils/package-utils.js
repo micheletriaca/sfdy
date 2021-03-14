@@ -83,6 +83,7 @@ module.exports = {
     const metaMap = _(files)
       .filter(x => !x.endsWith('/**'))
       .filter(x => /((reports)|(dashboards)|(documents)|(email))\/[^/]+-meta.xml/.test(x) || !x.endsWith('-meta.xml'))
+      .filter(f => packageMapping[f.substring(0, f.indexOf('/'))])
       .groupBy(f => packageMapping[f.substring(0, f.indexOf('/'))].xmlName)
       .mapValues(x => x.map(y => {
         const key = y.substring(0, y.indexOf('/'))

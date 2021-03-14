@@ -78,11 +78,6 @@ module.exports = async ({
 
   specificFiles = pluginEngine.applyRemappers(specificFiles)
 
-  if (specificFilesMode && !specificFiles.length) {
-    logger.log(chalk.yellow('No files to deploy. Deploy skipped'))
-    return { status: 'Succeeded' }
-  }
-
   if (!(specificFilesMode || destructivePackage) && destructive) {
     throw Error('Full destructive changeset is too dangerous. You must specify --files, --diff or a value for the destructive option')
   }
@@ -96,6 +91,11 @@ module.exports = async ({
   await pluginEngine.applyTransformations(targetFiles)
 
   const fileMap = _.keyBy(targetFiles, 'fileName')
+
+  if (!targetFiles.length) {
+    logger.log(chalk.yellow('No files to deploy. Deploy skipped'))
+    return { status: 'Succeeded' }
+  }
 
   logger.time('zip creation')
   const zip = new yazl.ZipFile()
