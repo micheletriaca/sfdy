@@ -472,6 +472,10 @@ deploy({
 
 ## Changelog
 
+* 1.4.4
+  * Destructive changeset: added the possibility to pass both a `package.xml` or a glob pattern. See [here](#deploy-a-destructive-changeset). Thanks [zerbfra](https://github.com/zerbfra)
+  * Bugfixing: fixed crash when `--diff` returned only files outside src folder
+
 * 1.4.3
   * Bugfixing: fixed exclusion glob pattern when using `--files` option
 
