@@ -56,6 +56,7 @@ module.exports = {
   getPackageXml: async (opts = {}) => {
     const hasSpecificFiles = opts.specificFiles && opts.specificFiles.length
     const hasSpecificMeta = opts.specificMeta && opts.specificMeta.length
+    const hasSpecificPackage = opts.specificPackage
     if ((hasSpecificFiles || hasSpecificMeta) && opts.sfdcConnector) {
       const packageMapping = await module.exports.getPackageMapping(opts.sfdcConnector)
       if (hasSpecificFiles) {
@@ -64,7 +65,11 @@ module.exports = {
         return module.exports.buildPackageXmlFromMeta(opts.specificMeta)
       }
     }
-    return (await parseXml(fs.readFileSync(pathService.getPackagePath()))).Package
+    if (hasSpecificPackage) {
+      return (await parseXml(fs.readFileSync(path.resolve(pathService.getBasePath(), opts.specificPackage)))).Package
+    } else {
+      return (await parseXml(fs.readFileSync(pathService.getPackagePath()))).Package
+    }
   },
   buildPackageXmlFromMeta: async (meta) => {
     const packageJson = await parseXml(fs.readFileSync(pathService.getPackagePath()))

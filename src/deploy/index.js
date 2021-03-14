@@ -19,6 +19,7 @@ module.exports = async ({
   loginOpts,
   checkOnly = false,
   destructive = false,
+  destructivePackage,
   basePath,
   logger: _logger,
   diffCfg,
@@ -82,8 +83,8 @@ module.exports = async ({
     return { status: 'Succeeded' }
   }
 
-  if (!specificFilesMode && destructive) {
-    throw Error('Full destructive changeset is too dangerous. You must specify --files or --diff option')
+  if (!(specificFilesMode || destructivePackage) && destructive) {
+    throw Error('Full destructive changeset is too dangerous. You must specify --files, --diff or a value for the destructive option')
   }
 
   logger.log(chalk.green(`Built package.xml!`))
@@ -100,11 +101,17 @@ module.exports = async ({
   const zip = new yazl.ZipFile()
   if (destructive) {
     zip.addBuffer(Buffer.from(buildXml({ Package: { version: apiVersion } }) + '\n', 'utf-8'), 'package.xml')
+    if (specificFilesMode) {
     logger.log(chalk.yellow('The following files will be deleted:'))
     const fileList = targetFiles.filter(pluginEngine.applyFilters()).map(x => x.fileName)
     logger.log(chalk.grey(fileList.join('\n')))
     const pkgJson = await getPackageXml({ specificFiles: fileList, sfdcConnector, skipParseGlobPatterns: true })
     zip.addBuffer(Buffer.from(buildXml({ Package: pkgJson }) + '\n', 'utf-8'), 'destructiveChanges.xml')
+    } else if (destructivePackage && typeof destructivePackage === 'string') {
+      logger.log(chalk.yellow(`Metadata specified in ${destructivePackage} will be deleted`))
+      const pkgJson = await getPackageXml({ specificPackage: destructivePackage, sfdcConnector, skipParseGlobPatterns: true })
+      zip.addBuffer(Buffer.from(buildXml({ Package: pkgJson }) + '\n', 'utf-8'), 'destructiveChanges.xml')
+    }
   } else {
     const fileList = []
     targetFiles
