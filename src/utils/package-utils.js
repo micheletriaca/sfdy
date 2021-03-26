@@ -20,8 +20,10 @@ module.exports = {
       .map(x => /((reports)|(dashboards)|(documents)|(email))(\/[^/]+)+-meta.xml/.test(x) ? x : x.replace(/-meta.xml$/, ''))
       .flatMap(x => {
         const key = x.substring(0, x.indexOf('/'))
+        const hasSuffix = x.match(/\.([^.]+)(-meta.xml)?$/)
+        const suffix = (hasSuffix && hasSuffix[1]) || ''
         const res = [x]
-        const pkgEntry = packageMapping[key]
+        const pkgEntry = packageMapping[key] || packageMapping[_.compact([key, suffix]).join('_')]
         if (!pkgEntry) return res
         if (pkgEntry.metaFile === 'true') res.push(x + '-meta.xml')
 
@@ -46,10 +48,10 @@ module.exports = {
   },
   getPackageMapping: async sfdcConnector => {
     const cacheKey = crypto.createHash('md5').update(sfdcConnector.sessionId).digest('hex')
-    const cachePath = path.resolve(os.tmpdir(), 'sfdy' + cacheKey)
+    const cachePath = path.resolve(os.tmpdir(), 'sfdy_v1.4.5_' + cacheKey)
     const hasCache = fs.existsSync(cachePath)
     if (hasCache) return JSON.parse(fs.readFileSync(cachePath))
-    const packageMapping = _.keyBy((await sfdcConnector.describeMetadata()).metadataObjects, 'directoryName')
+    const packageMapping = _.keyBy((await sfdcConnector.describeMetadata()).metadataObjects, x => _.compact([x.directoryName, x.suffix]).join('_'))
     fs.writeFileSync(cachePath, JSON.stringify(packageMapping))
     return packageMapping
   },
@@ -83,14 +85,23 @@ module.exports = {
     const metaMap = _(files)
       .filter(x => !x.endsWith('/**'))
       .filter(x => /((reports)|(dashboards)|(documents)|(email))\/[^/]+-meta.xml/.test(x) || !x.endsWith('-meta.xml'))
-      .filter(f => packageMapping[f.substring(0, f.indexOf('/'))])
-      .groupBy(f => packageMapping[f.substring(0, f.indexOf('/'))].xmlName)
+      .map(x => {
+        const key = x.substring(0, x.indexOf('/'))
+        const hasSuffix = x.match(/\.([^.]+)(-meta.xml)?$/)
+        const suffix = (hasSuffix && hasSuffix[1]) || ''
+        return {
+          mapping: packageMapping[key] || packageMapping[_.compact([key, suffix]).join('_')],
+          name: x.replace(key + '/', '').replace(suffix ? '.' + suffix : '', ''),
+          suffix,
+          key
+        }
+      })
+      .filter(f => f.mapping)
+      .groupBy(f => f.mapping.xmlName)
       .mapValues(x => x.map(y => {
-        const key = y.substring(0, y.indexOf('/'))
-        y = y.replace(key + '/', '').replace((packageMapping[key].suffix && '.' + packageMapping[key].suffix) || '', '')
-        if (packageMapping[key].inFolder === 'true') y = y.replace(/-meta.xml$/, '')
-        if (packageMapping[key].inFolder !== 'true' && y.indexOf('/') !== -1) y = y.substring(0, y.indexOf('/'))
-        return y
+        if (y.mapping.inFolder === 'true') y.name = y.name.replace(/-meta.xml$/, '')
+        if (y.mapping.inFolder !== 'true' && y.name.indexOf('/') !== -1) y.name = y.name.substring(0, y.name.indexOf('/'))
+        return y.name
       }))
       .value()
     packageJson.Package.types = Object.entries(metaMap).map(x => ({

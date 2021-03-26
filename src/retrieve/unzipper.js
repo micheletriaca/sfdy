@@ -1,4 +1,5 @@
 const _ = require('highland')
+const __ = require('lodash')
 const fs = require('fs')
 const yauzl = require('yauzl')
 const util = require('util')
@@ -30,7 +31,9 @@ module.exports = async (zipBuffer, sfdcConnector, pkgJson) => {
         .filter(x => {
           const idx = x.fileName.indexOf('/')
           const folderName = x.fileName.substring(0, idx)
-          const metaInfo = packageMapping[folderName]
+          const hasSuffix = x.fileName.match(/\.([^.]+)(-meta.xml)?$/)
+          const suffix = (hasSuffix && hasSuffix[1]) || ''
+          const metaInfo = packageMapping[folderName] || packageMapping[__.compact([folderName, suffix]).join('_')]
           if (!metaInfo) return false
           if (packageTypesToKeep.has(metaInfo.xmlName + '/*')) return true
           let metaName = x.fileName.substring(idx + 1).replace('-meta.xml', '')
