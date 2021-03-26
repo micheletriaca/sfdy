@@ -472,6 +472,9 @@ deploy({
 
 ## Changelog
 
+* 1.4.5
+  * Bugfixing: solved 'multiple metadata types in same folder' issue. It is now possible to retrieve and deploy correctly wave metadata
+
 * 1.4.4
   * Destructive changeset: added the possibility to pass both a `package.xml` or a glob pattern. See [here](#deploy-a-destructive-changeset). Thanks [zerbfra](https://github.com/zerbfra)
   * Bugfixing: fixed crash when `--diff` returned only files outside src folder
