@@ -8,6 +8,14 @@ const pathService = require('../services/path-service')
 const crypto = require('crypto')
 
 module.exports = {
+  getMeta (packageMapping, filePath, folderName) {
+    const hasSuffix = filePath.match(/\.([^.]+)(-meta.xml)?$/)
+    const suffix = (hasSuffix && hasSuffix[1]) || ''
+    const meta = packageMapping[folderName]
+    if (!meta || !Array.isArray(meta)) return meta
+    else return meta.find(x => x.suffix === suffix)
+  },
+
   getListOfSrcFiles: async (packageMapping = {}, pattern = ['**/*']) => {
     const ignoreDiffs = new Set([
       'package.xml',
@@ -20,10 +28,8 @@ module.exports = {
       .map(x => /((reports)|(dashboards)|(documents)|(email))(\/[^/]+)+-meta.xml/.test(x) ? x : x.replace(/-meta.xml$/, ''))
       .flatMap(x => {
         const key = x.substring(0, x.indexOf('/'))
-        const hasSuffix = x.match(/\.([^.]+)(-meta.xml)?$/)
-        const suffix = (hasSuffix && hasSuffix[1]) || ''
         const res = [x]
-        const pkgEntry = packageMapping[key] || packageMapping[_.compact([key, suffix]).join('_')]
+        const pkgEntry = module.exports.getMeta(packageMapping, x, key)
         if (!pkgEntry) return res
         if (pkgEntry.metaFile === 'true') res.push(x + '-meta.xml')
 
@@ -48,10 +54,13 @@ module.exports = {
   },
   getPackageMapping: async sfdcConnector => {
     const cacheKey = crypto.createHash('md5').update(sfdcConnector.sessionId).digest('hex')
-    const cachePath = path.resolve(os.tmpdir(), 'sfdy_v1.4.5_' + cacheKey)
+    const cachePath = path.resolve(os.tmpdir(), 'sfdy_v1.4.6_' + cacheKey)
     const hasCache = fs.existsSync(cachePath)
     if (hasCache) return JSON.parse(fs.readFileSync(cachePath))
-    const packageMapping = _.keyBy((await sfdcConnector.describeMetadata()).metadataObjects, x => _.compact([x.directoryName, x.suffix]).join('_'))
+    const packageMapping = _((await sfdcConnector.describeMetadata()).metadataObjects)
+      .groupBy(x => x.directoryName)
+      .mapValues(x => x.length === 1 ? x[0] : x)
+      .value()
     fs.writeFileSync(cachePath, JSON.stringify(packageMapping))
     return packageMapping
   },
@@ -90,7 +99,7 @@ module.exports = {
         const hasSuffix = x.match(/\.([^.]+)(-meta.xml)?$/)
         const suffix = (hasSuffix && hasSuffix[1]) || ''
         return {
-          mapping: packageMapping[key] || packageMapping[_.compact([key, suffix]).join('_')],
+          mapping: module.exports.getMeta(packageMapping, x, key),
           name: x.replace(key + '/', '').replace(suffix ? '.' + suffix : '', ''),
           suffix,
           key

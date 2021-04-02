@@ -472,6 +472,9 @@ deploy({
 
 ## Changelog
 
+* 1.4.6
+  * Bugfixing: fix regression handling folders in foldered metadata
+
 * 1.4.5
   * Bugfixing: solved 'multiple metadata types in same folder' issue. It is now possible to retrieve and deploy correctly wave metadata
 
