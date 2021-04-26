@@ -472,6 +472,9 @@ deploy({
 
 ## Changelog
 
+* 1.4.7
+  * Bugfixing: fix another regression handling folders in foldered metadata
+
 * 1.4.6
   * Bugfixing: fix regression handling folders in foldered metadata
 

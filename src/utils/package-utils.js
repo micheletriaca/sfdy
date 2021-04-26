@@ -24,7 +24,7 @@ module.exports = {
     ])
 
     const regex = new RegExp(`^/?${pathService.getSrcFolder()}/`)
-    const files = _(pattern.map(x => x.replace(regex, '')))
+    const files = _(await glob(pattern.map(x => x.replace(regex, '')), { cwd: pathService.getSrcFolder(true) }))
       .map(x => /((reports)|(dashboards)|(documents)|(email))(\/[^/]+)+-meta.xml/.test(x) ? x : x.replace(/-meta.xml$/, ''))
       .flatMap(x => {
         const key = x.substring(0, x.indexOf('/'))
@@ -96,11 +96,11 @@ module.exports = {
       .filter(x => /((reports)|(dashboards)|(documents)|(email))\/[^/]+-meta.xml/.test(x) || !x.endsWith('-meta.xml'))
       .map(x => {
         const key = x.substring(0, x.indexOf('/'))
-        const hasSuffix = x.match(/\.([^.]+)(-meta.xml)?$/)
+        const hasSuffix = x.replace('-meta.xml', '').match(/\.([^.]+)$/)
         const suffix = (hasSuffix && hasSuffix[1]) || ''
         return {
           mapping: module.exports.getMeta(packageMapping, x, key),
-          name: x.replace(key + '/', '').replace(suffix ? '.' + suffix : '', ''),
+          name: x.replace(key + '/', '').replace('-meta.xml', '').replace(suffix ? '.' + suffix : '', ''),
           suffix,
           key
         }
@@ -108,7 +108,6 @@ module.exports = {
       .filter(f => f.mapping)
       .groupBy(f => f.mapping.xmlName)
       .mapValues(x => x.map(y => {
-        if (y.mapping.inFolder === 'true') y.name = y.name.replace(/-meta.xml$/, '')
         if (y.mapping.inFolder !== 'true' && y.name.indexOf('/') !== -1) y.name = y.name.substring(0, y.name.indexOf('/'))
         return y.name
       }))
