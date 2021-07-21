@@ -30,7 +30,8 @@ module.exports = async ({
   testLevel,
   testReport,
   srcFolder,
-  config
+  config,
+  excludeFiles = []
 }) => {
   if (basePath) pathService.setBasePath(basePath)
   if (srcFolder) pathService.setSrcFolder(srcFolder)
@@ -87,7 +88,8 @@ module.exports = async ({
 
   const packageMapping = await getPackageMapping(sfdcConnector)
   const filesToRead = await getListOfSrcFiles(packageMapping, specificFilesMode ? specificFiles : ['**/*'])
-  const targetFiles = readFiles(pathService.getSrcFolder(true), filesToRead)
+  const filesToExclude = new Set([...((config && config.excludeFiles) || []), ...(excludeFiles || [])])
+  const targetFiles = readFiles(pathService.getSrcFolder(true), filesToRead, [...filesToExclude])
   await pluginEngine.applyTransformations(targetFiles)
 
   const fileMap = _.keyBy(targetFiles, 'fileName')
