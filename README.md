@@ -472,6 +472,9 @@ deploy({
 
 ## Changelog
 
+* 1.5.1
+  * Bugfixing: fix deploy of static resource bundle
+
 * 1.5.0
   * Deploy: added the possibility to skip some files from deploying. To do that, add for example `"excludeFiles": ["lwc/**/__tests__/**/*"]` to `.sfdy.json`
 

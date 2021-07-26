@@ -24,7 +24,11 @@ module.exports = {
     ])
 
     const regex = new RegExp(`^/?${pathService.getSrcFolder()}/`)
-    const files = _(await glob(pattern.map(x => x.replace(regex, '')), { cwd: pathService.getSrcFolder(true) }))
+
+    let globPatterns = pattern.filter(f => glob.hasMagic(f)).map(x => x.replace(regex, ''))
+    const globFiles = await glob(globPatterns, { cwd: pathService.getSrcFolder(true) })
+    let rawFiles = pattern.filter(f => !glob.hasMagic(f)).map(x => x.replace(regex, ''))
+    const files = _([...new Set([...globFiles, ...rawFiles])])
       .map(x => /((reports)|(dashboards)|(documents)|(email))(\/[^/]+)+-meta.xml/.test(x) ? x : x.replace(/-meta.xml$/, ''))
       .flatMap(x => {
         const key = x.substring(0, x.indexOf('/'))
@@ -44,8 +48,8 @@ module.exports = {
       .uniq()
       .value()
 
-    const globPatterns = files.filter(f => glob.hasMagic(f))
-    const rawFiles = files.filter(f => !glob.hasMagic(f))
+    globPatterns = files.filter(f => glob.hasMagic(f))
+    rawFiles = files.filter(f => !glob.hasMagic(f))
     if (!globPatterns.length) return rawFiles.filter(x => !ignoreDiffs.has(x))
     else {
       const filesFromGlobPatterns = await glob(files, { cwd: pathService.getSrcFolder(true) })

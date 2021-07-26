@@ -1,0 +1,9 @@
+
+Todo:
+  ✔ Retrieve profiles. Fixare filtraggio metadati @done(20-03-14 16:33)
+  ✔ Helper per patchare package.xml? @done(20-03-14 17:04)
+  ✔ Require dependencies? @done(20-03-14 16:33)
+  ☐ Retrieve --files e child xml (es CustomField). Vanno messi insieme i folder richiesti e il contenuto del package.xml
+  ☐ filterPackage può accettare direttamente il member e non solo il name?
+  
+  ☐ Fix Readme staticresource
