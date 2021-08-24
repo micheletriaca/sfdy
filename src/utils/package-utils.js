@@ -88,7 +88,10 @@ module.exports = {
   },
   buildPackageXmlFromMeta: async (meta) => {
     const packageJson = await parseXml(fs.readFileSync(pathService.getPackagePath()))
-    const types = _(meta).groupBy(x => x.split('/')[0]).mapValues(x => x.map(y => y.split('/')[1] || '*')).value()
+    const types = _(meta).groupBy(x => x.split('/')[0]).mapValues(x => x.map(y => {
+      const idx = y.indexOf('/')
+      return y.substring(idx + 1) || '*'
+    })).value()
     packageJson.Package.types = Object.entries(types).map(([k, v]) => ({ name: [k], members: v }))
     return packageJson.Package
   },
