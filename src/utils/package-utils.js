@@ -6,6 +6,7 @@ const _ = require('lodash')
 const os = require('os')
 const pathService = require('../services/path-service')
 const crypto = require('crypto')
+const minimatch = require('minimatch')
 
 module.exports = {
   getMeta (packageMapping, filePath, folderName) {
@@ -27,8 +28,13 @@ module.exports = {
 
     let globPatterns = pattern.filter(f => glob.hasMagic(f)).map(x => x.replace(regex, ''))
     const globFiles = await glob(globPatterns, { cwd: pathService.getSrcFolder(true) })
-    let rawFiles = pattern.filter(f => !glob.hasMagic(f)).map(x => x.replace(regex, ''))
-    const files = _([...new Set([...globFiles, ...rawFiles])])
+    const negatedPatterns = globPatterns.filter(x => x.startsWith('!'))
+    let rawFiles = [...pattern, ...globFiles]
+      .filter(f => !glob.hasMagic(f))
+      .filter(x => negatedPatterns.every(np => minimatch(x, np)))
+      .map(x => x.replace(regex, ''))
+
+    const files = _([...new Set([...rawFiles])])
       .map(x => /((reports)|(dashboards)|(documents)|(email))(\/[^/]+)+-meta.xml/.test(x) ? x : x.replace(/-meta.xml$/, ''))
       .flatMap(x => {
         const key = x.substring(0, x.indexOf('/'))
