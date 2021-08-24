@@ -17,7 +17,7 @@ module.exports = {
     else return meta.find(x => x.suffix === suffix)
   },
 
-  getListOfSrcFiles: async (packageMapping = {}, pattern = ['**/*']) => {
+  getListOfSrcFiles: async (packageMapping = {}, pattern = ['**/*'], onlyRealFiles = false) => {
     const ignoreDiffs = new Set([
       'package.xml',
       'lwc/.eslintrc.json',
@@ -26,15 +26,15 @@ module.exports = {
 
     const regex = new RegExp(`^/?${pathService.getSrcFolder()}/`)
 
-    let globPatterns = pattern.filter(f => glob.hasMagic(f)).map(x => x.replace(regex, ''))
+    let globPatterns = pattern.filter(f => onlyRealFiles || glob.hasMagic(f)).map(x => x.replace(regex, ''))
     const globFiles = await glob(globPatterns, { cwd: pathService.getSrcFolder(true) })
     const negatedPatterns = globPatterns.filter(x => x.startsWith('!'))
-    let rawFiles = [...pattern, ...globFiles]
+    let rawFiles = [...(onlyRealFiles ? [] : pattern), ...globFiles]
       .filter(f => !glob.hasMagic(f))
       .filter(x => negatedPatterns.every(np => minimatch(x, np)))
       .map(x => x.replace(regex, ''))
 
-    const files = _([...new Set([...rawFiles])])
+    const files = _([...new Set(rawFiles)])
       .map(x => /((reports)|(dashboards)|(documents)|(email))(\/[^/]+)+-meta.xml/.test(x) ? x : x.replace(/-meta.xml$/, ''))
       .flatMap(x => {
         const key = x.substring(0, x.indexOf('/'))

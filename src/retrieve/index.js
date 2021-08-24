@@ -50,8 +50,11 @@ module.exports = async ({ loginOpts, basePath, logger: _logger, files, meta, con
     logger.log(chalk.yellow(`--files specified. Retrieving only specific files...`))
     specificFiles = pluginEngine.applyRemappers(specificFiles)
     const packageMapping = await getPackageMapping(sfdcConnector)
-    specificFiles = await getListOfSrcFiles(packageMapping, specificFiles)
-
+    specificFiles = await getListOfSrcFiles(packageMapping, specificFiles, true)
+    if (specificFiles.length === 0) {
+      logger.log(chalk.yellow('No files to retrieve. Retrieve skipped'))
+      return
+    }
     logger.log(chalk.yellow('The following files will be retrieved:'))
     logger.log(chalk.grey(specificFiles.join('\n')))
   } else if (specificMeta.length) {
