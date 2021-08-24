@@ -73,12 +73,15 @@ The `-s` flag should be used when connecting to a sandbox.
 #### using --files
 
 ```
-$ sfdy retrieve -u USERNAME -p PASSWORD -s --files='objects/*,!objects/Account*,site*/**/*'
+$ sfdy retrieve -u USERNAME -p PASSWORD -s --files='objects/*,!objects/{Account,Contact}*,site*/**/*'
 ```
 
-This command will retrieve all objects present in the local `objects` folder, except those which name starts with `Account`, and will retrieve all metadata (present in the local project) which folder starts with `site` (for example `sites`, `siteDotCom`)
+This command will retrieve all objects present in the local `objects` folder, except those which name starts with `Account` or `Contact`, and will retrieve all metadata (present in the local project) which folder starts with `site` (for example `sites`, `siteDotCom`)
 
 The --files consists in a comma-separated list of [glob patterns](https://www.npmjs.com/package/globby)
+
+> **Warning:** Negated patterns always have the highest precedence
+
 #### using --meta
 
 ```
@@ -111,6 +114,8 @@ This command will deploy all objects present in the local `objects` folder, exce
 
 The --files consists in a comma-separated list of [glob patterns](https://www.npmjs.com/package/globby)
 
+> **Warning:** Negated patterns always have the highest precedence
+
 #### using --diff
 
 ```
@@ -120,6 +125,14 @@ $ sfdy deploy -u USERNAME -p PASSWORD -s --diff='behindBranch..aheadBranch'
 The `--diff` flag is used to compute the list of files that needs to be deployed comparing 2 git branches. (examples: `--diff='origin/myBranch..HEAD'` or `--diff='branch1..branch2`). As an example of use case, you can trigger a deploy to the DEV environment when you create a pull-request to the dev branch. The deploy will contain only the files that have been modified in the pull-request
 
 > **Warning:** the --diff option requires git. To use this feature you should be versioning your Salesforce project
+
+#### using --diff and --files together
+
+```
+$ sfdy deploy -u USERNAME -p PASSWORD -s --diff='behindBranch..aheadBranch' --files='!siteDotCom/**/*'
+```
+
+This is useful if you want to perform a delta deploy skipping some metadata that could be included by the `--diff` option. Typical use case: production and sandbox orgs have different versions and some metadata can't be deployed
 
 ### Deploy a destructive changeset
 
@@ -471,6 +484,12 @@ deploy({
 
 
 ## Changelog
+
+* 1.5.2
+  * Retrieve: when `--files` is used, the real list of files is shown instead of the raw glob patterns
+  * Bugfixing: glob expression parser now recognize expressions with {}
+  * Bugfixing: negated glob patterns have highest priority
+  * Bugfixing: fix retrieve of foldered metadata (for example a report in a folder) when using `--meta`
 
 * 1.5.1
   * Bugfixing: fix deploy of static resource bundle
