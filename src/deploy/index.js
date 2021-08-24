@@ -51,7 +51,22 @@ module.exports = async ({
   logger.log(chalk.yellow(`(2/4) Building package.xml...`))
 
   const specificFilesMode = diffCfg !== undefined || files !== undefined
-  const getFiles = () => (files && files.split(',').map(x => x.trim())) || []
+  const getFiles = () => {
+    let hasPar = false
+    const res = []
+    let item = ''
+    for (let i = 0, len = files.length; i < len; i++) {
+      if (files[i] === '{') hasPar = true
+      if (files[i] === '}') hasPar = false
+      if (files[i] !== ',' || hasPar) item += files[i]
+      else if (!hasPar) {
+        res.push(item)
+        item = ''
+      }
+    }
+    if (item) res.push(item)
+    return res.map(x => x.trim())
+  }
   const getDiffFiles = () => {
     if (!diffCfg) return []
     const diff = require('child_process').spawnSync(

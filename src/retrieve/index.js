@@ -28,7 +28,23 @@ module.exports = async ({ loginOpts, basePath, logger: _logger, files, meta, con
   logger.log(chalk.green(`Logged in!`))
 
   logger.log(chalk.yellow(`(2/3) Retrieving metadata...`))
-  let specificFiles = (files && files.split(',').map(x => x.trim())) || []
+  const getFiles = () => {
+    let hasPar = false
+    const res = []
+    let item = ''
+    for (let i = 0, len = files.length; i < len; i++) {
+      if (files[i] === '{') hasPar = true
+      if (files[i] === '}') hasPar = false
+      if (files[i] !== ',' || hasPar) item += files[i]
+      else if (!hasPar) {
+        res.push(item)
+        item = ''
+      }
+    }
+    if (item) res.push(item)
+    return res.map(x => x.trim())
+  }
+  let specificFiles = getFiles()
   const specificMeta = (meta && meta.split(',').map(x => x.trim())) || []
   if (specificFiles.length) {
     logger.log(chalk.yellow(`--files specified. Retrieving only specific files...`))
