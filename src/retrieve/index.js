@@ -3,7 +3,7 @@ const chalk = require('chalk')
 const logger = require('../services/log-service')
 const unzipAndPatch = require('./unzipper')
 const Sfdc = require('../utils/sfdc-utils')
-const { getPackageXml } = require('../utils/package-utils')
+const { getListOfSrcFiles, getPackageXml, getPackageMapping } = require('../utils/package-utils')
 const { printLogo } = require('../utils/branding-utils')
 const pluginEngine = require('../plugin-engine')
 const standardPlugins = require('../plugins')
@@ -49,6 +49,9 @@ module.exports = async ({ loginOpts, basePath, logger: _logger, files, meta, con
   if (specificFiles.length) {
     logger.log(chalk.yellow(`--files specified. Retrieving only specific files...`))
     specificFiles = pluginEngine.applyRemappers(specificFiles)
+    const packageMapping = await getPackageMapping(sfdcConnector)
+    specificFiles = await getListOfSrcFiles(packageMapping, specificFiles)
+
     logger.log(chalk.yellow('The following files will be retrieved:'))
     logger.log(chalk.grey(specificFiles.join('\n')))
   } else if (specificMeta.length) {
