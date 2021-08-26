@@ -51,7 +51,7 @@ module.exports = async ({
   logger.log(chalk.yellow(`(2/4) Building package.xml...`))
 
   const specificFilesMode = diffCfg !== undefined || files !== undefined
-  const getFiles = () => {
+  const getFiles = (files = []) => {
     let hasPar = false
     const res = []
     let item = ''
@@ -82,7 +82,7 @@ module.exports = async ({
       .map(x => x.replace(pathService.getSrcFolder() + '/', ''))
   }
 
-  let specificFiles = [...new Set([...getDiffFiles(), ...getFiles()])]
+  let specificFiles = [...new Set([...getDiffFiles(), ...getFiles(files)])]
   if (specificFiles.length) logger.log(chalk.yellow(`--files specified. Deploying only specific files...`))
 
   const plugins = [

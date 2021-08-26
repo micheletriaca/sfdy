@@ -485,6 +485,9 @@ deploy({
 
 ## Changelog
 
+* 1.5.3
+  * Minor bugfixing
+
 * 1.5.2
   * Retrieve: when `--files` is used, the real list of files is shown instead of the raw glob patterns
   * Bugfixing: glob expression parser now recognize expressions with {}

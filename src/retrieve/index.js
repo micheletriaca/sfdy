@@ -28,7 +28,7 @@ module.exports = async ({ loginOpts, basePath, logger: _logger, files, meta, con
   logger.log(chalk.green(`Logged in!`))
 
   logger.log(chalk.yellow(`(2/3) Retrieving metadata...`))
-  const getFiles = () => {
+  const getFiles = (files = []) => {
     let hasPar = false
     const res = []
     let item = ''
@@ -44,7 +44,7 @@ module.exports = async ({ loginOpts, basePath, logger: _logger, files, meta, con
     if (item) res.push(item)
     return res.map(x => x.trim())
   }
-  let specificFiles = getFiles()
+  let specificFiles = getFiles(files)
   const specificMeta = (meta && meta.split(',').map(x => x.trim())) || []
   if (specificFiles.length) {
     logger.log(chalk.yellow(`--files specified. Retrieving only specific files...`))
