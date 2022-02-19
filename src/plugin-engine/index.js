@@ -1,5 +1,5 @@
 const multimatch = require('multimatch')
-const _ = require('highland')
+const _ = require('exstream.js')
 const l = require('lodash')
 const path = require('path')
 const { parseXml, buildXml, parseXmlNoArray } = require('../utils/xml-utils')
@@ -10,8 +10,6 @@ const globby = require('globby')
 const fs = require('fs')
 const del = require('del')
 
-const transformations = []
-const filterFns = []
 const requireMetadata = []
 const remappers = []
 
@@ -43,23 +41,17 @@ const addFiles = inMemoryFiles => f => inMemoryFiles.push(f)
 const cleanFiles = (...files) => files.forEach(f => filesToClean.add(f))
 
 module.exports = {
-  helpers: {
-    xmlTransformer: (pattern, callback) => {
-      transformations.push({
-        pattern,
-        callback,
-        type: 'xmlTransformer'
-      })
+  helpers: ctx => ({
+    xmlTransformer: async (pattern, callback) => {
+      const files = multimatch(ctx.finalFileList, pattern)
+      const inMemoryFileMap = Object.fromEntries(ctx.inMemoryFiles.map(x => [x.fileName, x]))
+      for (const f of files) {
+        inMemoryFileMap[f].transformed = inMemoryFileMap[f].transformed || await parseXml(inMemoryFileMap[f].data)
+        await callback(f, Object.values(inMemoryFileMap[f].transformed)[0])
+      }
     },
-    modifyRawContent: (pattern, callback) => {
-      transformations.push({
-        pattern,
-        callback,
-        type: 'modifyRawContent'
-      })
-    },
-    filterMetadata: (filterFn) => {
-      filterFns.push(filterFn)
+    filterMetadata: async (filterFn) => {
+      ctx.finalFileList = _(ctx.finalFileList).reject(filterFn).values()
     },
     addRemapper: (regexp, callback) => {
       remappers.push({
@@ -73,37 +65,21 @@ module.exports = {
         callback
       })
     }
-  },
-  registerPlugins: async (plugins, sfdcConnector, username, pkgJson, config = {}) => {
-    transformations.length = 0
-    filterFns.length = 0
-    requireMetadata.length = 0
-    remappers.length = 0
-    filesToClean.clear()
-
+  }),
+  executePlugins: async (plugins, ctx, config = {}) => {
     await _(plugins || [])
       .map(pluginPath => {
         if (typeof (pluginPath) === 'function') return pluginPath
         return nativeRequire(path.resolve(pathService.getBasePath(), pluginPath))
       })
       .map(plugin => plugin({
-        sfdcConnector,
+        ctx,
         environment: process.env.environment,
-        username,
         log: logger.log,
-        pkg: l.cloneDeep(pkgJson),
         config
-      }, module.exports.helpers, { parseXml, buildXml, parseXmlNoArray }))
-      .map(x => _(x))
-      .sequence()
-      .collect()
-      .toPromise(Promise)
-  },
-  applyFilters: () => f => {
-    for (let i = 0; i < filterFns.length; i++) {
-      if (!filterFns[i](f.fileName, f.data)) return false
-    }
-    return true
+      }, module.exports.helpers(ctx), { parseXml, buildXml, parseXmlNoArray }))
+      .resolve()
+      .values()
   },
   applyRemappers: targetFiles => {
     return targetFiles.map(f => {
@@ -114,115 +90,5 @@ module.exports = {
     await del([...filesToClean], {
       cwd: path.join(pathService.getBasePath(), pathService.getSrcFolder())
     })
-  },
-  applyTransformations: async (targetFiles) => {
-    const fileMap = await l.keyBy(targetFiles, 'fileName')
-    const filePaths = Object.keys(fileMap)
-    logger.time('transformations')
-    logger.time('parsing+callback')
-    const cachedRequireFiles = requireFiles(targetFiles)
-    await _(transformations)
-      .flatMap(t => multimatch(filePaths, t.pattern).map(pattern => ({ ...t, pattern })))
-      .map(async t => {
-        if (t.type === 'xmlTransformer') {
-          const transformedJson = fileMap[t.pattern].transformedJson || await parseXml(fileMap[t.pattern].data)
-          fileMap[t.pattern].transformedJson = transformedJson
-          const rootKey = Object.keys(transformedJson)[0]
-          await (t.callback(
-            t.pattern,
-            transformedJson[rootKey],
-            cachedRequireFiles,
-            addFiles(targetFiles),
-            cleanFiles
-          ) || transformedJson[rootKey])
-          return t
-        } else {
-          await (t.callback(
-            t.pattern,
-            fileMap[t.pattern],
-            cachedRequireFiles,
-            addFiles(targetFiles),
-            cleanFiles
-          ))
-          return t
-        }
-      })
-      .map(x => _(x))
-      .sequence()
-      .collect()
-      .tap(() => logger.timeEnd('parsing+callback'))
-      .map(tL => {
-        logger.time('building')
-        Object.values(l.keyBy(tL, 'pattern')).forEach(t => {
-          if (t.type === 'xmlTransformer') {
-            fileMap[t.pattern].data = buildXml(fileMap[t.pattern].transformedJson) + '\n'
-          }
-        })
-        logger.timeEnd('building')
-        return tL
-      })
-      .collect()
-      .toPromise(Promise)
-    logger.timeEnd('transformations')
-  },
-  buildFinalPackageXml: async (deltaPackage, storedPackage) => {
-    logger.time('finalPackage')
-    const targetMetadatas = deltaPackage.types.flatMap(x => x.members.map(y => x.name[0] + '/' + y))
-    const finalPackageInfo = await _(requireMetadata)
-      .flatMap(rm => multimatch(targetMetadatas, rm.pattern).map(pattern => ({ ...rm, pattern })))
-      .map(async rm => {
-        const filters = []
-        const patches = []
-        const filterPackage = m => filters.push(m)
-        const patchPackage = m => patches.push(m)
-        await rm.callback({ filterPackage, patchPackage })
-        return { ...rm, filters: filters.flat(), patches: patches.flat() }
-      })
-      .map(x => _(x))
-      .parallel(5)
-      .reduce({ filters: [], patches: [] }, (memo, x) => ({
-        filters: x.filters.concat(memo.filters),
-        patches: x.patches.concat(memo.patches)
-      }))
-      .map(x => ({
-        filters: new Set(x.filters),
-        patches: x.patches
-      }))
-      .toPromise(Promise)
-    logger.timeLog('finalPackage', 'after multimatch')
-    const finalPackage = l.cloneDeep(deltaPackage)
-    const mergedTypes = l.keyBy(storedPackage.types.filter(x => finalPackageInfo.filters.has(x.name[0])), x => x.name[0])
-    const deltaPackageTypes = l.keyBy(finalPackage.types, x => x.name[0])
-
-    const merger = (objValue, srcValue) => {
-      if (_.isArray(objValue)) {
-        const uniqueValues = new Set(objValue.concat(srcValue))
-        if (uniqueValues.has('*')) return ['*']
-        return [...uniqueValues]
-      }
-    }
-
-    const patchedPackageTypes = finalPackageInfo.patches.reduce((memo, x) => {
-      const idx = x.indexOf('/')
-      const metaName = x.substring(0, idx)
-      return l.mergeWith(memo, {
-        [metaName]: {
-          name: metaName,
-          members: [x.substring(idx + 1)]
-        }
-      }, merger)
-    }, mergedTypes)
-
-    const res = {
-      ...finalPackage,
-      types: Object.values(l.mergeWith(
-        deltaPackageTypes,
-        patchedPackageTypes,
-        merger
-      ))
-    }
-
-    logger.timeEnd('finalPackage', 'after merge')
-    return res
   }
 }

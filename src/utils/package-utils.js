@@ -2,11 +2,19 @@ const fs = require('fs')
 const { parseXml } = require('./xml-utils')
 const path = require('path')
 const glob = require('globby')
-const _ = require('lodash')
+const _ = require('exstream.js')
 const os = require('os')
 const pathService = require('../services/path-service')
 const crypto = require('crypto')
-const minimatch = require('minimatch')
+
+_.extend('mapValues', function (fn) {
+  return this
+    .map(Object.entries)
+    .flatten()
+    .map(([k, v]) => [k, fn(v)])
+    .collect()
+    .map(Object.fromEntries)
+})
 
 module.exports = {
   getMeta (packageMapping, filePath, folderName) {
@@ -17,118 +25,79 @@ module.exports = {
     else return meta.find(x => x.suffix === suffix)
   },
 
-  getListOfSrcFiles: async (packageMapping = {}, pattern = ['**/*'], onlyRealFiles = false) => {
-    const ignoreDiffs = new Set([
+  getCompanionsFileList: async (fileList, packageMapping) => {
+    // TODO -> IGNORE DIFFS
+    /* const ignoreDiffs = new Set([
       'package.xml',
       'lwc/.eslintrc.json',
       'lwc/jsconfig.json'
-    ])
+    ]) */
 
-    const regex = new RegExp(`^/?${pathService.getSrcFolder()}/`)
+    const res = { globPatterns: [], companionFileList: [] }
 
-    let globPatterns = pattern.filter(f => onlyRealFiles || glob.hasMagic(f)).map(x => x.replace(regex, ''))
-    const globFiles = await glob(globPatterns, { cwd: pathService.getSrcFolder(true) })
-    const negatedPatterns = globPatterns.filter(x => x.startsWith('!'))
-    let rawFiles = [...(onlyRealFiles ? [] : pattern), ...globFiles]
-      .filter(f => !glob.hasMagic(f))
-      .filter(x => negatedPatterns.every(np => minimatch(x, np)))
-      .map(x => x.replace(regex, ''))
+    for (const f of fileList) {
+      const firstSlashIdx = f.indexOf('/')
+      const folder = f.substring(0, firstSlashIdx)
+      const sfdcMeta = packageMapping[folder]
 
-    const files = _([...new Set(rawFiles)])
-      .map(x => /((reports)|(dashboards)|(documents)|(email))(\/[^/]+)+-meta.xml/.test(x) ? x : x.replace(/-meta.xml$/, ''))
-      .flatMap(x => {
-        const key = x.substring(0, x.indexOf('/'))
-        const res = [x]
-        const pkgEntry = module.exports.getMeta(packageMapping, x, key)
-        if (!pkgEntry) return res
-        if (pkgEntry.metaFile === 'true') res.push(x + '-meta.xml')
-
-        const subx = x.replace(key + '/', '')
-        if (pkgEntry.directoryName === 'experiences' && subx.indexOf('/') !== -1) {
-          res.push(key + '/' + subx.substring(0, subx.indexOf('/')) + '/**')
-          res.push(key + '/' + subx.substring(0, subx.indexOf('/')) + '.site-meta.xml')
-        }
-        if (pkgEntry.inFolder !== 'true' && subx.indexOf('/') !== -1) res.push(key + '/' + subx.substring(0, subx.indexOf('/')) + '/**')
-        return res
-      })
-      .uniq()
-      .value()
-
-    globPatterns = files.filter(f => glob.hasMagic(f))
-    rawFiles = files.filter(f => !glob.hasMagic(f))
-    if (!globPatterns.length) return rawFiles.filter(x => !ignoreDiffs.has(x))
-    else {
-      const filesFromGlobPatterns = await glob(files, { cwd: pathService.getSrcFolder(true) })
-      return filesFromGlobPatterns.filter(x => !ignoreDiffs.has(x))
+      // If this file needs a metafile, I add it
+      if (sfdcMeta.metaFile === 'true') {
+        if (f.endsWith('-meta.xml')) res.globPatterns.push(f.replace('-meta.xml', ''))
+        else res.globPatterns.push(f + '-meta.xml')
+      }
+      // If this file is in a bundle, I add all the items of the bundle
+      if (sfdcMeta.xmlName.endsWith('Bundle')) {
+        const componentName = f.substring(firstSlashIdx + 1, f.indexOf('/', firstSlashIdx + 1))
+        res.globPatterns.push(folder + '/' + componentName + '/**/*')
+      }
     }
+
+    res.companionFileList = await glob(res.globPatterns, { cwd: pathService.getSrcFolder(true) })
+    return res
   },
   getPackageMapping: async sfdcConnector => {
     const cacheKey = crypto.createHash('md5').update(sfdcConnector.sessionId).digest('hex')
-    const cachePath = path.resolve(os.tmpdir(), 'sfdy_v1.4.6_' + cacheKey)
+    const cachePath = path.resolve(os.tmpdir(), 'sfdy_v2.0.0_' + cacheKey)
     const hasCache = fs.existsSync(cachePath)
     if (hasCache) return JSON.parse(fs.readFileSync(cachePath))
-    const packageMapping = _((await sfdcConnector.describeMetadata()).metadataObjects)
+    const packageMapping = await _(sfdcConnector.describeMetadata())
+      .flatMap(x => x.metadataObjects)
       .groupBy(x => x.directoryName)
-      .mapValues(x => x.length === 1 ? x[0] : x)
+      .mapValues(v => v.length === 1 ? v[0] : v)
       .value()
     fs.writeFileSync(cachePath, JSON.stringify(packageMapping))
     return packageMapping
   },
-  getPackageXml: async (opts = {}) => {
-    const hasSpecificFiles = opts.specificFiles && opts.specificFiles.length
-    const hasSpecificMeta = opts.specificMeta && opts.specificMeta.length
-    const hasSpecificPackage = opts.specificPackage
-    if ((hasSpecificFiles || hasSpecificMeta) && opts.sfdcConnector) {
-      const packageMapping = await module.exports.getPackageMapping(opts.sfdcConnector)
-      if (hasSpecificFiles) {
-        return module.exports.buildPackageXmlFromFiles(opts.specificFiles, packageMapping, opts.skipParseGlobPatterns)
-      } else {
-        return module.exports.buildPackageXmlFromMeta(opts.specificMeta)
-      }
-    }
-    if (hasSpecificPackage) {
-      return (await parseXml(fs.readFileSync(path.resolve(pathService.getBasePath(), opts.specificPackage)))).Package
-    } else {
-      return (await parseXml(fs.readFileSync(pathService.getPackagePath()))).Package
-    }
-  },
   buildPackageXmlFromMeta: async (meta) => {
     const packageJson = await parseXml(fs.readFileSync(pathService.getPackagePath()))
-    const types = _(meta).groupBy(x => x.split('/')[0]).mapValues(x => x.map(y => {
-      const idx = y.indexOf('/')
-      return y.substring(idx + 1) || '*'
-    })).value()
+    const types = _(meta)
+      .groupBy(x => x.split('/')[0])
+      .mapValues(v => v.map(y => y.substring(y.indexOf('/') + 1) || '*'))
+      .value()
     packageJson.Package.types = Object.entries(types).map(([k, v]) => ({ name: [k], members: v }))
     return packageJson.Package
   },
-  buildPackageXmlFromFiles: async (files, packageMapping, skipParseGlobPatterns = false) => {
-    if (!skipParseGlobPatterns) files = await module.exports.getListOfSrcFiles(packageMapping, files)
-    const packageJson = await parseXml(fs.readFileSync(pathService.getPackagePath()))
-    const metaMap = _(files)
-      .filter(x => !x.endsWith('/**'))
-      .filter(x => /((reports)|(dashboards)|(documents)|(email))\/[^/]+-meta.xml/.test(x) || !x.endsWith('-meta.xml'))
-      .map(x => {
-        const key = x.substring(0, x.indexOf('/'))
-        const hasSuffix = x.replace('-meta.xml', '').match(/\.([^.]+)$/)
-        const suffix = (hasSuffix && hasSuffix[1]) || ''
-        return {
-          mapping: module.exports.getMeta(packageMapping, x, key),
-          name: x.replace(key + '/', '').replace('-meta.xml', '').replace(suffix ? '.' + suffix : '', ''),
-          suffix,
-          key
-        }
-      })
-      .filter(f => f.mapping)
-      .groupBy(f => f.mapping.xmlName)
-      .mapValues(x => x.map(y => {
-        if (y.mapping.inFolder !== 'true' && y.name.indexOf('/') !== -1) y.name = y.name.substring(0, y.name.indexOf('/'))
-        return y.name
-      }))
-      .value()
-    packageJson.Package.types = Object.entries(metaMap).map(x => ({
-      members: [...new Set(x[1])],
-      name: [x[0]]
-    }))
-    return packageJson.Package
+  buildPackageXmlFromFiles: (fileList, packageMapping, apiVersion) => {
+    const types = {}
+    for (const f of fileList) {
+      const firstSlashIdx = f.indexOf('/')
+      const folder = f.substring(0, firstSlashIdx)
+      const { xmlName, suffix } = packageMapping[folder]
+      const suffixRegexp = new RegExp('(\\.' + suffix + ')?(-meta.xml)?$', '')
+      const componentNameEndIdx = xmlName.endsWith('Bundle') ? f.indexOf('/', firstSlashIdx + 1) : undefined
+      const componentName = f.substring(firstSlashIdx + 1, componentNameEndIdx).replace(suffixRegexp, '')
+      types[xmlName] = types[xmlName] || new Set()
+      types[xmlName].add(componentName)
+    }
+    return {
+      Package: {
+        $: { xmlns: 'http://soap.sforce.com/2006/04/metadata' },
+        types: Object.entries(types).map(([name, membersSet]) => ({
+          members: [...membersSet],
+          name
+        })),
+        version: apiVersion
+      }
+    }
   }
 }

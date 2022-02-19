@@ -52,8 +52,8 @@ module.exports = {
     })
   },
 
-  untransform: async ({ config }, helpers) => {
-    helpers.xmlTransformer('staticresources/*-meta.xml', async (filename, xml, requireFiles, addFiles) => {
+  untransform: async ({ config }, { filterMetadata, xmlTransformer }) => {
+    await xmlTransformer('staticresources/*-meta.xml', async (filename, xml, requireFiles, addFiles) => {
       if (xml.contentType[0] === 'application/zip') {
         const resourceName = filename.replace('-meta.xml', '')
         const folder = resourceName.replace('.resource', '')
@@ -76,12 +76,12 @@ module.exports = {
       }
     })
 
-    helpers.filterMetadata(fileName => {
-      return !fileName.match(/^staticresources\/([^/]+)\/.*$/)
+    await filterMetadata(fileName => {
+      return fileName.match(/^staticresources\/([^/]+)\/.*$/)
     })
 
-    helpers.addRemapper(/^staticresources\/([^/]+)\/.*$/, (filename, regexp) => {
+    /* helpers.addRemapper(/^staticresources\/([^/]+)\/.*$/, (filename, regexp) => {
       return `staticresources/${filename.match(regexp)[1]}.resource`
-    })
+    }) */
   }
 }

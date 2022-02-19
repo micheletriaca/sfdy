@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 const program = require('commander')
-const deploy = require('./deploy')
+const deploy = require('./deploy/index2')
 const configService = require('./services/config-service')
 require('./error-handling')()
 
@@ -12,6 +12,7 @@ program
   .option('--server-url <serverUrl>', 'Specify server url')
   .option('-f, --files <files>', 'Deploy specific files (comma separated)')
   .option('-d, --diff <branchRange>', 'Delta deploy from branch to branch - example develop..uat')
+  .option('-df, --diff-mask <diffMask>', 'apply glob pattern to diff')
   .option('-t, --test-report', 'Generate junit test-report.xml')
   .option('--destructive [file]', 'Deploy a destructive changeset - optionally specify the path for the package.xml of the destructive changeset')
   .option('--validate', 'Simulate a deployment')
@@ -29,6 +30,7 @@ const config = configService.getConfig()
 ;(async () => {
   const res = await deploy({
     diffCfg: program.diff,
+    diffMask: program.diffMask,
     files: program.files,
     loginOpts: {
       username: program.username,
