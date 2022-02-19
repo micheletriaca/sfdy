@@ -159,14 +159,11 @@ const printResults = () => _.pipeline()
   .map(ctx => ctx.deployResult)
 
 const generateJUnitTestResults = (testReport) => _.pipeline()
-  .map(async ctx => {
+  .map(ctx => {
     const d = ctx.deployResult.details
-    if (testReport && d.runTestResult) {
-      await buildJunitTestReport(d.runTestResult)
-    }
+    if (testReport && d.runTestResult) buildJunitTestReport(d.runTestResult)
     return ctx
   })
-  .resolve()
 
 const applyPlugins = (preDeployPlugins, config, renderers, destructive) => _.pipeline()
   .map(async ctx => {
