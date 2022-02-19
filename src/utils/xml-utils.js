@@ -59,7 +59,7 @@ const sfdcXmlBuilder = (tagname, value, isRoot = true, indentLevel = '') => {
   if (!Array.isArray(value)) value = [value]
   const l = value.length
   for (let i = 0; i < l; i++) {
-    const isObject = typeof (value[i]) === 'object' && !value[i].hasOwnProperty('_')
+    const isObject = typeof (value[i]) === 'object' && !Object.prototype.hasOwnProperty.call(value[i], '_')
     res += indentLevel + buildTag(tagname, value[i].$ || {})
     delete value[i].$
     const serializedValue = serializeValue(tagname, value[i]._ || value[i], indentLevel + renderOpts.indent)
