@@ -26,23 +26,26 @@ if (!program.username || !program.password) {
 
 const config = configService.getConfig()
 
-deploy({
-  diffCfg: program.diff,
-  files: program.files,
-  loginOpts: {
-    username: program.username,
-    password: program.password,
-    sandbox: program.sandbox,
-    serverUrl: program.serverUrl
-  },
-  destructive: !!program.destructive,
-  destructivePackage: typeof program.destructive === 'string' && program.destructive,
-  checkOnly: !!program.validate,
-  preDeployPlugins: config.preDeployPlugins || [],
-  renderers: config.renderers || [],
-  specifiedTests: program.specifiedTests,
-  testLevel: program.testLevel,
-  testReport: program.testReport,
-  srcFolder: program.folder,
-  config
-}).then(deployResult => process.exit(deployResult.status !== 'Succeeded' ? 1 : 0))
+;(async () => {
+  const res = await deploy({
+    diffCfg: program.diff,
+    files: program.files,
+    loginOpts: {
+      username: program.username,
+      password: program.password,
+      sandbox: program.sandbox,
+      serverUrl: program.serverUrl
+    },
+    destructive: !!program.destructive,
+    destructivePackage: typeof program.destructive === 'string' && program.destructive,
+    checkOnly: !!program.validate,
+    preDeployPlugins: config.preDeployPlugins || [],
+    renderers: config.renderers || [],
+    specifiedTests: program.specifiedTests,
+    testLevel: program.testLevel,
+    testReport: program.testReport,
+    srcFolder: program.folder,
+    config
+  })
+  process.exit(res.status !== 'Succeeded' ? 1 : 0)
+})()
