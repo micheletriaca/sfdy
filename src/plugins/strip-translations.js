@@ -20,39 +20,39 @@ module.exports = async (context, helpers) => {
   if (get(context, 'config.objectTranslations.stripUntranslatedFields')) {
     helpers.xmlTransformer('translations/**/*', async (filename, fJson) => {
       processXml(fJson, {
-        'reportTypes': [
+        reportTypes: [
           'label',
           'description',
-          { 'sections': 'label' }
+          { sections: 'label' }
         ],
-        'customApplications': 'label',
-        'customLabels': 'label',
-        'customTabs': 'label'
+        customApplications: 'label',
+        customLabels: 'label',
+        customTabs: 'label'
       })
     })
 
     helpers.xmlTransformer('standardValueSetTranslations/**/*', async (filename, fJson) => {
-      processXml(fJson, { 'valueTranslation': 'translation' })
+      processXml(fJson, { valueTranslation: 'translation' })
     })
 
     helpers.xmlTransformer('objectTranslations/**/*', async (filename, fJson) => {
       processXml(fJson, {
-        'validationRules': 'errorMessage',
-        'webLinks': 'label',
-        'recordTypes': [
+        validationRules: 'errorMessage',
+        webLinks: 'label',
+        recordTypes: [
           'label',
           'description'
         ],
-        'quickActions': 'label',
-        'fields': [
+        quickActions: 'label',
+        fields: [
           'help',
           'label',
           'relationshipLabel',
-          { 'picklistValues': 'translation' },
-          { 'lookupFilter': 'errorMessage' }
+          { picklistValues: 'translation' },
+          { lookupFilter: 'errorMessage' }
         ],
-        'layouts': { 'sections': 'label' },
-        'sharingReasons': 'label'
+        layouts: { sections: 'label' },
+        sharingReasons: 'label'
       })
     })
   }

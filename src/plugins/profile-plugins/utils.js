@@ -1,3 +1,4 @@
+/* eslint-disable quote-props */
 const _ = require('lodash')
 const __ = require('highland')
 
