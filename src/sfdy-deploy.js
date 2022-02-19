@@ -35,8 +35,9 @@ const config = configService.getConfig()
     loginOpts: {
       username: program.username,
       password: program.password,
-      sandbox: program.sandbox,
-      serverUrl: program.serverUrl
+      sandbox: !!program.sandbox,
+      serverUrl: program.serverUrl,
+      apiVersion: '54.0'
     },
     destructive: !!program.destructive,
     destructivePackage: typeof program.destructive === 'string' && program.destructive,

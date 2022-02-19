@@ -1,4 +1,5 @@
 const _ = require('exstream.js')
+const fs = require('fs')
 const { printLogo } = require('../utils/branding-utils')
 const chalk = require('chalk')
 const Sfdc = require('../utils/sfdc-utils')
@@ -9,7 +10,7 @@ const yazl = require('yazl')
 const nativeRequire = require('../utils/native-require')
 const globby = require('globby')
 const path = require('path')
-const { readFiles } = require('../services/file-service')
+const { readFiles, parseGlobPatterns } = require('../services/file-service')
 const { getPackageMapping, buildPackageXmlFromFiles, getCompanionsFileList } = require('../utils/package-utils')
 const { buildXml } = require('../utils/xml-utils')
 const printDeployResult = require('./result-logger')
@@ -22,35 +23,16 @@ _.extend('log', function (msg, severity = 'gray') {
 
 const injectSfdc = creds => _.pipeline()
   .map(async ctx => {
-    ctx.sfdc = await Sfdc.newInstance({
-      username: creds.username,
-      password: creds.password,
-      isSandbox: !!creds.sandbox,
-      serverUrl: creds.serverUrl,
-      apiVersion: '54.0'
-    })
-    ctx.creds = creds
+    ctx.sfdc = await Sfdc.newInstance(creds)
     ctx.packageMapping = await getPackageMapping(ctx.sfdc)
+    ctx.creds = creds
     return ctx
   })
   .resolve()
 
-const parseGlobPatterns = (patternString = '', storeIn) => _.pipeline()
+const injectGlobPatterns = (patternString = '', storeIn) => _.pipeline()
   .map(ctx => {
-    let hasPar = false
-    const res = []
-    let item = ''
-    for (let i = 0, len = patternString.length; i < len; i++) {
-      if (patternString[i] === '{') hasPar = true
-      if (patternString[i] === '}') hasPar = false
-      if (patternString[i] !== ',' || hasPar) item += patternString[i]
-      else if (!hasPar) {
-        res.push(item)
-        item = ''
-      }
-    }
-    if (item) res.push(item)
-    ctx[storeIn] = res.map(x => x.trim())
+    ctx[storeIn] = parseGlobPatterns(patternString)
     return ctx
   })
 
@@ -68,13 +50,13 @@ const calculateGitDiffList = diffCfg => _.pipeline()
       .split('\n')
       .filter(x => x.startsWith(pathService.getSrcFolder() + '/'))
       .map(x => x.replace(pathService.getSrcFolder() + '/', '')),
-    ctx.diffMaskGlobPatterns || ['*']
+    ctx.diffMaskGlobPatterns || ['**/*']
     )
 
     return ctx
   })
 
-const calculateFileList = () => _.pipeline()
+const calculateManualFileList = () => _.pipeline()
   .map(async ctx => {
     if (!ctx.filesGlobPatterns.length) return ctx
     ctx.fileList = await globby(ctx.filesGlobPatterns, { cwd: pathService.getSrcFolder(true) })
@@ -82,9 +64,16 @@ const calculateFileList = () => _.pipeline()
   })
   .resolve()
 
-const buildFinalFileList = () => _.pipeline()
+const mergeFileListsAndBuildTheFinalOne = (excludeFiles) => _.pipeline()
   .map(ctx => {
-    ctx.finalFileList = [...new Set([...ctx.fileList, ...ctx.gitDiffFileList])].sort()
+    const STD_EXCLUSIONS = ['!package.xml', '!lwc/.eslintrc.json', '!lwc/jsconfig.json']
+    const ignorePattern = ['**/*', ...STD_EXCLUSIONS, ...excludeFiles.map(x => '!' + x)]
+    const fileList = [...new Set([...ctx.fileList, ...ctx.gitDiffFileList])]
+    ctx.finalFileList = multimatch(fileList, ignorePattern).sort()
+    if (fileList.length !== ctx.finalFileList.length) {
+      console.log(chalk.yellow('WARN: some files have been excluded from deploy because ' +
+      `they match one of these patterns: \n${ignorePattern.slice(1).join('\n')}`))
+    }
     return ctx
   })
 
@@ -94,7 +83,7 @@ const loadFilesInMemory = () => _.pipeline()
     return ctx
   })
 
-const addCompanionsToFileList = () => _.pipeline()
+const addCompanionsToFinalFileList = () => _.pipeline()
   .map(async ctx => {
     const companionData = await getCompanionsFileList(ctx.finalFileList, ctx.packageMapping)
     ctx.companionsGlobPattern = companionData.globPatterns
@@ -113,12 +102,17 @@ const buildPackageXml = () => _.pipeline()
     return ctx
   })
 
-const zipper = () => _.pipeline()
+const zipper = (destructive) => _.pipeline()
   .map(ctx => {
     const zip = new yazl.ZipFile()
     const fileList = new Set(ctx.finalFileList)
-    for (const f of ctx.inMemoryFiles.filter(x => x.fileName === 'package.xml' || fileList.has(x.fileName))) {
-      zip.addBuffer(f.data, f.fileName)
+    for (const f of ctx.inMemoryFiles) {
+      const shouldBeAdded = (fileList.has(f.fileName) && !destructive) || f.fileName === 'package.xml'
+      if (shouldBeAdded) {
+        const fileName = f.fileName === 'package.xml' && destructive ? 'destructiveChanges.xml' : f.fileName
+        zip.addBuffer(buildXml({ Package: { version: ctx.sfdc.apiVersion } }) + '\n', 'package.xml')
+        zip.addBuffer(f.data, fileName)
+      }
     }
     zip.end()
     ctx.zip = zip
@@ -144,13 +138,13 @@ const poll = (checkOnly, testReport) => _.pipeline()
   .map(async ctx => {
     const typeOfDeploy = checkOnly ? 'Validate' : 'Deploy'
     ctx.deployResult = await ctx.sfdc.pollDeployMetadataStatus(ctx.deployJob.id, testReport, r => {
-      const numProcessed = parseInt(r.numberComponentsDeployed, 10) + parseInt(r.numberComponentErrors, 10)
-      if (numProcessed + '' === r.numberComponentsTotal && r.runTestsEnabled === 'true' && r.numberTestsTotal !== '0') {
-        const errors = r.numberTestErrors > 0 ? chalk.red(r.numberTestErrors) : chalk.green(r.numberTestErrors)
-        const numProcessed = parseInt(r.numberTestsCompleted, 10) + parseInt(r.numberTestErrors, 10)
+      const numProcessed = r.numberComponentsDeployed + r.numberComponentErrors
+      if (numProcessed === r.numberComponentsTotal && r.runTestsEnabled && r.numberTestsTotal) {
+        const errors = chalk[r.numberTestErrors > 0 ? 'red' : 'green'](r.numberTestErrors)
+        const numProcessed = r.numberTestsCompleted + r.numberTestErrors
         console.log(chalk.grey(`Run tests: (${numProcessed}/${r.numberTestsTotal}) - Errors: ${errors}`))
-      } else if (r.numberComponentsTotal !== '0') {
-        const errors = r.numberComponentErrors > 0 ? chalk.red(r.numberComponentErrors) : chalk.green(r.numberComponentErrors)
+      } else if (r.numberComponentsTotal) {
+        const errors = chalk[r.numberComponentErrors > 0 ? 'red' : 'green'](r.numberComponentErrors)
         console.log(chalk.grey(`${typeOfDeploy}: (${numProcessed}/${r.numberComponentsTotal}) - Errors: ${errors}`))
       } else {
         console.log(chalk.grey(`${typeOfDeploy}: starting...`))
@@ -174,11 +168,30 @@ const generateJUnitTestResults = (testReport) => _.pipeline()
   })
   .resolve()
 
+const applyPlugins = (preDeployPlugins, config, renderers, destructive) => _.pipeline()
+  .map(async ctx => {
+    const stdR = stdRenderers.map(x => x.untransform)
+    const customR = renderers.map(x => nativeRequire(path.resolve(pathService.getBasePath(), x)).untransform)
+
+    await pluginEngine.executePlugins([...stdR, ...customR], ctx, config)
+    if (!destructive) {
+      await pluginEngine.executePlugins(preDeployPlugins, ctx, config)
+    }
+
+    for (const f of ctx.inMemoryFiles) {
+      if (f.transformed) f.data = buildXml(f.transformed) + '\n'
+    }
+    return ctx
+  })
+  .resolve()
+
 module.exports = async opts => {
   const {
-    loginOpts: creds, files, diffCfg, diffMask, specifiedTests,
-    testLevel, checkOnly, testReport, preDeployPlugins, config, renderers
+    loginOpts: creds, files, diffCfg, diffMask, specifiedTests, destructive,
+    testLevel, checkOnly, testReport, preDeployPlugins, config, renderers, excludeFiles
   } = opts
+
+  const allExcludedFiles = [...(excludeFiles || []), ...(config.excludeFiles || [])]
 
   const s1 = _([{
     sfdc: null,
@@ -197,12 +210,20 @@ module.exports = async opts => {
   }])
     .tap(printLogo)
     .log('(1/5) Getting files to deploy...', 'yellow')
-    .through(parseGlobPatterns(files, 'filesGlobPatterns'))
-    .through(parseGlobPatterns(diffMask, 'diffMaskGlobPatterns'))
+    .through(injectGlobPatterns(files, 'filesGlobPatterns'))
+    .through(injectGlobPatterns(diffMask, 'diffMaskGlobPatterns'))
     .through(calculateGitDiffList(diffCfg))
-    .through(calculateFileList())
-    .through(buildFinalFileList())
+    .through(calculateManualFileList())
+    .through(mergeFileListsAndBuildTheFinalOne(allExcludedFiles))
     .log('Done!', 'green')
+    .log(`(2/5) Logging in salesforce as ${creds.username}...`, 'yellow')
+    .through(injectSfdc(creds))
+    .log('Logged in!', 'green')
+    .through(addCompanionsToFinalFileList())
+    .through(loadFilesInMemory())
+    .through(applyPlugins(preDeployPlugins, config, renderers, destructive))
+    .through(addCompanionsToFinalFileList()) // Must be done again, in case the plugins have added something to the list
+    .tap(x => process.env.TRACE === 'true' ? fs.writeFileSync('dump.json', JSON.stringify(x)) : null)
 
   const forks = [
     s1.fork()
@@ -212,33 +233,13 @@ module.exports = async opts => {
 
     s1.fork()
       .filter(ctx => ctx.finalFileList.length > 0)
-      .log(`(2/5) Logging in salesforce as ${creds.username}...`, 'yellow')
-      .through(injectSfdc(creds))
-      .log('Logged in!', 'green')
-      // .through(normalizeFiles)
-      .through(addCompanionsToFileList())
-      .through(loadFilesInMemory())
-      .map(async ctx => {
-        const stdR = stdRenderers.map(x => x.untransform)
-        const customR = renderers.map(x => nativeRequire(path.resolve(pathService.getBasePath(), x)).untransform)
-
-        await pluginEngine.executePlugins([...stdR, ...customR], ctx, config)
-        await pluginEngine.executePlugins(preDeployPlugins, ctx, config)
-
-        for (const f of ctx.inMemoryFiles) {
-          if (f.transformed) f.data = buildXml(f.transformed) + '\n'
-        }
-        return ctx
-      })
-      .resolve()
-      // .tap(ctx => console.log(ctx.inMemoryFiles))
       .log('(3/5) Building package.xml...', 'yellow')
       .through(buildPackageXml())
       .log('Built!', 'green')
-      .log('The following files will be deployed:', 'blue')
-      .tap(ctx => console.log(chalk.grey(ctx.finalFileList.join('\n') || 'No file found')))
+      .log(`The following files will be ${destructive ? 'deleted' : 'deployed'}:`, destructive ? 'red' : 'blue')
+      .tap(ctx => console.log(chalk.grey(ctx.finalFileList.join('\n'))))
       .log('(4/5) Creating zip...', 'yellow')
-      .through(zipper())
+      .through(zipper(destructive))
       .log('Created!', 'green')
       .log('(5/5) Deploying...', 'yellow')
       .through(deploy(specifiedTests, testLevel, checkOnly))
@@ -251,7 +252,5 @@ module.exports = async opts => {
   return _(forks).merge().value()
 
   // TODO -> GESTIRE METADATI WAVE
-  // TODO -> RENDERER
-  // TODO -> PREDEPLOY PLUGINS
-  // TODO -> DESTRUCTIVE
+  // TODO -> DESTRUCTIVE E DEPLOY A PARTIRE DA PACKAGE
 }

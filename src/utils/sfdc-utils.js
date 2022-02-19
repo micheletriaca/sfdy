@@ -177,12 +177,22 @@ class SfdcConn {
 
   async pollDeployMetadataStatus (deployMetadataId, includeDetails, progressCallback) {
     const iSleep = incrementalSleep(1000, 2, 2000, 5, 5000)
+    const patchResponse = x => {
+      x.numberComponentsDeployed = parseInt(x.numberComponentsDeployed, 10)
+      x.numberComponentErrors = parseInt(x.numberComponentErrors, 10)
+      x.numberComponentsTotal = parseInt(x.numberComponentsTotal, 10)
+      x.numberTestsCompleted = parseInt(x.numberTestsCompleted, 10)
+      x.numberTestErrors = parseInt(x.numberTestErrors, 10)
+      x.numberTestsTotal = parseInt(x.numberTestsTotal, 10)
+      x.runTestsEnabled = x.runTestsEnabled === 'true'
+      return x
+    }
     while (true) {
       await iSleep()
-      const res = await this.metadata('checkDeployStatus', {
+      const res = patchResponse(await this.metadata('checkDeployStatus', {
         asyncProcessId: deployMetadataId,
         includeDetails: false
-      })
+      }))
       if (progressCallback) progressCallback(res)
       if (res.done === 'true') {
         return !includeDetails && res.status === 'Succeeded'
@@ -190,7 +200,7 @@ class SfdcConn {
           : this.metadata('checkDeployStatus', {
             asyncProcessId: deployMetadataId,
             includeDetails: true
-          })
+          }).then(patchResponse)
       }
     }
   }

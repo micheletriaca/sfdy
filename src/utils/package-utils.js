@@ -8,12 +8,7 @@ const pathService = require('../services/path-service')
 const crypto = require('crypto')
 
 _.extend('mapValues', function (fn) {
-  return this
-    .map(Object.entries)
-    .flatten()
-    .map(([k, v]) => [k, fn(v)])
-    .collect()
-    .map(Object.fromEntries)
+  return this.map(x => Object.fromEntries(Object.entries(x).map(([k, v]) => [k, fn(v)])))
 })
 
 module.exports = {
@@ -26,13 +21,6 @@ module.exports = {
   },
 
   getCompanionsFileList: async (fileList, packageMapping) => {
-    // TODO -> IGNORE DIFFS
-    /* const ignoreDiffs = new Set([
-      'package.xml',
-      'lwc/.eslintrc.json',
-      'lwc/jsconfig.json'
-    ]) */
-
     const res = { globPatterns: [], companionFileList: [] }
 
     for (const f of fileList) {
@@ -55,6 +43,7 @@ module.exports = {
     res.companionFileList = await glob(res.globPatterns, { cwd: pathService.getSrcFolder(true) })
     return res
   },
+
   getPackageMapping: async sfdcConnector => {
     const cacheKey = crypto.createHash('md5').update(sfdcConnector.sessionId).digest('hex')
     const cachePath = path.resolve(os.tmpdir(), 'sfdy_v2.0.0_' + cacheKey)
@@ -68,6 +57,7 @@ module.exports = {
     fs.writeFileSync(cachePath, JSON.stringify(packageMapping))
     return packageMapping
   },
+
   buildPackageXmlFromMeta: async (meta) => {
     const packageJson = await parseXml(fs.readFileSync(pathService.getPackagePath()))
     const types = _(meta)
@@ -77,6 +67,7 @@ module.exports = {
     packageJson.Package.types = Object.entries(types).map(([k, v]) => ({ name: [k], members: v }))
     return packageJson.Package
   },
+
   buildPackageXmlFromFiles: (fileList, packageMapping, apiVersion) => {
     const types = {}
     for (const f of fileList) {
