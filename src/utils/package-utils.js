@@ -7,10 +7,6 @@ const os = require('os')
 const pathService = require('../services/path-service')
 const crypto = require('crypto')
 
-_.extend('mapValues', function (fn) {
-  return this.map(x => Object.fromEntries(Object.entries(x).map(([k, v]) => [k, fn(v)])))
-})
-
 module.exports = {
   getMeta (packageMapping, filePath, folderName) {
     const meta = packageMapping[folderName]

@@ -82,7 +82,7 @@ module.exports = {
     await _(plugins || [])
       .map(pluginPath => {
         if (typeof (pluginPath) === 'function') return pluginPath
-        return nativeRequire(path.resolve(pathService.getBasePath(), pluginPath))
+        return nativeRequire(pluginPath)
       })
       .map(plugin => plugin({
         ctx,

@@ -1,9 +1,12 @@
-const fs = require('fs')
-const path = require('path')
+const pathService = require('./path-service')
+const multimatch = require('multimatch')
 const minimatch = require('minimatch')
+const path = require('path')
+const fs = require('fs')
 
 module.exports = {
-  readFiles (rootFolder, files, excludeGlob = []) {
+  readFiles (files, excludeGlob = []) {
+    const rootFolder = pathService.getSrcFolder(true)
     return files
       .filter(f => fs.existsSync(path.join(rootFolder, f)))
       .filter(f => excludeGlob.every(gl => !minimatch(f, gl)))
@@ -27,5 +30,20 @@ module.exports = {
     }
     if (item) res.push(item)
     return res.map(x => x.trim())
+  },
+  getDiffList (diffCfg, diffMask) {
+    if (!diffCfg) return []
+    const diff = require('child_process').spawnSync(
+      'git',
+      ['diff', '--name-only', '--diff-filter=d', diffCfg],
+      { cwd: pathService.getBasePath() }
+    )
+    if (diff.status !== 0) throw Error(diff.stderr.toString('utf8'))
+    const diffOutput = diff.stdout
+      .toString('utf8')
+      .split('\n')
+      .filter(x => x.startsWith(pathService.getSrcFolder() + '/'))
+      .map(x => x.replace(pathService.getSrcFolder() + '/', ''))
+    return multimatch(diffOutput, diffMask || ['**/*'])
   }
 }

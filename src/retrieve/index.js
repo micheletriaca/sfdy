@@ -10,7 +10,6 @@ const standardPlugins = require('../plugins')
 const standardRenderers = require('../renderers').map(x => x.transform)
 const pathService = require('../services/path-service')
 const nativeRequire = require('../utils/native-require')
-const path = require('path')
 
 module.exports = async ({ loginOpts, basePath, logger: _logger, files, meta, config }) => {
   if (basePath) pathService.setBasePath(basePath)
@@ -74,7 +73,7 @@ module.exports = async ({ loginOpts, basePath, logger: _logger, files, meta, con
       ...standardPlugins,
       ...(config.postRetrievePlugins || []),
       ...standardRenderers,
-      ...((config.renderers || []).map(x => nativeRequire(path.resolve(pathService.getBasePath(), x)).transform))
+      ...((config.renderers || []).map(x => nativeRequire(x).transform))
     ],
     sfdcConnector,
     loginOpts.username,

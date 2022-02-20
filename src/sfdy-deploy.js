@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 const program = require('commander')
-const deploy = require('./deploy/index2')
+const deploy = require('./deploy/index')
 const configService = require('./services/config-service')
 require('./error-handling')()
 

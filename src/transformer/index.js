@@ -45,7 +45,7 @@ module.exports = {
       //      ...standardPlugins,
       //      ...(config.postRetrievePlugins || []),
       ...stdRenderers.map(x => x.transform),
-      ...((config.renderers || []).map(x => nativeRequire(path.resolve(pathService.getBasePath(), x)).transform))
+      ...((config.renderers || []).map(x => nativeRequire(x).transform))
     ]
 
     await pluginEngine.registerPlugins(plugins, sfdcConnector, loginOpts.username, await getPackageXml(), config)
@@ -86,7 +86,7 @@ module.exports = {
 
     const plugins = [
       ...(stdRenderers.map(x => x.untransform)),
-      ...(renderers.map(x => nativeRequire(path.resolve(pathService.getBasePath(), x)).untransform))
+      ...(renderers.map(x => nativeRequire(x).untransform))
     ]
     await pluginEngine.registerPlugins(plugins, sfdcConnector, loginOpts.username, await getPackageXml({ specificFiles, sfdcConnector }), config)
 
