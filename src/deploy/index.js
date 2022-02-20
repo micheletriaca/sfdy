@@ -143,6 +143,7 @@ module.exports = async function deploy (opts) {
   const s1 = _([{
     sfdc: null,
     packageMapping: {},
+    creds: null,
     filesGlobPatterns: [],
     diffMaskGlobPatterns: [],
     companionsGlobPattern: [],

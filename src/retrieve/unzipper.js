@@ -1,19 +1,25 @@
-const _ = require('highland')
-const fs = require('fs')
+const _ = require('exstream.js')
 const yauzl = require('yauzl')
 const util = require('util')
-const makeDir = require('make-dir')
-const getStream = require('get-stream')
-const memoize = require('lodash').memoize
-const logger = require('../services/log-service')
-const path = require('path')
-const pathService = require('../services/path-service')
-const pluginEngine = require('../plugin-engine')
-const { getPackageMapping, getMeta } = require('../utils/package-utils')
 
-const getFolderName = (fileName) => fileName.substring(0, fileName.lastIndexOf('/'))
+module.exports = async function unzip (zipBuffer) {
+  const s = _()
+  const unzip = util.promisify(yauzl.fromBuffer)
+  const zipFile = await unzip(zipBuffer, { lazyEntries: false })
+  const openStream = util.promisify(zipFile.openReadStream.bind(zipFile))
+  zipFile.on('entry', s.write.bind(s))
+  zipFile.on('end', s.end.bind(s))
+  return s
+    .map(async f => ({
+      fileName: f.fileName,
+      data: await _(openStream(f)).map(x => _(x)).merge().collect().map(Buffer.concat).value()
+    }))
+    .resolve(20, false)
+    .reject(x => x.fileName.endsWith('/')) // is a directory
+    .values()
+}
 
-module.exports = async (zipBuffer, sfdcConnector, pkgJson) => {
+/* module.exports = async (zipBuffer, sfdcConnector, pkgJson) => {
   logger.time('unzipper')
   const packageMapping = await getPackageMapping(sfdcConnector)
   const packageTypesToKeep = new Set(pkgJson.types.flatMap(t => t.members.map(m => t.name[0] + '/' + m)))
@@ -59,3 +65,4 @@ module.exports = async (zipBuffer, sfdcConnector, pkgJson) => {
     })
   })
 }
+*/

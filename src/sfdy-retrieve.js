@@ -10,6 +10,7 @@ program
   .option('-u, --username <username>', 'Username')
   .option('-p, --password <password>', 'Password + Token')
   .option('-s, --sandbox', 'Use sandbox login endpoint')
+  .option('--api-version <apiVersion>', 'Specify api version (ex 54.0)', '54.0')
   .option('-f, --files <files>', 'Retrieve specific files')
   .option('-m, --meta <metadatas>', 'Retrieve specific metadata')
   .parse(process.argv)
@@ -22,6 +23,12 @@ retrieve({
   basePath: pathService.getBasePath(),
   config: configService.getConfig(),
   files: program.files,
-  loginOpts: program,
+  loginOpts: {
+    username: program.username,
+    password: program.password,
+    sandbox: !!program.sandbox,
+    serverUrl: program.serverUrl,
+    apiVersion: program.apiVersion
+  },
   meta: program.meta
 })

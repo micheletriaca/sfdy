@@ -1,8 +1,17 @@
 const pathService = require('./path-service')
+const memoize = require('lodash').memoize
 const multimatch = require('multimatch')
 const minimatch = require('minimatch')
+const makeDir = require('make-dir')
+const util = require('util')
 const path = require('path')
 const fs = require('fs')
+
+const getFolderName = (fileName) => fileName.substring(0, fileName.lastIndexOf('/'))
+const mMakeDir = memoize(folderName => makeDir(path.resolve(pathService.getSrcFolder(), folderName)))
+const wf = util.promisify((filePath, data, callback) => {
+  return fs.writeFile(path.resolve(pathService.getSrcFolder(), filePath), data, callback)
+})
 
 module.exports = {
   readFiles (files, excludeGlob = []) {
@@ -14,6 +23,12 @@ module.exports = {
         fileName: f,
         data: fs.readFileSync(path.join(rootFolder, f))
       }))
+  },
+  async saveFiles (fileList) {
+    for (const f of fileList) {
+      await mMakeDir(getFolderName(f.fileName))
+      await wf(f.fileName, f.data)
+    }
   },
   parseGlobPatterns (patternString) {
     let hasPar = false

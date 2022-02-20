@@ -3,6 +3,7 @@ const { parseXml } = require('./xml-utils')
 const path = require('path')
 const glob = require('globby')
 const _ = require('exstream.js')
+const cloneDeep = require('lodash').cloneDeep
 const os = require('os')
 const pathService = require('../services/path-service')
 const crypto = require('crypto')
@@ -86,5 +87,25 @@ module.exports = {
         version: apiVersion
       }
     }
+  },
+  addTypesToPackageFromMeta (pkgJson, metaGlobPatterns) {
+    const pkgClone = cloneDeep(pkgJson)
+
+    const pkgMap = _(pkgClone.Package.types)
+      .keyBy('name')
+      .mapValues(({ members: m }) => new Set(m))
+      .value()
+
+    _(metaGlobPatterns).each(m => {
+      const [metaName, metaMember] = m.split('/')
+      if (!pkgMap[metaName]) pkgMap[metaName] = new Set()
+      pkgMap[metaName].add(metaMember)
+    })
+
+    pkgClone.Package.types = _(Object.entries(pkgMap))
+      .map(([n, m]) => ({ name: n, members: [...m] }))
+      .values()
+
+    return pkgClone
   }
 }
