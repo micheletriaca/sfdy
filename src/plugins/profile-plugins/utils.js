@@ -1,6 +1,6 @@
 /* eslint-disable quote-props */
-const _ = require('lodash')
-const __ = require('highland')
+const _ = require('exstream.js')
+const __ = require('lodash')
 
 const remapProfileName = async (f, context) => {
   f = f.replace(/^.*\/(.*)\.profile/, '$1').split(' ').map(x => decodeURIComponent(x)).join(' ')
@@ -42,17 +42,17 @@ const remapProfileName = async (f, context) => {
   }
 
   const pNames = new Set(Object.values(fMap))
-  const stdProfiles = await __(await context.q('SELECT Profile.Name FROM PermissionSet WHERE IsCustom = FALSE AND Profile.Name != NULL'))
+  const stdProfiles = await _(context.q('SELECT Profile.Name FROM PermissionSet WHERE IsCustom = FALSE AND Profile.Name != NULL'))
     .filter(x => !pNames.has(x.Profile.Name))
-    .map(x => __(context.q(`SELECT FullName, Name FROM Profile WHERE Name = '${x.Profile.Name}' LIMIT 1`, true)))
-    .parallel(4)
-    .reduce(fMap, (memo, x) => ({ ...memo, [x[0].FullName]: x[0].Name }))
-    .toPromise(Promise)
+    .map(x => context.q(`SELECT FullName, Name FROM Profile WHERE Name = '${x.Profile.Name}' LIMIT 1`, true))
+    .resolve(4)
+    .reduce((memo, x) => ({ ...memo, [x[0].FullName]: x[0].Name }), fMap)
+    .value()
 
   return stdProfiles[f] || f
 }
 
-const retrievePermissionsList = _.memoize(async (profileName, context) => {
+const retrievePermissionsList = __.memoize(async (profileName, context) => {
   const psetId = (await context.q(`SELECT Id FROM PermissionSet Where Profile.Name = '${profileName}'`))[0].Id
   const res = await context.sfdcConnector.rest(`/sobjects/PermissionSet/${psetId}`)
   return Object.keys(res)
@@ -63,8 +63,8 @@ const retrievePermissionsList = _.memoize(async (profileName, context) => {
     }))
 })
 
-const retrieveAllObjects = _.memoize(async (byLicenseOrByProfile = 'license', context) => {
-  return _(await context.q(`SELECT
+const retrieveAllObjects = __.memoize(async (byLicenseOrByProfile = 'license', context) => {
+  return _(context.q(`SELECT
     Id,
     Parent.Profile.Name,
     Parent.License.Name,
@@ -80,7 +80,7 @@ const retrieveAllObjects = _.memoize(async (byLicenseOrByProfile = 'license', co
     AND Parent.IsCustom = ${byLicenseOrByProfile !== 'license'}`
   ))
     .groupBy(`Parent.${byLicenseOrByProfile === 'license' ? 'License' : 'Profile'}.Name`)
-    .mapValues(x => _(x).uniqBy('SobjectType').value())
+    .mapValues(x => _(x).uniqBy('SobjectType').values())
     .value()
 })
 

@@ -3,11 +3,11 @@ const chalk = require('chalk')
 const { remapProfileName, retrievePermissionsList } = require('./utils')
 const get = require('lodash').get
 
-module.exports = async (context, helpers) => {
+module.exports = async (context, { xmlTransformer }) => {
   if (!get(context, 'config.profiles.addAllUserPermissions')) return
-  context.q = _.memoize(context.sfdcConnector.query)
+  context.q = _.memoize(context.ctx.sfdc.query)
 
-  helpers.xmlTransformer('profiles/**/*', async (filename, fJson) => {
+  await xmlTransformer('profiles/**/*', async (filename, fJson) => {
     const isCustom = fJson.custom && fJson.custom[0] === 'true'
     if (isCustom) {
       context.log(chalk.blue(`----> Processing ${filename}: Adding all permissions`))

@@ -1,7 +1,8 @@
-const get = require('lodash').get
+const _ = require('highland')
 
 module.exports = async (context, helpers) => {
-  if (!get(context, 'config.roles.stripPartnerRoles')) return
+  const get = _.makeGetter('config.roles.stripPartnerRoles')
+  if (!get(context)) return
 
   helpers.filterMetadata(fileName => {
     return !/PartnerUser[0-9]*.role$/.test(fileName)
