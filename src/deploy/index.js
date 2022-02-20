@@ -1,18 +1,17 @@
 const { getPackageMapping, buildPackageXmlFromFiles, getCompanionsFileList } = require('../utils/package-utils')
 const { readFiles, parseGlobPatterns, getDiffList } = require('../services/file-service')
+const { printDeployResult, pollCallback } = require('./result-logger')
 const buildJunitTestReport = require('./junit-test-report-builder')
 const { printLogo } = require('../utils/branding-utils')
 const nativeRequire = require('../utils/native-require')
 const pathService = require('../services/path-service')
 const logService = require('../services/log-service')
-const printDeployResult = require('./result-logger')
 const { buildXml } = require('../utils/xml-utils')
 const pluginEngine = require('../plugin-engine')
 const stdRenderers = require('../renderers')
 const Sfdc = require('../utils/sfdc-utils')
 const multimatch = require('multimatch')
-const _ = require('exstream.js')
-require('../utils/exstream')
+const _ = require('../utils/exstream')
 const globby = require('globby')
 const chalk = require('chalk')
 const yazl = require('yazl')
@@ -115,19 +114,7 @@ const startDeploy = (specifiedTests, testLevel, checkOnly) => p().asyncMap(async
 
 const poll = (checkOnly, testReport) => p().asyncMap(async ctx => {
   const typeOfDeploy = checkOnly ? 'Validate' : 'Deploy'
-  ctx.deployResult = await ctx.sfdc.pollDeployMetadataStatus(ctx.deployJob.id, testReport, r => {
-    const numProcessed = r.numberComponentsDeployed + r.numberComponentErrors
-    if (numProcessed === r.numberComponentsTotal && r.runTestsEnabled && r.numberTestsTotal) {
-      const errors = chalk[r.numberTestErrors > 0 ? 'red' : 'green'](r.numberTestErrors)
-      const numProcessed = r.numberTestsCompleted + r.numberTestErrors
-      console.log(chalk.grey(`Run tests: (${numProcessed}/${r.numberTestsTotal}) - Errors: ${errors}`))
-    } else if (r.numberComponentsTotal) {
-      const errors = chalk[r.numberComponentErrors > 0 ? 'red' : 'green'](r.numberComponentErrors)
-      console.log(chalk.grey(`${typeOfDeploy}: (${numProcessed}/${r.numberComponentsTotal}) - Errors: ${errors}`))
-    } else {
-      console.log(chalk.grey(`${typeOfDeploy}: starting...`))
-    }
-  })
+  ctx.deployResult = await ctx.sfdc.pollDeployMetadataStatus(ctx.deployJob.id, testReport, pollCallback(typeOfDeploy))
   return ctx
 })
 
@@ -211,7 +198,4 @@ module.exports = async function deploy (opts) {
   ]
 
   return _(forks).merge().value()
-
-  // TODO -> srcfolder, basepath & logger
-  // TODO -> apiversion configurabile
 }

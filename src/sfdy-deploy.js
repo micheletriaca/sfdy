@@ -10,6 +10,7 @@ program
   .option('-p, --password <password>', 'Password + Token')
   .option('-s, --sandbox', 'Use sandbox login endpoint')
   .option('--server-url <serverUrl>', 'Specify server url')
+  .option('--api-version <apiVersion>', 'Specify api version (ex 54.0)', '54.0')
   .option('-f, --files <files>', 'Deploy specific files (comma separated)')
   .option('-d, --diff <branchRange>', 'Delta deploy from branch to branch - example develop..uat')
   .option('-df, --diff-mask <diffMask>', 'apply glob pattern to diff')
@@ -37,7 +38,7 @@ const config = configService.getConfig()
       password: program.password,
       sandbox: !!program.sandbox,
       serverUrl: program.serverUrl,
-      apiVersion: '54.0'
+      apiVersion: program.apiVersion
     },
     destructive: !!program.destructive,
     destructivePackage: typeof program.destructive === 'string' && program.destructive,

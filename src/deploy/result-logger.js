@@ -4,6 +4,20 @@ const chalk = require('chalk')
 
 const counterGen = (n = 1) => () => `${n++}. `
 
+const pollCallback = typeOfDeploy => r => {
+  const numProcessed = r.numberComponentsDeployed + r.numberComponentErrors
+  if (numProcessed === r.numberComponentsTotal && r.runTestsEnabled && r.numberTestsTotal) {
+    const errors = chalk[r.numberTestErrors > 0 ? 'red' : 'green'](r.numberTestErrors)
+    const numProcessed = r.numberTestsCompleted + r.numberTestErrors
+    logger.log(chalk.grey(`Run tests: (${numProcessed}/${r.numberTestsTotal}) - Errors: ${errors}`))
+  } else if (r.numberComponentsTotal) {
+    const errors = chalk[r.numberComponentErrors > 0 ? 'red' : 'green'](r.numberComponentErrors)
+    logger.log(chalk.grey(`${typeOfDeploy}: (${numProcessed}/${r.numberComponentsTotal}) - Errors: ${errors}`))
+  } else {
+    logger.log(chalk.grey(`${typeOfDeploy}: starting...`))
+  }
+}
+
 const printDeployResult = (deployResult) => {
   const d = deployResult.details
   if (deployResult.status === 'Failed') {
@@ -42,4 +56,7 @@ const printDeployResult = (deployResult) => {
   }
 }
 
-module.exports = printDeployResult
+module.exports = {
+  printDeployResult,
+  pollCallback
+}
