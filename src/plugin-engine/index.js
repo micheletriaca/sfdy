@@ -9,9 +9,9 @@ const logger = require('../services/log-service')
 const globby = require('globby')
 const fs = require('fs')
 const del = require('del')
+const { getCompanionsFileList } = require('../utils/package-utils')
 
 const requireMetadata = []
-const remappers = []
 
 const filesToClean = new Set()
 
@@ -22,7 +22,7 @@ const requireFiles = inMemoryFiles => {
     if (cache.has(requiredFiles)) return cache.get(requiredFiles)
     logger.time('requireFiles')
     const storedFiles = await globby(requiredFiles, { cwd: pathService.getSrcFolder(true) })
-    const inMemoryFileMatches = multimatch(l.map(inMemoryFiles, 'fileName'), requiredFiles)
+    const inMemoryFileMatches = multimatch(inMemoryFiles.map(x => x.fileName), requiredFiles)
     const absSrcPath = pathService.getSrcFolder(true)
     l.difference(storedFiles, inMemoryFileMatches).forEach(f => {
       inMemoryFiles.push({
@@ -37,27 +37,39 @@ const requireFiles = inMemoryFiles => {
   }
 }
 
-const addFiles = inMemoryFiles => f => inMemoryFiles.push(f)
+const addFiles = (inMemoryFiles, fileList) => f => {
+  const idx = inMemoryFiles.findIndex(x => x.fileName === f.fileName)
+  if (idx === -1) inMemoryFiles.push(f)
+  else inMemoryFiles[idx] = f
+  if (!fileList.indexOf(f.fileName)) fileList.push(f.fileName)
+}
+
 const cleanFiles = (...files) => files.forEach(f => filesToClean.add(f))
 
 module.exports = {
-  helpers: ctx => ({
+  helpers: (ctx, requireFiles, addFiles) => ({
     xmlTransformer: async (pattern, callback) => {
       const files = multimatch(ctx.finalFileList, pattern)
       const inMemoryFileMap = Object.fromEntries(ctx.inMemoryFiles.map(x => [x.fileName, x]))
       for (const f of files) {
         inMemoryFileMap[f].transformed = inMemoryFileMap[f].transformed || await parseXml(inMemoryFileMap[f].data)
-        await callback(f, Object.values(inMemoryFileMap[f].transformed)[0])
+        await callback(f, Object.values(inMemoryFileMap[f].transformed)[0], { requireFiles, addFiles })
       }
     },
     filterMetadata: async (filterFn) => {
       ctx.finalFileList = _(ctx.finalFileList).reject(filterFn).values()
     },
-    addRemapper: (regexp, callback) => {
-      remappers.push({
-        regexp,
-        callback
-      })
+    applyRemapper: async (regexp, callback) => {
+      ctx.finalFileList = await _(ctx.finalFileList)
+        .asyncMap(async f => {
+          if (!regexp.test(f)) return f
+          else return await callback(f, f.match(regexp))
+        })
+        .uniq()
+        .values()
+      const companionData = await getCompanionsFileList(ctx.finalFileList, ctx.packageMapping)
+      ctx.finalFileList = [...new Set([...ctx.finalFileList, ...companionData.companionFileList])].sort()
+      await requireFiles(ctx.finalFileList)
     },
     requireMetadata: (pattern, callback) => {
       requireMetadata.push({
@@ -77,14 +89,14 @@ module.exports = {
         environment: process.env.environment,
         log: logger.log,
         config
-      }, module.exports.helpers(ctx), { parseXml, buildXml, parseXmlNoArray }))
+      }, module.exports.helpers(
+        ctx,
+        requireFiles(ctx.inMemoryFiles),
+        addFiles(ctx.inMemoryFiles, ctx.finalFileList),
+        { parseXml, buildXml, parseXmlNoArray })
+      ))
       .resolve()
       .values()
-  },
-  applyRemappers: targetFiles => {
-    return targetFiles.map(f => {
-      return remappers.filter(r => r.regexp.test(f)).reduce((res, r) => r.callback(res, r.regexp), f)
-    })
   },
   applyCleans: async () => {
     await del([...filesToClean], {
