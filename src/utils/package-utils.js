@@ -13,11 +13,11 @@ _.extend('mapValues', function (fn) {
 
 module.exports = {
   getMeta (packageMapping, filePath, folderName) {
-    const hasSuffix = filePath.match(/\.([^.]+)(-meta.xml)?$/)
-    const suffix = (hasSuffix && hasSuffix[1]) || ''
     const meta = packageMapping[folderName]
     if (!meta || !Array.isArray(meta)) return meta
-    else return meta.find(x => x.suffix === suffix)
+    const hasSuffix = filePath.match(/\.([^.]+)(-meta\.xml)?$/)
+    const suffix = (hasSuffix && hasSuffix[1]) || ''
+    return meta.find(x => x.suffix === suffix)
   },
 
   getCompanionsFileList: async (fileList, packageMapping) => {
@@ -26,7 +26,7 @@ module.exports = {
     for (const f of fileList) {
       const firstSlashIdx = f.indexOf('/')
       const folder = f.substring(0, firstSlashIdx)
-      const sfdcMeta = packageMapping[folder]
+      const sfdcMeta = module.exports.getMeta(packageMapping, f, folder)
 
       // If this file needs a metafile, I add it
       if (sfdcMeta.metaFile === 'true') {
@@ -73,7 +73,7 @@ module.exports = {
     for (const f of fileList) {
       const firstSlashIdx = f.indexOf('/')
       const folder = f.substring(0, firstSlashIdx)
-      const { xmlName, suffix } = packageMapping[folder]
+      const { xmlName, suffix } = module.exports.getMeta(packageMapping, f, folder)
       const suffixRegexp = new RegExp('(\\.' + suffix + ')?(-meta.xml)?$', '')
       const componentNameEndIdx = xmlName.endsWith('Bundle') ? f.indexOf('/', firstSlashIdx + 1) : undefined
       const componentName = f.substring(firstSlashIdx + 1, componentNameEndIdx).replace(suffixRegexp, '')
