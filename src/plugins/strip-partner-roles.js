@@ -1,10 +1,8 @@
-const _ = require('highland')
+const _ = require('exstream.js')
+const isPluginEnabled = _.makeGetter('config.roles.stripPartnerRoles', false)
 
-module.exports = async (context, helpers) => {
-  const get = _.makeGetter('config.roles.stripPartnerRoles')
-  if (!get(context)) return
-
-  helpers.filterMetadata(fileName => {
-    return !/PartnerUser[0-9]*.role$/.test(fileName)
-  })
+module.exports = {
+  afterRetrieve: async (ctx, { applyMaskToExtractedFileList }) => {
+    if (isPluginEnabled(ctx)) applyMaskToExtractedFileList(['**/*', '!roles/PartnerUser*'])
+  }
 }
