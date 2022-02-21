@@ -67,7 +67,7 @@ const applyPlugins = (postRetrievePlugins = [], renderers = [], config) => p().a
   const customR = renderers.map(x => nativeRequire(x).transform)
   await pluginEngine.executeAfterRetrievePlugins([...stdPlugins, ...postRetrievePlugins], ctx, config)
   // await pluginEngine.executePlugins([...stdR, ...customR], ctx, config)
-  for (const f of ctx.inMemoryFiles.filter(x => !!x.transformed)) f.data = buildXml(f.transformed) + '\n'
+  for (const f of ctx.inMemoryFiles.filter(x => !!x.transformed)) f.data = Buffer.from(buildXml(f.transformed) + '\n')
   return ctx
 })
 
