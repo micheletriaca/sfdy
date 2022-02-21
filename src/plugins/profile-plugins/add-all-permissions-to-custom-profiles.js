@@ -1,24 +1,27 @@
-const _ = require('lodash')
+const _ = require('exstream.js')
+const memoize = require('lodash').memoize
 const chalk = require('chalk')
 const { remapProfileName, retrievePermissionsList } = require('./utils')
-const get = require('lodash').get
+const isPluginEnabled = _.makeGetter('config.profiles.addAllUserPermissions', false)
 
-module.exports = async (context, { xmlTransformer }) => {
-  if (!get(context, 'config.profiles.addAllUserPermissions')) return
-  context.q = _.memoize(context.ctx.sfdc.query)
+module.exports = {
+  afterRetrieve: async (ctx, { xmlTransformer }) => {
+    if (!isPluginEnabled(ctx)) return
+    ctx.q = memoize(ctx.sfdc.query)
 
-  await xmlTransformer('profiles/**/*', async (filename, fJson) => {
-    const isCustom = fJson.custom && fJson.custom[0] === 'true'
-    if (isCustom) {
-      context.log(chalk.blue(`----> Processing ${filename}: Adding all permissions`))
-      context.log(chalk.grey('Remapping profile name...'))
-      const realProfileName = await remapProfileName(filename, context)
-      context.log(chalk.grey('Retrieving permission list...'))
-      const allPermissions = await retrievePermissionsList(realProfileName, context)
-      context.log(chalk.grey('Patching profile...'))
-      const finalPermissions = { ..._.keyBy(allPermissions, 'name') }
-      fJson.userPermissions = Object.keys(finalPermissions).sort().map(x => finalPermissions[x])
-      context.log(chalk.blue('----> Done'))
-    }
-  })
+    await xmlTransformer('profiles/**/*', async (filename, fJson) => {
+      const isCustom = fJson.custom && fJson.custom[0] === 'true'
+      if (isCustom) {
+        ctx.log(chalk.blue(`----> Processing ${filename}: Adding all permissions`))
+        ctx.log(chalk.grey('Remapping profile name...'))
+        const realProfileName = await remapProfileName(filename, ctx)
+        ctx.log(chalk.grey('Retrieving permission list...'))
+        const allPermissions = await retrievePermissionsList(realProfileName, ctx)
+        ctx.log(chalk.grey('Patching profile...'))
+        const finalPermissions = _(allPermissions).keyBy('name').value()
+        fJson.userPermissions = Object.keys(finalPermissions).sort().map(x => finalPermissions[x])
+        ctx.log(chalk.blue('----> Done'))
+      }
+    })
+  }
 }

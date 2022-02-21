@@ -2,7 +2,7 @@
 const _ = require('exstream.js')
 const __ = require('lodash')
 
-const remapProfileName = async (f, context) => {
+const remapProfileName = async (f, ctx) => {
   f = f.replace(/^.*\/(.*)\.profile/, '$1').split(' ').map(x => decodeURIComponent(x)).join(' ')
   const fMap = {
     'Admin': 'System Administrator',
@@ -42,9 +42,10 @@ const remapProfileName = async (f, context) => {
   }
 
   const pNames = new Set(Object.values(fMap))
-  const stdProfiles = await _(context.q('SELECT Profile.Name FROM PermissionSet WHERE IsCustom = FALSE AND Profile.Name != NULL'))
+  const stdProfiles = await _(ctx.q('SELECT Profile.Name FROM PermissionSet WHERE IsCustom = FALSE AND Profile.Name != NULL'))
+    .flatten()
     .filter(x => !pNames.has(x.Profile.Name))
-    .map(x => context.q(`SELECT FullName, Name FROM Profile WHERE Name = '${x.Profile.Name}' LIMIT 1`, true))
+    .map(x => ctx.q(`SELECT FullName, Name FROM Profile WHERE Name = '${x.Profile.Name}' LIMIT 1`, true))
     .resolve(4)
     .reduce((memo, x) => ({ ...memo, [x[0].FullName]: x[0].Name }), fMap)
     .value()
@@ -52,9 +53,9 @@ const remapProfileName = async (f, context) => {
   return stdProfiles[f] || f
 }
 
-const retrievePermissionsList = __.memoize(async (profileName, context) => {
-  const psetId = (await context.q(`SELECT Id FROM PermissionSet Where Profile.Name = '${profileName}'`))[0].Id
-  const res = await context.sfdcConnector.rest(`/sobjects/PermissionSet/${psetId}`)
+const retrievePermissionsList = __.memoize(async (profileName, ctx) => {
+  const psetId = (await ctx.q(`SELECT Id FROM PermissionSet Where Profile.Name = '${profileName}'`))[0].Id
+  const res = await ctx.sfdc.rest(`/sobjects/PermissionSet/${psetId}`)
   return Object.keys(res)
     .filter(x => x.startsWith('Permissions'))
     .map(x => ({
@@ -63,8 +64,8 @@ const retrievePermissionsList = __.memoize(async (profileName, context) => {
     }))
 })
 
-const retrieveAllObjects = __.memoize(async (byLicenseOrByProfile = 'license', context) => {
-  return _(context.q(`SELECT
+const retrieveAllObjects = __.memoize(async (byLicenseOrByProfile = 'license', ctx) => {
+  return _(ctx.q(`SELECT
     Id,
     Parent.Profile.Name,
     Parent.License.Name,
@@ -79,13 +80,14 @@ const retrieveAllObjects = __.memoize(async (byLicenseOrByProfile = 'license', c
     WHERE Parent.IsOwnedByProfile = TRUE
     AND Parent.IsCustom = ${byLicenseOrByProfile !== 'license'}`
   ))
+    .flatten()
     .groupBy(`Parent.${byLicenseOrByProfile === 'license' ? 'License' : 'Profile'}.Name`)
     .mapValues(x => _(x).uniqBy('SobjectType').values())
     .value()
 })
 
-const retrieveAllTabVisibilities = async (profile, context) => {
-  return context.sfdcConnector.query(`SELECT
+const retrieveAllTabVisibilities = async (profile, ctx) => {
+  return ctx.sfdc.query(`SELECT
     Id,
     Parent.Profile.Name,
     Visibility,

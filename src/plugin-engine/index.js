@@ -18,7 +18,7 @@ const genXmlTransformer = ctx => async (patterns, callback) => {
 }
 
 const executePlugins = async (plugins = [], ctx, config = {}) => {
-  const pCtx = { env: process.env.environment, log: logger.log, config }
+  const pCtx = { env: process.env.environment, log: logger.log, config, sfdc: ctx.sfdc }
   ctx.inMemoryFilesMap = _(ctx.inMemoryFiles).keyBy('fileName').value()
   const excludeFilesFromExtractedFileList = genExcludeFilesFromExtractedFileList(ctx)
   const xmlTransformer = genXmlTransformer(ctx)
