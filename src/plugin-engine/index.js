@@ -1,7 +1,10 @@
 const multimatch = require('multimatch')
 const logger = require('../services/log-service')
 const { parseXml } = require('../utils/xml-utils')
+const globby = require('globby')
+const pathService = require('../services/path-service')
 const _ = require('exstream.js')
+const { readFiles } = require('../services/file-service')
 
 const genExcludeFilesFromExtractedFileList = ctx => patterns => {
   const matches = multimatch(Object.keys(ctx.inMemoryFilesMap), patterns)
@@ -17,12 +20,20 @@ const genXmlTransformer = ctx => async (patterns, callback) => {
   }
 }
 
+const genGetFilesFromFilesystem = ctx => async patterns => {
+  // TODO -> REMAPPER INVERSI
+  const fileList = await globby(patterns, { cwd: pathService.getSrcFolder(true) })
+  return readFiles(fileList)
+  // TODO -> RIAPPLICARE RENDERER INVERSI
+}
+
 const executePlugins = async (plugins = [], ctx, config = {}) => {
   const pCtx = { env: process.env.environment, log: logger.log, config, sfdc: ctx.sfdc }
   ctx.inMemoryFilesMap = _(ctx.inMemoryFiles).keyBy('fileName').value()
   const excludeFilesFromExtractedFileList = genExcludeFilesFromExtractedFileList(ctx)
   const xmlTransformer = genXmlTransformer(ctx)
-  const helpers = { excludeFilesFromExtractedFileList, xmlTransformer }
+  const getFilesFromFilesystem = genGetFilesFromFilesystem(ctx)
+  const helpers = { excludeFilesFromExtractedFileList, xmlTransformer, getFilesFromFilesystem }
   for (const p of plugins) await p(pCtx, helpers)
 }
 
