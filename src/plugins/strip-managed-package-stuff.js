@@ -1,9 +1,7 @@
-module.exports = async (context, helpers) => {
-  if (!context.config.stripManagedPackageFields) return
-
-  const namespaces = context.config.stripManagedPackageFields
+const afterRetrieve = async (namespaces, xmlTransformer) => {
   const fn = apiName => x => !namespaces.some(mp => x[apiName][0].startsWith(mp))
-  helpers.xmlTransformer('objects/**/*', async (filename, fJson) => {
+
+  await xmlTransformer('objects/**/*', async (filename, fJson) => {
     fJson.fields = (fJson.fields || []).filter(fn('fullName'))
     fJson.webLinks = (fJson.webLinks || []).filter(fn('fullName'))
     ;(fJson.recordTypes || [])
@@ -11,11 +9,14 @@ module.exports = async (context, helpers) => {
       .forEach(v => (v.picklistValues = v.picklistValues.filter(fn('picklist'))))
   })
 
-  helpers.xmlTransformer('permissionsets/**/*', async (filename, fJson) => {
+  await xmlTransformer(['permissionsets/**/*', 'profiles/**/*'], async (filename, fJson) => {
     fJson.fieldPermissions = (fJson.fieldPermissions || []).filter(fn('field'))
   })
+}
 
-  helpers.xmlTransformer('profiles/**/*', async (filename, fJson) => {
-    fJson.fieldPermissions = (fJson.fieldPermissions || []).filter(fn('field'))
-  })
+module.exports = {
+  afterRetrieve: async (ctx, { xmlTransformer }) => {
+    if (!ctx.config.stripManagedPackageFields) return
+    await afterRetrieve(ctx.config.stripManagedPackageFields, xmlTransformer)
+  }
 }
