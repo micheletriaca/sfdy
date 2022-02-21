@@ -1,15 +1,28 @@
 const multimatch = require('multimatch')
 const logger = require('../services/log-service')
+const { parseXml } = require('../utils/xml-utils')
+const _ = require('exstream.js')
 
-const genApplyMaskToExtractedFileList = ctx => patterns => {
-  const matches = new Set(multimatch(ctx.inMemoryFiles.map(x => x.fileName), patterns))
-  ctx.inMemoryFiles.forEach(f => { if (!matches[f]) f.filteredByPlugin = true })
+const genExcludeFilesFromExtractedFileList = ctx => patterns => {
+  const matches = multimatch(Object.keys(ctx.inMemoryFilesMap), patterns)
+  matches.forEach(m => { ctx.inMemoryFilesMap[m].filteredByPlugin = true })
+}
+
+const genXmlTransformer = ctx => async (patterns, callback) => {
+  const matches = multimatch(Object.keys(ctx.inMemoryFilesMap), patterns)
+  for (const m of matches) {
+    const f = ctx.inMemoryFilesMap[m]
+    f.transformed = f.transformed || await parseXml(f.data)
+    await callback(f.fileName, Object.values(f.transformed)[0])
+  }
 }
 
 const executePlugins = async (plugins = [], ctx, config = {}) => {
   const pCtx = { env: process.env.environment, log: logger.log, config }
-  const applyMaskToExtractedFileList = genApplyMaskToExtractedFileList(ctx)
-  const helpers = { applyMaskToExtractedFileList }
+  ctx.inMemoryFilesMap = _(ctx.inMemoryFiles).keyBy('fileName').value()
+  const excludeFilesFromExtractedFileList = genExcludeFilesFromExtractedFileList(ctx)
+  const xmlTransformer = genXmlTransformer(ctx)
+  const helpers = { excludeFilesFromExtractedFileList, xmlTransformer }
   for (const p of plugins) await p(pCtx, helpers)
 }
 

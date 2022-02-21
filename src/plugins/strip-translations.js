@@ -1,4 +1,5 @@
-const get = require('lodash').get
+const _ = require('exstream.js')
+const isPluginEnabled = _.makeGetter('config.objectTranslations.stripUntranslatedFields', false)
 
 const processXml = (root, keysToProcess) => {
   return Object.keys(keysToProcess).reduce((filterIt, key) => {
@@ -16,44 +17,55 @@ const processXml = (root, keysToProcess) => {
   }, true)
 }
 
-module.exports = async (context, helpers) => {
-  if (get(context, 'config.objectTranslations.stripUntranslatedFields')) {
-    helpers.xmlTransformer('translations/**/*', async (filename, fJson) => {
-      processXml(fJson, {
-        reportTypes: [
-          'label',
-          'description',
-          { sections: 'label' }
-        ],
-        customApplications: 'label',
-        customLabels: 'label',
-        customTabs: 'label'
-      })
+const fixTranslations = async xmlTransformer => {
+  await xmlTransformer(['translations/**/*'], async (filename, fJson) => {
+    processXml(fJson, {
+      reportTypes: [
+        'label',
+        'description',
+        { sections: 'label' }
+      ],
+      customApplications: 'label',
+      customLabels: 'label',
+      customTabs: 'label'
     })
+  })
+}
 
-    helpers.xmlTransformer('standardValueSetTranslations/**/*', async (filename, fJson) => {
-      processXml(fJson, { valueTranslation: 'translation' })
-    })
+const fixStdValueSetTranslations = async xmlTransformer => {
+  await xmlTransformer(['standardValueSetTranslations/**/*'], async (filename, fJson) => {
+    processXml(fJson, { valueTranslation: 'translation' })
+  })
+}
 
-    helpers.xmlTransformer('objectTranslations/**/*', async (filename, fJson) => {
-      processXml(fJson, {
-        validationRules: 'errorMessage',
-        webLinks: 'label',
-        recordTypes: [
-          'label',
-          'description'
-        ],
-        quickActions: 'label',
-        fields: [
-          'help',
-          'label',
-          'relationshipLabel',
-          { picklistValues: 'translation' },
-          { lookupFilter: 'errorMessage' }
-        ],
-        layouts: { sections: 'label' },
-        sharingReasons: 'label'
-      })
+const fixObjectTranslations = async xmlTransformer => {
+  await xmlTransformer(['objectTranslations/**/*'], async (filename, fJson) => {
+    processXml(fJson, {
+      validationRules: 'errorMessage',
+      webLinks: 'label',
+      recordTypes: [
+        'label',
+        'description'
+      ],
+      quickActions: 'label',
+      fields: [
+        'help',
+        'label',
+        'relationshipLabel',
+        { picklistValues: 'translation' },
+        { lookupFilter: 'errorMessage' }
+      ],
+      layouts: { sections: 'label' },
+      sharingReasons: 'label'
     })
+  })
+}
+
+module.exports = {
+  afterRetrieve: async (ctx, { xmlTransformer }) => {
+    if (!isPluginEnabled(ctx)) return
+    await fixTranslations(xmlTransformer)
+    await fixStdValueSetTranslations(xmlTransformer)
+    await fixObjectTranslations(xmlTransformer)
   }
 }

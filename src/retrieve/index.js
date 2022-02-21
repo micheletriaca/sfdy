@@ -43,7 +43,7 @@ const buildPackageXml = () => p().map(ctx => {
 const printFileAndMetadataList = ctx => {
   let res = ''
   if (ctx.finalFileList.length) res = res.concat(['Files:\n']).concat(ctx.finalFileList.join('\n') + '\n')
-  if (ctx.metaGlobPatterns.length) res = res.concat(['Metadata:\n']).concat(ctx.metaGlobPatterns.join('\n'))
+  if (ctx.metaGlobPatterns.length) res = res.concat(['Metadata:\n']).concat(ctx.metaGlobPatterns.join('\n') + '\n')
   return res
 }
 
@@ -65,14 +65,14 @@ const unzipper = () => p().asyncMap(async ctx => {
 const applyPlugins = (postRetrievePlugins = [], renderers = [], config) => p().asyncMap(async ctx => {
   const stdR = stdRenderers.map(x => x.transform)
   const customR = renderers.map(x => nativeRequire(x).transform)
-  await pluginEngine.executePlugins([...stdPlugins, ...postRetrievePlugins], ctx, config)
-  await pluginEngine.executePlugins([...stdR, ...customR], ctx, config)
+  await pluginEngine.executeAfterRetrievePlugins([...stdPlugins, ...postRetrievePlugins], ctx, config)
+  // await pluginEngine.executePlugins([...stdR, ...customR], ctx, config)
   for (const f of ctx.inMemoryFiles.filter(x => !!x.transformed)) f.data = buildXml(f.transformed) + '\n'
   return ctx
 })
 
 const saveFilesToDisk = () => p().asyncMap(async ctx => {
-  await saveFiles(ctx.inMemoryFiles)
+  await saveFiles(_(ctx.inMemoryFiles).reject(f => f.filteredByPlugin).values())
   return ctx
 })
 
