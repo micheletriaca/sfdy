@@ -1,15 +1,15 @@
 
 const { getPackageMapping, buildPackageXmlFromFiles, addTypesToPackageFromMeta } = require('../utils/package-utils')
 const { parseGlobPatterns, saveFiles } = require('../services/file-service')
-const stdRenderers = require('../renderers')
 const loggerService = require('../services/log-service')
 const { printLogo } = require('../utils/branding-utils')
 const nativeRequire = require('../utils/native-require')
 const pathService = require('../services/path-service')
 const { buildXml } = require('../utils/xml-utils')
 const pluginEngine = require('../plugin-engine')
-const Sfdc = require('../utils/sfdc-utils')
 const { unzip } = require('../utils/zip-utils')
+const stdRenderers = require('../renderers')
+const Sfdc = require('../utils/sfdc-utils')
 const stdPlugins = require('../plugins')
 const _ = require('../utils/exstream')
 const globby = require('globby')
@@ -72,7 +72,7 @@ const applyPlugins = (postRetrievePlugins = [], renderers = [], config) => p().a
 })
 
 const saveFilesToDisk = () => p().asyncMap(async ctx => {
-  await saveFiles(_(ctx.inMemoryFiles).reject(f => f.filteredByPlugin).values())
+  await _(ctx.inMemoryFiles).reject(f => f.filteredByPlugin).apply(saveFiles)
   return ctx
 })
 

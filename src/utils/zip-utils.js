@@ -24,13 +24,13 @@ module.exports = {
     const unzip = util.promisify(yauzl.fromBuffer)
     const zipFile = await unzip(zipBuffer, { lazyEntries: false })
     const openStream = util.promisify(zipFile.openReadStream.bind(zipFile))
-    const streamToBuffer = f => _(openStream(f)).map(_).merge().collect().map(Buffer.concat).value()
+    const streamToBuffer = f => _(openStream(f)).map(_).merge().applyOne(Buffer.concat)
     zipFile.on('entry', s.write.bind(s))
     zipFile.on('end', s.end.bind(s))
     return s
+      .reject(f => f.fileName.endsWith('/')) // exclude directories
       .map(async f => ({ fileName: f.fileName, data: await streamToBuffer(f) }))
       .resolve(20, false)
-      .reject(x => x.fileName.endsWith('/')) // exclude directories
       .values()
   }
 }

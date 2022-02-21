@@ -3,6 +3,8 @@ const chalk = require('chalk')
 const logger = require('../services/log-service')
 
 _.extend('asyncMap', function (fn) { return this.map(fn).resolve() })
+_.extend('apply', function (fn) { return this.collect().map(fn).values() })
+_.extend('applyOne', function (fn) { return this.collect().map(fn).value() })
 _.extend('mapValues', function (fn) {
   return this.map(x => Object.fromEntries(Object.entries(x).map(([k, v]) => [k, fn(v)])))
 })
