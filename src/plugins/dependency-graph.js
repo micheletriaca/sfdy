@@ -1,5 +1,5 @@
 module.exports = async (context, helpers) => {
-  helpers.requireMetadata(['Profile/*', 'PermissionSet/*'], async ({ filterPackage }) => filterPackage([
+  helpers.requireMetadata('Profile/*', async ({ filterPackage }) => filterPackage([
     'CustomApplication',
     'ApexClass',
     'ApexPage',

@@ -7,7 +7,6 @@ require('./profile-plugins/add-tab-visibilities-to-profiles'),
 require('./profile-plugins/add-application-visibilities-to-profiles'),
 require('./strip-unversioned-stuff')
 */
-  require('./strip-fls-in-permission-sets'),
   require('./profile-plugins/strip-immutable-stuff-from-std-profiles'),
   require('./strip-managed-package-stuff'),
   require('./strip-translations'),
