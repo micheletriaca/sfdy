@@ -1,10 +1,11 @@
 const multimatch = require('multimatch')
 const chalk = require('chalk')
-const _ = require('lodash')
-const __ = require('highland')
+const memoize = require('lodash/memoize')
+const _ = require('exstream.js')
 const { remapProfileName, retrieveAllTabVisibilities, getVersionedObjects } = require('./utils')
+const isPluginEnabled = _.makeGetter('config.profiles.addExtraTabVisibility', false)
 
-const getVersionedTabs = _.memoize((allTabs, versionedTabs, versionedObjects) => {
+const getVersionedTabs = memoize((allTabs, versionedTabs, versionedObjects) => {
   return versionedTabs
     .map(x => x.fileName.replace(/^tabs\/(.*)\.tab$/, '$1'))
     .concat(allTabs
@@ -13,54 +14,56 @@ const getVersionedTabs = _.memoize((allTabs, versionedTabs, versionedObjects) =>
     )
 })
 
-module.exports = async (context, helpers) => {
-  const extraTabsGlob = _.get(context, 'config.profiles.addExtraTabVisibility', [])
-  if (!extraTabsGlob.length) return
-  context.q = _.memoize(context.sfdcConnector.query)
-
-  helpers.xmlTransformer('profiles/**/*', async (filename, fJson, requireFiles) => {
-    context.log(chalk.blue(`----> Processing ${filename}: Adding tabs`))
-    const allTabs = [
-      ...await context.q('SELECT Name, SobjectName FROM TabDefinition ORDER BY Name'),
-      ...await __(await context.q('SELECT Id, Type, DeveloperName FROM CustomTab', true))
-        .map(async x => {
-          if (x.Type === 'customObject') {
-            const y = (await context.q(`SELECT FullName FROM CustomTab WHERE Id = '${x.Id}'`, true))[0]
-            return { Name: y.FullName, SobjectName: y.FullName }
-          } else if (x.DeveloperName) {
-            return { Name: x.DeveloperName, SobjectName: '' }
-          }
-        })
-        .map(x => __(x))
-        .parallel(10)
-        .collect()
-        .toPromise(Promise)
-    ]
-    const versionedObjects = getVersionedObjects(await requireFiles('objects/**/*'))
-    const versionedTabs = new Set(getVersionedTabs(allTabs, await requireFiles('tabs/**/*'), versionedObjects))
-    const realProfileName = await remapProfileName(filename, context)
-    const visibleTabs = _.keyBy(await retrieveAllTabVisibilities(realProfileName, context), 'Name')
-    const tabVisibilities = allTabs
-      .filter(b => {
-        if (versionedTabs.has(b.Name) || versionedObjects.has(b.SobjectName)) return true
-        else return multimatch(b.Name, extraTabsGlob).length > 0
+const patchProfile = (ctx, extraTabsGlob, getFilesFromFilesystem) => async (filename, fJson) => {
+  ctx.log(chalk.blue(`----> Processing ${filename}: Adding tabs`))
+  const allTabs = [
+    ...await ctx.q('SELECT Name, SobjectName FROM TabDefinition WHERE IsCustom = FALSE ORDER BY Name'),
+    ...await _(ctx.q('SELECT Id, Type, DeveloperName FROM CustomTab', true))
+      .flatten()
+      .map(async x => {
+        if (x.Type === 'customObject') {
+          const y = (await ctx.q(`SELECT FullName FROM CustomTab WHERE Id = '${x.Id}'`, true))[0]
+          return { Name: y.FullName, SobjectName: y.FullName }
+        } else if (x.DeveloperName) {
+          return { Name: x.DeveloperName, SobjectName: '' }
+        }
       })
+      .resolve(10)
+      .values()
+  ]
+  const versionedObjects = getVersionedObjects(await getFilesFromFilesystem('objects/**/*'))
+  const versionedTabs = new Set(getVersionedTabs(allTabs, await getFilesFromFilesystem('tabs/**/*'), versionedObjects))
+  const realProfileName = await remapProfileName(filename, ctx)
+  const visibleTabs = _(await retrieveAllTabVisibilities(realProfileName, ctx)).keyBy('Name').value()
+  const tabVisibilities = allTabs
+    .filter(b => {
+      if (versionedTabs.has(b.Name) || versionedObjects.has(b.SobjectName)) return true
+      else return multimatch(b.Name, extraTabsGlob).length > 0
+    })
 
-    const finalTabs = {
-      ..._(tabVisibilities)
-        .map(tab => ({
-          tab: [tab.Name],
-          visibility: [(!visibleTabs[tab.Name] && 'Hidden') || visibleTabs[tab.Name].Visibility]
-        }))
-        .keyBy('tab')
-        .value(),
-      ..._(fJson.tabVisibilities || [])
-        .filter(x => versionedTabs.has(x.tab[0]))
-        .keyBy(x => x.tab[0])
-        .value()
-    }
+  const finalTabs = {
+    ..._(tabVisibilities)
+      .map(tab => ({
+        tab: [tab.Name],
+        visibility: [(!visibleTabs[tab.Name] && 'Hidden') || visibleTabs[tab.Name].Visibility]
+      }))
+      .keyBy('tab')
+      .value(),
+    ..._(fJson.tabVisibilities || [])
+      .filter(x => versionedTabs.has(x.tab[0]))
+      .keyBy(x => x.tab[0])
+      .value()
+  }
 
-    fJson.tabVisibilities = Object.keys(finalTabs).sort().map(x => finalTabs[x])
-    context.log(chalk.blue('----> Done'))
-  })
+  fJson.tabVisibilities = Object.keys(finalTabs).sort().map(x => finalTabs[x])
+  ctx.log(chalk.blue('----> Done'))
+}
+
+module.exports = {
+  afterRetrieve: async (ctx, { xmlTransformer, getFilesFromFilesystem }) => {
+    const extraTabsGlob = isPluginEnabled(ctx)
+    if (!extraTabsGlob) return
+    ctx.q = memoize(ctx.sfdc.query)
+    await xmlTransformer('profiles/**/*', patchProfile(ctx, extraTabsGlob, getFilesFromFilesystem))
+  }
 }
