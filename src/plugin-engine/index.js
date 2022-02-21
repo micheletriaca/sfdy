@@ -4,6 +4,7 @@ const { parseXml } = require('../utils/xml-utils')
 const globby = require('globby')
 const pathService = require('../services/path-service')
 const _ = require('exstream.js')
+const l = require('lodash')
 const { readFiles } = require('../services/file-service')
 
 const genExcludeFilesFromExtractedFileList = ctx => patterns => {
@@ -20,10 +21,25 @@ const genXmlTransformer = ctx => async (patterns, callback) => {
   }
 }
 
-const genGetFilesFromFilesystem = () => async (patterns, readBuffers = true) => {
+const genGetFiles = ctx => async (patterns, readBuffers = true, onlyFromFilesystem = false) => {
   // TODO -> REMAPPER INVERSI
+  // TODO -> SE FACCIO REQUIRE METADATA DEVO POI POTERLI TOGLIERE. VANNO TENUTI DA QLC PARTE
   const fileList = await globby(patterns, { cwd: pathService.getSrcFolder(true) })
-  return readBuffers ? readFiles(fileList) : fileList
+  const fileListInMemory = multimatch(Object.keys(ctx.inMemoryFilesMap), patterns)
+  const wholeFileList = [...new Set([...fileList, ...fileListInMemory])]
+  if (!readBuffers && onlyFromFilesystem) {
+    return fileList
+  } else if (!readBuffers && !onlyFromFilesystem) {
+    return wholeFileList
+  } else if (readBuffers && onlyFromFilesystem) {
+    return readFiles(fileList)
+  } else if (readBuffers && !onlyFromFilesystem) {
+    const notInMemory = l.difference(fileList, fileListInMemory)
+    const inMemory = wholeFileList.filter(f => ctx.inMemoryFilesMap[f])
+    const buffers = readFiles(notInMemory)
+    for (const f of inMemory) buffers.push(ctx.inMemoryFilesMap[f])
+    return buffers
+  }
   // TODO -> RIAPPLICARE RENDERER INVERSI
 }
 
@@ -32,8 +48,8 @@ const executePlugins = async (plugins = [], ctx, config = {}) => {
   ctx.inMemoryFilesMap = _(ctx.inMemoryFiles).keyBy('fileName').value()
   const excludeFilesFromExtractedFileList = genExcludeFilesFromExtractedFileList(ctx)
   const xmlTransformer = genXmlTransformer(ctx)
-  const getFilesFromFilesystem = genGetFilesFromFilesystem(ctx)
-  const helpers = { excludeFilesFromExtractedFileList, xmlTransformer, getFilesFromFilesystem }
+  const getFiles = genGetFiles(ctx)
+  const helpers = { excludeFilesFromExtractedFileList, xmlTransformer, getFiles }
   for (const p of plugins) await p(pCtx, helpers)
 }
 

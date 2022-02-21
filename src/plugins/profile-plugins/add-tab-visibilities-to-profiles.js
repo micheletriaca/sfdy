@@ -14,7 +14,7 @@ const getVersionedTabs = memoize((allTabs, versionedTabs, versionedObjects) => {
     )
 })
 
-const patchProfile = (ctx, extraTabsGlob, getFilesFromFilesystem) => async (filename, fJson) => {
+const patchProfile = (ctx, extraTabsGlob, getFiles) => async (filename, fJson) => {
   ctx.log(chalk.blue(`----> Processing ${filename}: Adding tabs`))
   const allTabs = [
     ...await ctx.q('SELECT Name, SobjectName FROM TabDefinition WHERE IsCustom = FALSE ORDER BY Name'),
@@ -31,9 +31,9 @@ const patchProfile = (ctx, extraTabsGlob, getFilesFromFilesystem) => async (file
       .resolve(10)
       .values()
   ]
-  // TODO -> FROM EVERYTHING?
-  const versionedObjects = getVersionedObjects(await getFilesFromFilesystem('objects/**/*'))
-  const versionedTabs = new Set(getVersionedTabs(allTabs, await getFilesFromFilesystem('tabs/**/*'), versionedObjects))
+
+  const versionedObjects = getVersionedObjects(await getFiles('objects/**/*'))
+  const versionedTabs = new Set(getVersionedTabs(allTabs, await getFiles('tabs/**/*'), versionedObjects))
   const realProfileName = await remapProfileName(filename, ctx)
   const visibleTabs = _(await retrieveAllTabVisibilities(realProfileName, ctx)).keyBy('Name').value()
   const tabVisibilities = allTabs
@@ -61,10 +61,10 @@ const patchProfile = (ctx, extraTabsGlob, getFilesFromFilesystem) => async (file
 }
 
 module.exports = {
-  afterRetrieve: async (ctx, { xmlTransformer, getFilesFromFilesystem }) => {
+  afterRetrieve: async (ctx, { xmlTransformer, getFiles }) => {
     const extraTabsGlob = isPluginEnabled(ctx)
     if (!extraTabsGlob) return
     ctx.q = memoize(ctx.sfdc.query)
-    await xmlTransformer('profiles/**/*', patchProfile(ctx, extraTabsGlob, getFilesFromFilesystem))
+    await xmlTransformer('profiles/**/*', patchProfile(ctx, extraTabsGlob, getFiles))
   }
 }

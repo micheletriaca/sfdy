@@ -8,7 +8,7 @@ const get = require('lodash/get')
 const memoize = require('lodash/memoize')
 
 module.exports = {
-  afterRetrieve: async (ctx, { xmlTransformer, getFilesFromFilesystem }) => {
+  afterRetrieve: async (ctx, { xmlTransformer, getFiles }) => {
     if (!isExtraObjPluginEnabled(ctx) && !isDisabledVersionedPluginEnabled(ctx)) return
     ctx.q = memoize(ctx.sfdc.query)
     const extraObjectsPatterns = get(ctx, 'config.profiles.addExtraObjects', [])
@@ -17,8 +17,7 @@ module.exports = {
       const isCustom = fJson.custom && fJson.custom[0] === 'true'
       if (!isCustom) return
       ctx.log(chalk.blue(`----> Processing ${filename}: Adding objects`))
-      // TODO -> FROM Everything?
-      const versionedObjects = new Set(getVersionedObjects(await getFilesFromFilesystem('objects/**/*')))
+      const versionedObjects = new Set(getVersionedObjects(await getFiles('objects/**/*')))
       const allObjectsPerLicense = await retrieveAllObjects('license', ctx)
       const allObjects = allObjectsPerLicense.Salesforce
         .filter(b => {
