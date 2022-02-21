@@ -10,5 +10,11 @@ _.extend('log', function (msg, severity = 'gray') {
   const _msg = typeof msg === 'string' ? () => msg : msg
   return this.tap((x) => logger.log(chalk[severity](_msg(x))))
 })
+_.extend('toSet', function () {
+  return this
+    .collect()
+    .map(x => new Set(x))
+    .value()
+})
 
 module.exports = _

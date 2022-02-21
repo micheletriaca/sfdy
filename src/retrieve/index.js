@@ -1,17 +1,18 @@
 
 const { getPackageMapping, buildPackageXmlFromFiles, addTypesToPackageFromMeta } = require('../utils/package-utils')
 const { parseGlobPatterns, saveFiles } = require('../services/file-service')
+const stdRenderers = require('../renderers')
 const loggerService = require('../services/log-service')
 const { printLogo } = require('../utils/branding-utils')
+const nativeRequire = require('../utils/native-require')
 const pathService = require('../services/path-service')
+const { buildXml } = require('../utils/xml-utils')
+const pluginEngine = require('../plugin-engine')
 const Sfdc = require('../utils/sfdc-utils')
+const { unzip } = require('../utils/zip-utils')
+const stdPlugins = require('../plugins')
 const _ = require('../utils/exstream')
-const unzip = require('./unzipper')
 const globby = require('globby')
-// const pluginEngine = require('../plugin-engine')
-// const standardPlugins = require('../plugins')
-// const standardRenderers = require('../renderers').map(x => x.transform)
-// const nativeRequire = require('../utils/native-require')
 
 const p = _.pipeline
 
@@ -39,7 +40,7 @@ const buildPackageXml = () => p().map(ctx => {
   return ctx
 })
 
-const getFileAndMetadataList = ctx => {
+const printFileAndMetadataList = ctx => {
   let res = ''
   if (ctx.finalFileList.length) res = res.concat(['Files:\n']).concat(ctx.finalFileList.join('\n') + '\n')
   if (ctx.metaGlobPatterns.length) res = res.concat(['Metadata:\n']).concat(ctx.metaGlobPatterns.join('\n'))
@@ -55,8 +56,18 @@ const retrieveMetadata = () => p().asyncMap(async (ctx) => {
 })
 
 const unzipper = () => p().asyncMap(async ctx => {
-  ctx.inMemoryFiles.splice(ctx.inMemoryFiles.length, ...await unzip(ctx.zip))
+  const unzipPromise = unzip(ctx.zip)
   delete ctx.zip // free memory
+  ctx.inMemoryFiles.splice(ctx.inMemoryFiles.length, 0, ...await unzipPromise)
+  return ctx
+})
+
+const applyPlugins = (postRetrievePlugins = [], renderers = [], config) => p().asyncMap(async ctx => {
+  const stdR = stdRenderers.map(x => x.transform)
+  const customR = renderers.map(x => nativeRequire(x).transform)
+  await pluginEngine.executePlugins([...stdPlugins, ...postRetrievePlugins], ctx, config)
+  await pluginEngine.executePlugins([...stdR, ...customR], ctx, config)
+  for (const f of ctx.inMemoryFiles.filter(x => !!x.transformed)) f.data = buildXml(f.transformed) + '\n'
   return ctx
 })
 
@@ -65,7 +76,7 @@ const saveFilesToDisk = () => p().asyncMap(async ctx => {
   return ctx
 })
 
-module.exports = async function retrieve ({ loginOpts, basePath, logger, files, meta/*, config */ }) {
+module.exports = async function retrieve ({ loginOpts, basePath, logger, files, meta, config }) {
   if (basePath) pathService.setBasePath(basePath)
   if (logger) loggerService.setLogger(logger)
   return await _([{
@@ -91,15 +102,16 @@ module.exports = async function retrieve ({ loginOpts, basePath, logger, files, 
     // TODO -> validate meta glob
     // TODO -> exit if no files logger.log(chalk.yellow('No files to retrieve. Retrieve skipped'))
     .log('The following files/metadata will be retrieved:', 'yellow')
-    .log(getFileAndMetadataList)
+    .log(printFileAndMetadataList)
     .through(buildPackageXml())
     .through(retrieveMetadata())
     .log('Retrieve completed!', 'green')
     .log('(3/3) Unzipping & applying patches...', 'yellow')
     .through(unzipper())
-    // TODO -> PATCHES
+    .through(applyPlugins(config.postRetrievePlugins, config.renderers, config))
     // TODO -> ALERT IF FILE IS NOT IN SALESFORCE. POSSIBILITY TO CLEAN IT
     .through(saveFilesToDisk()) // TODO -> SAVE ONLY FILES PRESENT IN FILELIST OR IN META LIST
+    // TODO -> NOT OVERWRITE PACKAGE XML
     .log('Unzipped!', 'green')
     .tap(x => console.log({
       sfdc: x.sfdc,
@@ -111,18 +123,4 @@ module.exports = async function retrieve ({ loginOpts, basePath, logger, files, 
       zip: x.zip
     }))
     .values()
-  /*
-  await pluginEngine.registerPlugins(
-    [
-      ...standardPlugins,
-      ...(config.postRetrievePlugins || []),
-      ...standardRenderers,
-      ...((config.renderers || []).map(x => nativeRequire(x).transform))
-    ],
-    sfdcConnector,
-    loginOpts.username,
-    pkgJson,
-    config)
-  const packageJsonWithDependencies = await pluginEngine.buildFinalPackageXml(pkgJson, await getPackageXml())
-  */
 }

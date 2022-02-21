@@ -8,13 +8,13 @@ const pathService = require('../services/path-service')
 const logService = require('../services/log-service')
 const { buildXml } = require('../utils/xml-utils')
 const pluginEngine = require('../plugin-engine')
+const { zip } = require('../utils/zip-utils')
 const stdRenderers = require('../renderers')
 const Sfdc = require('../utils/sfdc-utils')
 const multimatch = require('multimatch')
 const _ = require('../utils/exstream')
 const globby = require('globby')
 const chalk = require('chalk')
-const yazl = require('yazl')
 const fs = require('fs')
 const p = _.pipeline
 
@@ -76,26 +76,11 @@ const applyPlugins = (preDeployPlugins, config, renderers, destructive) => p().a
 
 const buildPackageXml = () => p().map(ctx => {
   ctx.packageJson = buildPackageXmlFromFiles(ctx.finalFileList, ctx.packageMapping, ctx.sfdc.apiVersion)
-  ctx.inMemoryFiles.push({
-    fileName: 'package.xml',
-    data: Buffer.from(buildXml(ctx.packageJson) + '\n', 'utf8')
-  })
   return ctx
 })
 
-const zipper = (destructive) => p().map(ctx => {
-  const zip = new yazl.ZipFile()
-  const fileList = new Set(ctx.finalFileList)
-  for (const f of ctx.inMemoryFiles) {
-    const shouldBeAdded = (fileList.has(f.fileName) && !destructive) || f.fileName === 'package.xml'
-    if (shouldBeAdded) {
-      const fileName = f.fileName === 'package.xml' && destructive ? 'destructiveChanges.xml' : f.fileName
-      zip.addBuffer(buildXml({ Package: { version: ctx.sfdc.apiVersion } }) + '\n', 'package.xml')
-      zip.addBuffer(f.data, fileName)
-    }
-  }
-  zip.end()
-  ctx.zip = zip
+const zipper = destructive => p().map(ctx => {
+  ctx.zip = zip(ctx.finalFileList, ctx.inMemoryFiles, ctx.packageJson, destructive)
   return ctx
 })
 

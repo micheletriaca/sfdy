@@ -1,5 +1,5 @@
 module.exports = [
-  require('./dependency-graph'),
+/*  require('./dependency-graph'),
   require('./strip-managed-package-stuff'),
   require('./strip-fls-in-permission-sets'),
   require('./profile-plugins/strip-immutable-stuff-from-std-profiles'),
@@ -9,5 +9,6 @@ module.exports = [
   require('./profile-plugins/add-application-visibilities-to-profiles'),
   require('./strip-partner-roles'),
   require('./strip-translations'),
+*/
   require('./strip-unversioned-stuff')
 ]

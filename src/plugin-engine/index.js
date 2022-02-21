@@ -52,6 +52,7 @@ module.exports = {
       const files = multimatch(ctx.finalFileList, pattern)
       const inMemoryFileMap = Object.fromEntries(ctx.inMemoryFiles.map(x => [x.fileName, x]))
       for (const f of files) {
+        if (!inMemoryFileMap[f]) continue
         inMemoryFileMap[f].transformed = inMemoryFileMap[f].transformed || await parseXml(inMemoryFileMap[f].data)
         await callback(f, Object.values(inMemoryFileMap[f].transformed)[0], { requireFiles, addFiles })
       }
@@ -78,8 +79,9 @@ module.exports = {
       })
     }
   }),
-  executePlugins: async (plugins, ctx, config = {}) => {
-    await _(plugins || [])
+  executePlugins: async (plugins = [], ctx, config = {}) => {
+    const inMemoryFileMap = Object.fromEntries(ctx.inMemoryFiles.map(x => [x.fileName, x]))
+    await _(plugins)
       .map(pluginPath => {
         if (typeof (pluginPath) === 'function') return pluginPath
         return nativeRequire(pluginPath)

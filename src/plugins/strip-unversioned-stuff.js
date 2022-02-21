@@ -1,34 +1,28 @@
 const { parseXml } = require('../utils/xml-utils')
-const _ = require('highland')
+const _ = require('exstream.js')
 const get = require('lodash').get
 
-const getFieldMap = async objectFileNames => {
-  return _(objectFileNames)
-    .map(async x => ({
-      content: x.transformedJson || await parseXml(x.data),
-      obj: x.fileName.replace(/^objects\/(.*)\.object$/, '$1')
-    }))
-    .map(x => _(x))
-    .sequence()
-    .flatMap(objData => (objData.content.CustomObject.fields || []).map(x => `${objData.obj}.${x.fullName[0]}`))
-    .flatMap(field => {
-      const res = [field]
-      if (field.startsWith('Activity.')) {
-        res.push(field.replace('Activity.', 'Event.'))
-        res.push(field.replace('Activity.', 'Task.'))
-      }
-      return res
-    })
-    .collect()
-    .map(x => new Set(x))
-    .toPromise(Promise)
-}
+const getFieldMap = async objFileNames => _(objFileNames)
+  .asyncMap(async x => ({
+    content: x.transformed || await parseXml(x.data),
+    obj: x.fileName.replace(/^objects\/(.*)\.object$/, '$1')
+  }))
+  .flatMap(objData => (objData.content.CustomObject.fields || []).map(x => `${objData.obj}.${x.fullName[0]}`))
+  .flatMap(field => {
+    const res = [field]
+    if (field.startsWith('Activity.')) {
+      res.push(field.replace('Activity.', 'Event.'))
+      res.push(field.replace('Activity.', 'Task.'))
+    }
+    return res
+  })
+  .toSet()
 
-module.exports = async (context, helpers) => {
+module.exports = async (context, { xmlTransformer }) => {
   const cachedGetFieldMap = (cache => async allFiles => cache || (cache = await getFieldMap(allFiles)))()
 
   if (get(context, 'config.profiles.stripUnversionedStuff')) {
-    helpers.xmlTransformer('profiles/**/*', async (filename, fJson, requireFiles) => {
+    await xmlTransformer('profiles/**/*', async (filename, fJson, requireFiles) => {
       const fieldMap = await cachedGetFieldMap(await requireFiles('objects/**/*'))
       fJson.fieldPermissions = (fJson.fieldPermissions || []).filter(x => fieldMap.has(x.field[0]))
 
@@ -44,7 +38,7 @@ module.exports = async (context, helpers) => {
   }
 
   if (get(context, 'config.objectTranslations.stripNotVersionedFields')) {
-    helpers.xmlTransformer('objectTranslations/**/*', async (filename, fJson, requireFiles) => {
+    await xmlTransformer('objectTranslations/**/*', async (filename, fJson, requireFiles) => {
       const fieldMap = await cachedGetFieldMap(await requireFiles('objects/**/*'))
       const objName = filename.replace(/^objectTranslations\/(.*)-.*\.objectTranslation$/, '$1')
       fJson.fields = (fJson.fields || []).filter(x => fieldMap.has(objName + '.' + x.name[0]))
