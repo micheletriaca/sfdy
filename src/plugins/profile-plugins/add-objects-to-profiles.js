@@ -17,6 +17,7 @@ module.exports = {
       const isCustom = fJson.custom && fJson.custom[0] === 'true'
       if (!isCustom) return
       ctx.log(chalk.blue(`----> Processing ${filename}: Adding objects`))
+      // TODO -> FROM Everything?
       const versionedObjects = new Set(getVersionedObjects(await getFilesFromFilesystem('objects/**/*')))
       const allObjectsPerLicense = await retrieveAllObjects('license', ctx)
       const allObjects = allObjectsPerLicense.Salesforce

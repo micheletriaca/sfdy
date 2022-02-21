@@ -1,6 +1,10 @@
 const { parseXml } = require('../utils/xml-utils')
 const _ = require('exstream.js')
-const get = require('lodash').get
+const isStripUnversionedPluginEnabled = _.makeGetter('config.profiles.stripUnversionedStuff', false)
+const isStripUnversionedFieldsPluginEnabled = _.makeGetter('config.objectTranslations.stripNotVersionedFields', false)
+
+// TODO -> IN QUESTO CASO SE HO RICHIESTO CAMPI NELLO STESSO RETRIEVE NON DOVREI STRIPPARLI
+// TODO -> SERVE UN GetFileFromEverything
 
 const getFieldMap = async objFileNames => _(objFileNames)
   .asyncMap(async x => ({
@@ -18,28 +22,28 @@ const getFieldMap = async objFileNames => _(objFileNames)
   })
   .toSet()
 
-module.exports = async (context, { xmlTransformer }) => {
+module.exports = async (ctx, { xmlTransformer, getFilesFromFilesystem }) => {
   const cachedGetFieldMap = (cache => async allFiles => cache || (cache = await getFieldMap(allFiles)))()
 
-  if (get(context, 'config.profiles.stripUnversionedStuff')) {
-    await xmlTransformer('profiles/**/*', async (filename, fJson, requireFiles) => {
-      const fieldMap = await cachedGetFieldMap(await requireFiles('objects/**/*'))
+  if (isStripUnversionedPluginEnabled(ctx)) {
+    await xmlTransformer('profiles/**/*', async (filename, fJson) => {
+      const fieldMap = await cachedGetFieldMap(await getFilesFromFilesystem('objects/**/*'))
       fJson.fieldPermissions = (fJson.fieldPermissions || []).filter(x => fieldMap.has(x.field[0]))
 
-      const classes = new Set((await requireFiles('classes/**/*')).map(x => x.fileName))
+      const classes = new Set(await getFilesFromFilesystem('classes/**/*', false))
       fJson.classAccesses = (fJson.classAccesses || []).filter(x => classes.has('classes/' + x.apexClass[0] + '.cls'))
 
-      const pages = new Set((await requireFiles('pages/**/*')).map(x => x.fileName))
+      const pages = new Set(await getFilesFromFilesystem('pages/**/*', false))
       fJson.pageAccesses = (fJson.pageAccesses || []).filter(x => pages.has('pages/' + x.apexPage[0] + '.page'))
 
-      const layouts = new Set((await requireFiles('layouts/**/*')).map(x => x.fileName))
+      const layouts = new Set(await getFilesFromFilesystem('layouts/**/*', false))
       fJson.layoutAssignments = (fJson.layoutAssignments || []).filter(x => layouts.has('layouts/' + x.layout[0] + '.layout'))
     })
   }
 
-  if (get(context, 'config.objectTranslations.stripNotVersionedFields')) {
-    await xmlTransformer('objectTranslations/**/*', async (filename, fJson, requireFiles) => {
-      const fieldMap = await cachedGetFieldMap(await requireFiles('objects/**/*'))
+  if (isStripUnversionedFieldsPluginEnabled(ctx)) {
+    await xmlTransformer('objectTranslations/**/*', async (filename, fJson) => {
+      const fieldMap = await cachedGetFieldMap(await getFilesFromFilesystem('objects/**/*'))
       const objName = filename.replace(/^objectTranslations\/(.*)-.*\.objectTranslation$/, '$1')
       fJson.fields = (fJson.fields || []).filter(x => fieldMap.has(objName + '.' + x.name[0]))
     })

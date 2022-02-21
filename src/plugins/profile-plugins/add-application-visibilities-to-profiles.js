@@ -1,15 +1,15 @@
 const multimatch = require('multimatch')
-const _ = require('lodash')
+const get = require('lodash/get')
 
 module.exports = async (context, { xmlTransformer }) => {
-  const extraAppsGlob = _.get(context, 'config.profiles.addExtraApplications', [])
-  if (!extraAppsGlob.length) return
+  const extraAppsGlob = get(context, 'config.profiles.addExtraApplications', false)
+  if (!extraAppsGlob) return
 
   helpers.requireMetadata(['Profile/*'], async ({ patchPackage }) => patchPackage([
     'CustomApplication/*'
   ]))
 
-  await xmlTransformer('profiles/**/*', async (filename, fJson, requireFiles) => {
+  await xmlTransformer('profiles/**/*', async (filename, fJson) => {
     const appsToConsider = (await requireFiles('applications/**/*'))
       .map(x => x.fileName.replace(/^applications\/(.*)\.app$/, '$1'))
 

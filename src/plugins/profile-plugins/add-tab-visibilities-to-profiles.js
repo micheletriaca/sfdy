@@ -31,6 +31,7 @@ const patchProfile = (ctx, extraTabsGlob, getFilesFromFilesystem) => async (file
       .resolve(10)
       .values()
   ]
+  // TODO -> FROM EVERYTHING?
   const versionedObjects = getVersionedObjects(await getFilesFromFilesystem('objects/**/*'))
   const versionedTabs = new Set(getVersionedTabs(allTabs, await getFilesFromFilesystem('tabs/**/*'), versionedObjects))
   const realProfileName = await remapProfileName(filename, ctx)

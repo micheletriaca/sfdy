@@ -20,10 +20,10 @@ const genXmlTransformer = ctx => async (patterns, callback) => {
   }
 }
 
-const genGetFilesFromFilesystem = ctx => async patterns => {
+const genGetFilesFromFilesystem = () => async (patterns, readBuffers = true) => {
   // TODO -> REMAPPER INVERSI
   const fileList = await globby(patterns, { cwd: pathService.getSrcFolder(true) })
-  return readFiles(fileList)
+  return readBuffers ? readFiles(fileList) : fileList
   // TODO -> RIAPPLICARE RENDERER INVERSI
 }
 
