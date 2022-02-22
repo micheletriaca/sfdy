@@ -1,5 +1,4 @@
 const fs = require('fs')
-const { parseXml } = require('./xml-utils')
 const path = require('path')
 const glob = require('globby')
 const _ = require('exstream.js')
@@ -8,22 +7,28 @@ const os = require('os')
 const pathService = require('../services/path-service')
 const crypto = require('crypto')
 
-module.exports = {
-  getMeta (packageMapping, filePath, folderName) {
-    const meta = packageMapping[folderName]
-    if (!meta || !Array.isArray(meta)) return meta
-    const hasSuffix = filePath.match(/\.([^.]+)(-meta\.xml)?$/)
-    const suffix = (hasSuffix && hasSuffix[1]) || ''
-    return meta.find(x => x.suffix === suffix)
-  },
+const reverseObj = obj => _(Object.entries(obj))
+  .map(([k, v]) => ({ m: v, f: k }))
+  .groupBy('m')
+  .mapValues(x => x.map(y => y.f))
+  .value()
 
+const getMeta = (packageMapping, filePath, folderName) => {
+  const meta = packageMapping[folderName]
+  if (!meta || !Array.isArray(meta)) return meta
+  const hasSuffix = filePath.match(/\.([^.]+)(-meta\.xml)?$/)
+  const suffix = (hasSuffix && hasSuffix[1]) || ''
+  return meta.find(x => x.suffix === suffix)
+}
+
+module.exports = {
   getCompanionsFileList: async (fileList, packageMapping) => {
     const res = { globPatterns: [], companionFileList: [] }
 
     for (const f of fileList) {
       const firstSlashIdx = f.indexOf('/')
       const folder = f.substring(0, firstSlashIdx)
-      const sfdcMeta = module.exports.getMeta(packageMapping, f, folder)
+      const sfdcMeta = getMeta(packageMapping, f, folder)
 
       // If this file needs a metafile, I add it
       if (sfdcMeta.metaFile === 'true') {
@@ -55,14 +60,30 @@ module.exports = {
     return packageMapping
   },
 
-  buildPackageXmlFromMeta: async (meta) => {
-    const packageJson = await parseXml(fs.readFileSync(pathService.getPackagePath()))
-    const types = _(meta)
-      .groupBy(x => x.split('/')[0])
-      .mapValues(v => v.map(y => y.substring(y.indexOf('/') + 1) || '*'))
-      .value()
-    packageJson.Package.types = Object.entries(types).map(([k, v]) => ({ name: [k], members: v }))
-    return packageJson.Package
+  getMetadataFromFileName: (fileName, packageMapping) => {
+    const firstSlashIdx = fileName.indexOf('/')
+    const folder = fileName.substring(0, firstSlashIdx)
+    if (!packageMapping[folder]) return null
+    const { xmlName, suffix } = getMeta(packageMapping, fileName, folder)
+    const suffixRegexp = new RegExp('(\\.' + suffix + ')?(-meta.xml)?$', '')
+    const componentNameEndIdx = xmlName.endsWith('Bundle') ? fileName.indexOf('/', firstSlashIdx + 1) : undefined
+    const componentName = fileName.substring(firstSlashIdx + 1, componentNameEndIdx).replace(suffixRegexp, '')
+    return xmlName + '/' + componentName
+  },
+
+  buildMetaMap: (fileList, packageMapping) => {
+    const res = {}
+    for (const f of fileList) {
+      const firstSlashIdx = f.indexOf('/')
+      const folder = f.substring(0, firstSlashIdx)
+      if (!packageMapping[folder]) continue
+      const { xmlName, suffix } = getMeta(packageMapping, f, folder)
+      const suffixRegexp = new RegExp('(\\.' + suffix + ')?(-meta.xml)?$', '')
+      const componentNameEndIdx = xmlName.endsWith('Bundle') ? f.indexOf('/', firstSlashIdx + 1) : undefined
+      const componentName = f.substring(firstSlashIdx + 1, componentNameEndIdx).replace(suffixRegexp, '')
+      res[f] = xmlName + '/' + componentName
+    }
+    return reverseObj(res)
   },
 
   buildPackageXmlFromFiles: (fileList, packageMapping, apiVersion) => {
@@ -70,7 +91,7 @@ module.exports = {
     for (const f of fileList) {
       const firstSlashIdx = f.indexOf('/')
       const folder = f.substring(0, firstSlashIdx)
-      const { xmlName, suffix } = module.exports.getMeta(packageMapping, f, folder)
+      const { xmlName, suffix } = getMeta(packageMapping, f, folder)
       const suffixRegexp = new RegExp('(\\.' + suffix + ')?(-meta.xml)?$', '')
       const componentNameEndIdx = xmlName.endsWith('Bundle') ? f.indexOf('/', firstSlashIdx + 1) : undefined
       const componentName = f.substring(firstSlashIdx + 1, componentNameEndIdx).replace(suffixRegexp, '')
@@ -88,6 +109,7 @@ module.exports = {
       }
     }
   },
+
   addTypesToPackageFromMeta (pkgJson, metaGlobPatterns) {
     const pkgClone = cloneDeep(pkgJson)
 

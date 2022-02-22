@@ -1,8 +1,8 @@
 module.exports = [
 /*
-require('./dependency-graph'),
 require('./profile-plugins/add-application-visibilities-to-profiles'),
 */
+  require('./dependency-graph'),
   require('./strip-unversioned-stuff'),
   require('./profile-plugins/add-tab-visibilities-to-profiles'),
   require('./profile-plugins/add-objects-to-profiles'),

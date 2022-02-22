@@ -2,7 +2,7 @@ const _ = require('exstream.js')
 const isPluginEnabled = _.makeGetter('config.roles.stripPartnerRoles', false)
 
 module.exports = {
-  afterRetrieve: async (ctx, { excludeFilesFromExtractedFileList }) => {
-    if (isPluginEnabled(ctx)) excludeFilesFromExtractedFileList(['roles/PartnerUser*'])
+  afterRetrieve: async (ctx, { excludeFiles }) => {
+    if (isPluginEnabled(ctx)) excludeFiles(f => /PartnerUser[0-9]*.role$/.test(f))
   }
 }

@@ -6,7 +6,7 @@ _.extend('asyncMap', function (fn) { return this.map(fn).resolve() })
 _.extend('apply', function (fn) { return this.collect().map(fn).values() })
 _.extend('applyOne', function (fn) { return this.collect().map(fn).value() })
 _.extend('mapValues', function (fn) {
-  return this.map(x => Object.fromEntries(Object.entries(x).map(([k, v]) => [k, fn(v)])))
+  return this.map(x => Object.fromEntries(Object.entries(x).map(([k, v]) => [k, fn(v, k)])))
 })
 _.extend('log', function (msg, severity = 'gray') {
   const _msg = typeof msg === 'string' ? () => msg : msg
