@@ -8,7 +8,7 @@ const l = require('lodash')
 const { readFiles } = require('../services/file-service')
 const { addTypesToPackageFromMeta } = require('../utils/package-utils')
 
-const genExcludeFiles = ctx => patterns => {
+const genExcludeFilesWhen = ctx => patterns => {
   const fileList = Object.keys(ctx.inMemoryFilesMap)
   const matches = typeof patterns === 'string'
     ? multimatch(fileList, patterns)
@@ -45,28 +45,35 @@ const genGetFiles = ctx => async (patterns, readBuffers = true, onlyFromFilesyst
   }
 }
 
-const genSetMetaCompanions = ctx => async (patterns, callback) => {
+const genSetMetaCompanions = ctx => async (patterns, callback, onlyVersioned = true) => {
   const hasMatches = multimatch(ctx.allMetaInPackage, patterns)
-  const metaList = Object.keys(ctx.meta2filesMap)
   if (!hasMatches.length) return
-  ctx.metaCompanions = await _(hasMatches)
-    .asyncMap(async f => multimatch(metaList, await callback(f)))
-    .flatten()
-    .uniq()
-    .values()
 
-  if (!ctx.metaCompanions.length) return
-  ctx.companions = multimatch(ctx.metaCompanions, ['**/*', ...ctx.allMetaInPackage.map(x => '!' + x)])
-  ctx.packageJson = addTypesToPackageFromMeta(ctx.packageJson, ctx.metaCompanions)
+  if (!onlyVersioned) {
+    ctx.companions = ctx.metaCompanions = await _(patterns).asyncMap(async f => callback(f)).flatten().uniq().values()
+    ctx.packageJson = addTypesToPackageFromMeta(ctx.packageJson, ctx.metaCompanions)
+  } else {
+    const metaList = Object.keys(ctx.meta2filesMap)
+    ctx.metaCompanions = await _(hasMatches)
+      .asyncMap(async f => multimatch(metaList, await callback(f)))
+      .flatten()
+      .uniq()
+      .values()
+
+    if (!ctx.metaCompanions.length) return
+    if (!onlyVersioned) ctx.companions = ctx.metaCompanions
+    else ctx.companions = multimatch(ctx.metaCompanions, ['**/*', ...ctx.allMetaInPackage.map(x => '!' + x)])
+    ctx.packageJson = addTypesToPackageFromMeta(ctx.packageJson, ctx.metaCompanions)
+  }
 }
 
 const executePlugins = async (plugins = [], methodName, ctx, config = {}) => {
   const pCtx = { env: process.env.environment, log: logger.log, config, sfdc: ctx.sfdc }
   ctx.inMemoryFilesMap = _(ctx.inMemoryFiles).keyBy('fileName').value()
-  const excludeFiles = genExcludeFiles(ctx)
+  const excludeFilesWhen = genExcludeFilesWhen(ctx)
   const xmlTransformer = genXmlTransformer(ctx)
   const getFiles = genGetFiles(ctx)
-  const helpers = { excludeFiles, xmlTransformer, getFiles }
+  const helpers = { excludeFilesWhen, xmlTransformer, getFiles }
   await _(plugins).pluck(methodName).filter(p => p).asyncMap(p => p(pCtx, helpers)).values()
 }
 

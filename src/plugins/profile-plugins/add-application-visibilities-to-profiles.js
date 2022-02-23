@@ -1,21 +1,27 @@
 const multimatch = require('multimatch')
-const get = require('lodash/get')
+const _ = require('exstream.js')
+const getExtraAppsGlob = _.makeGetter('config.profiles.addExtraApplications', false)
 
-module.exports = async (context, { xmlTransformer }) => {
-  const extraAppsGlob = get(context, 'config.profiles.addExtraApplications', false)
-  if (!extraAppsGlob) return
+module.exports = {
+  beforeRetrieve: async (ctx, { setMetaCompanions }) => {
+    const extraAppsGlob = getExtraAppsGlob(ctx)
+    if (!extraAppsGlob) return
+    await setMetaCompanions('Profile/*', () => ['CustomApplication/*'], false)
+  },
+  afterRetrieve: async (ctx, { xmlTransformer, getFiles, excludeFilesWhen }) => {
+    const extraAppsGlob = getExtraAppsGlob(ctx)
+    if (!extraAppsGlob) return
+    await xmlTransformer('profiles/**/*', async (filename, fJson) => {
+      const appsToConsider = await _(getFiles('applications/**/*', false, true))
+        .flatten()
+        .map(x => x.replace(/^applications\/(.*)\.app$/, '$1'))
+        .values()
 
-  helpers.requireMetadata(['Profile/*'], async ({ patchPackage }) => patchPackage([
-    'CustomApplication/*'
-  ]))
-
-  await xmlTransformer('profiles/**/*', async (filename, fJson) => {
-    const appsToConsider = (await requireFiles('applications/**/*'))
-      .map(x => x.fileName.replace(/^applications\/(.*)\.app$/, '$1'))
-
-    const realGlob = [...extraAppsGlob, ...appsToConsider]
-    fJson.applicationVisibilities = (fJson.applicationVisibilities || []).filter(x => {
-      return multimatch(x.application[0], realGlob).length > 0
+      const realGlob = [...extraAppsGlob, ...appsToConsider]
+      excludeFilesWhen(f => /^applications\/[^.]+\.app/.test(f) && !multimatch(f, appsToConsider).length)
+      fJson.applicationVisibilities = (fJson.applicationVisibilities || []).filter(x => {
+        return multimatch(x.application[0], realGlob).length > 0
+      })
     })
-  })
+  }
 }
