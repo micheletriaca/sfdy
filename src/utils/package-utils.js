@@ -74,14 +74,8 @@ module.exports = {
   buildMetaMap: (fileList, packageMapping) => {
     const res = {}
     for (const f of fileList) {
-      const firstSlashIdx = f.indexOf('/')
-      const folder = f.substring(0, firstSlashIdx)
-      if (!packageMapping[folder]) continue
-      const { xmlName, suffix } = getMeta(packageMapping, f, folder)
-      const suffixRegexp = new RegExp('(\\.' + suffix + ')?(-meta.xml)?$', '')
-      const componentNameEndIdx = xmlName.endsWith('Bundle') ? f.indexOf('/', firstSlashIdx + 1) : undefined
-      const componentName = f.substring(firstSlashIdx + 1, componentNameEndIdx).replace(suffixRegexp, '')
-      res[f] = xmlName + '/' + componentName
+      const metaName = module.exports.getMetadataFromFileName(f, packageMapping)
+      if (metaName) res[f] = metaName
     }
     return reverseObj(res)
   },
@@ -89,14 +83,12 @@ module.exports = {
   buildPackageXmlFromFiles: (fileList, packageMapping, apiVersion) => {
     const types = {}
     for (const f of fileList) {
-      const firstSlashIdx = f.indexOf('/')
-      const folder = f.substring(0, firstSlashIdx)
-      const { xmlName, suffix } = getMeta(packageMapping, f, folder)
-      const suffixRegexp = new RegExp('(\\.' + suffix + ')?(-meta.xml)?$', '')
-      const componentNameEndIdx = xmlName.endsWith('Bundle') ? f.indexOf('/', firstSlashIdx + 1) : undefined
-      const componentName = f.substring(firstSlashIdx + 1, componentNameEndIdx).replace(suffixRegexp, '')
-      types[xmlName] = types[xmlName] || new Set()
-      types[xmlName].add(componentName)
+      const metaName = module.exports.getMetadataFromFileName(f, packageMapping)
+      if (metaName) {
+        const [xmlName, componentName] = metaName.split('/')
+        types[xmlName] = types[xmlName] || new Set()
+        types[xmlName].add(componentName)
+      }
     }
     return {
       Package: {

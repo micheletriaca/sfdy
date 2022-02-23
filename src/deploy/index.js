@@ -52,7 +52,7 @@ const mergeFileListsAndBuildTheFinalOne = excludeFiles => p().map(ctx => {
 })
 
 const loadFilesInMemory = () => p().map(ctx => {
-  ctx.inMemoryFiles = readFiles(ctx.finalFileList)
+  for (const f of readFiles(ctx.finalFileList)) ctx.inMemoryFilesMap[f.fileName] = f
   return ctx
 })
 
@@ -64,6 +64,7 @@ const addCompanionsToFinalFileList = () => p().asyncMap(async ctx => {
 })
 
 const applyPlugins = (plugins, config, renderers, destructive) => p().asyncMap(async ctx => {
+  await pluginEngine.executeRemap([...stdRenderers, ...renderers], ctx)
   await pluginEngine.executeRenderersNormalizations([...stdRenderers, ...renderers], ctx, config)
   if (!destructive) await pluginEngine.executeBeforeDeployPlugins(plugins, ctx, config)
   return ctx
@@ -75,7 +76,7 @@ const buildPackageXml = () => p().map(ctx => {
 })
 
 const zipper = destructive => p().map(ctx => {
-  ctx.zip = zip(ctx.finalFileList, ctx.inMemoryFiles, ctx.packageJson, destructive)
+  ctx.zip = zip(ctx.finalFileList, Object.values(ctx.inMemoryFilesMap), ctx.packageJson, destructive)
   return ctx
 })
 
@@ -131,7 +132,7 @@ module.exports = async function deploy (opts) {
     gitDiffFileList: [],
     fileList: [],
     finalFileList: [],
-    inMemoryFiles: [],
+    inMemoryFilesMap: {},
     packageJson: null,
     zip: null,
     deployJob: null,

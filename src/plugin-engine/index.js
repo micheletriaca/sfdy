@@ -11,12 +11,12 @@ const del = require('del')
 const nativeRequire = require('../utils/native-require')
 
 const genExcludeFilesWhen = ctx => patterns => {
-  const fileList = Object.keys(ctx.inMemoryFilesMap)
+  const fileList = Object.keys(ctx.inMemoryFilesMap).concat(ctx.finalFileList)
   const matches = typeof patterns === 'string' || Array.isArray(patterns)
     ? multimatch(fileList, patterns)
     : _(fileList).filter(patterns).values()
-  matches.forEach(m => { ctx.inMemoryFilesMap[m].filteredByPlugin = true })
-  if (ctx.deploy) ctx.finalFileList = ctx.finalFileList.filter(x => !ctx.inMemoryFilesMap[x].filteredByPlugin)
+  matches.filter(m => !!ctx.inMemoryFilesMap[m]).forEach(m => { ctx.inMemoryFilesMap[m].filteredByPlugin = true })
+  ctx.finalFileList = ctx.finalFileList.filter(x => !matches.includes(x))
 }
 
 const upsert = (arr, vals) => {
@@ -32,11 +32,8 @@ const upsert = (arr, vals) => {
 const genIncludeFiles = ctx => files => {
   for (const f of files) {
     f.includedByPlugin = true
-    const alreadyPresent = !!ctx.inMemoryFilesMap[f.fileName]
     ctx.inMemoryFilesMap[f.fileName] = f
-    if (!alreadyPresent) ctx.inMemoryFiles.push(f)
-    else ctx.inMemoryFiles.splice(ctx.inMemoryFiles.findIndex(x => x.fileName === f.fileName), 1, f)
-    if (ctx.deploy) upsert(ctx.finalFileList, f.fileName)
+    upsert(ctx.finalFileList, f.fileName)
   }
 }
 
@@ -58,7 +55,8 @@ const genXmlTransformer = ctx => async (patterns, callback) => {
 const genGetFiles = ctx => async (patterns, readBuffers = true, fromFilesystem = true, fromMemory = true) => {
   // TODO -> SE I FILE ARRIVANO DA FILESYSTEM, VA FATTO UNRENDER IN MODO DA NORMALIZZARLI
   const fileList = fromFilesystem ? await globby(patterns, { cwd: pathService.getSrcFolder(true) }) : []
-  const fileListInMemory = fromMemory ? multimatch(Object.keys(ctx.inMemoryFilesMap), patterns) : []
+  const allFilesInMemory = readBuffers ? Object.keys(ctx.inMemoryFilesMap) : ctx.finalFileList
+  const fileListInMemory = fromMemory ? multimatch(allFilesInMemory, patterns) : []
   const wholeFileList = [...new Set([...fileList, ...fileListInMemory])]
   if (!readBuffers) {
     return wholeFileList
@@ -93,24 +91,26 @@ const genSetMetaCompanions = ctx => async (patterns, callback, onlyVersioned = t
   }
 }
 
-const genRemap = (ctx, getFiles, includeFiles) => async (inputPatterns, outputPatternFn) => {
-  const inputFiles = await _(getFiles(inputPatterns, false, false))
+const genRemap = (ctx, getFiles, includeFiles, excludeFilesWhen) => async (inputPatterns, outputPatternFn) => {
+  const remappedFiles = await _(getFiles(inputPatterns, false, false))
     .flatten()
-    .map(outputPatternFn)
+    .flatMap(outputPatternFn)
     .uniq()
     .values()
 
-  const outputFileBuffers = await getFiles(inputFiles)
-  await includeFiles(outputFileBuffers)
+  const outputFileBuffers = await _(getFiles(remappedFiles)).flatten().keyBy('fileName').value()
+  excludeFilesWhen(inputPatterns)
+  await _(remappedFiles)
+    .map(f => outputFileBuffers[f] || { fileName: f, data: Buffer.alloc(0) })
+    .apply(includeFiles)
 }
 
 const executePlugins = async (plugins = [], methodName, ctx, config = {}) => {
   const pL = requireCustomPlugins(plugins)
   const pCtx = { env: process.env.environment, log: logger.log, config, sfdc: ctx.sfdc }
-  ctx.inMemoryFilesMap = _(ctx.inMemoryFiles).keyBy('fileName').value()
   const excludeFilesWhen = genExcludeFilesWhen(ctx)
-  const includeFiles = genIncludeFiles(ctx)
   const xmlTransformer = genXmlTransformer(ctx)
+  const includeFiles = genIncludeFiles(ctx)
   const getFiles = genGetFiles(ctx)
   const remap = genRemap(ctx, getFiles, includeFiles)
   const includeInList = async files => {
@@ -146,19 +146,28 @@ module.exports = {
   },
   executeAfterRetrievePlugins: async (plugins = [], ctx, config = {}) => {
     await executePlugins(plugins, 'afterRetrieve', ctx, config)
-    for (const f of ctx.inMemoryFiles.filter(x => !!x.transformed)) f.data = Buffer.from(buildXml(f.transformed) + '\n')
+    for (const f of Object.values(ctx.inMemoryFilesMap).filter(x => !!x.transformed)) f.data = Buffer.from(buildXml(f.transformed) + '\n')
   },
   executeBeforeDeployPlugins: async (plugins = [], ctx, config = {}) => {
     await executePlugins(plugins, 'beforeDeploy', ctx, config)
-    for (const f of ctx.inMemoryFiles.filter(x => !!x.transformed)) f.data = Buffer.from(buildXml(f.transformed) + '\n')
+    for (const f of Object.values(ctx.inMemoryFilesMap).filter(x => !!x.transformed)) f.data = Buffer.from(buildXml(f.transformed) + '\n')
   },
   executeRenderersTransformations: async (plugins = [], ctx, config = {}) => {
     await executePlugins(plugins, 'transform', ctx, config)
-    for (const f of ctx.inMemoryFiles.filter(x => !!x.transformed)) f.data = Buffer.from(buildXml(f.transformed) + '\n')
+    for (const f of Object.values(ctx.inMemoryFilesMap).filter(x => !!x.transformed)) f.data = Buffer.from(buildXml(f.transformed) + '\n')
   },
   executeRenderersNormalizations: async (plugins = [], ctx, config = {}) => {
     await executePlugins(plugins, 'normalize', ctx, config)
-    for (const f of ctx.inMemoryFiles.filter(x => !!x.transformed)) f.data = Buffer.from(buildXml(f.transformed) + '\n')
+    for (const f of Object.values(ctx.inMemoryFilesMap).filter(x => !!x.transformed)) f.data = Buffer.from(buildXml(f.transformed) + '\n')
+  },
+  executeRemap: async (plugins = [], ctx) => {
+    const includeFiles = genIncludeFiles(ctx)
+    const getFiles = genGetFiles(ctx)
+    const excludeFilesWhen = genExcludeFilesWhen(ctx)
+    const remap = genRemap(ctx, getFiles, includeFiles, excludeFilesWhen)
+    const pL = requireCustomPlugins(plugins)
+    for (const p of pL.map(x => x.remaps).flat().filter(x => x)) {
+      await remap(p.transformed, p.normalized)
+    }
   }
-
 }

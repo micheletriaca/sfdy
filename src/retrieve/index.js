@@ -64,7 +64,7 @@ const retrieveMetadata = () => p().asyncMap(async (ctx) => {
 const unzipper = () => p().asyncMap(async ctx => {
   const unzipPromise = unzip(ctx.zip, ctx.companions, ctx.packageMapping)
   delete ctx.zip // free memory
-  ctx.inMemoryFiles.splice(ctx.inMemoryFiles.length, 0, ...await unzipPromise)
+  await _(unzipPromise).flatten().tap(x => { ctx.inMemoryFilesMap[x.fileName] = x }).toPromise()
   return ctx
 })
 
@@ -75,6 +75,11 @@ const applyBeforeRetrievePlugins = (plugins = [], config) => p().asyncMap(async 
 
 const applyAfterRetrievePlugins = (plugins = [], config) => p().asyncMap(async ctx => {
   await pluginEngine.executeAfterRetrievePlugins([...stdPlugins, ...plugins], ctx, config)
+  return ctx
+})
+
+const applyRemaps = (renderers = []) => p().asyncMap(async ctx => {
+  await pluginEngine.executeRemap([...stdRenderers, ...renderers], ctx)
   return ctx
 })
 
@@ -92,7 +97,7 @@ const saveFilesToDisk = () => p().asyncMap(async ctx => {
     }
   }
 
-  await _(ctx.inMemoryFiles)
+  await _(Object.values(ctx.inMemoryFilesMap))
     .log(conflictLogger)
     .reject(f => f.filteredByPlugin)
     .reject(f => f.fileName === 'package.xml')
@@ -114,7 +119,7 @@ module.exports = async function retrieve ({ loginOpts, basePath, logger, files, 
     finalFileList: [],      // Concrete file list coming from filesGlobPatterns evaluation
     metaCompanions: [],     // Additional metadata to be retrieved (needed for profiles and objectTranslations, coming from beforeRetrieve plugins that use setMetaCompanions)
     companions: [],         // metaCompanions minus the meta already present in package.xml. This is needed to avoid extracting to fs the meta added only for convenience
-    inMemoryFiles: [],      // Array of unzipped files
+    inMemoryFilesMap: {},   // fileName => {fileName, data} object. Data is coming from unzipped file and plugins
     allMetaInPackage: [],   // finalFileList converted in package.xml metadata list
     packageJson: null,      // JSON object containing generated package.xml
     zip: null,              // Temporary variable to store zip buffer retrieved from salesforce
@@ -141,17 +146,20 @@ module.exports = async function retrieve ({ loginOpts, basePath, logger, files, 
     .through(injectGlobPatterns(meta, 'metaGlobPatterns'))
     // TODO -> validate meta glob
 
-    // Printing the list of files and metadata
-    // TODO -> exit if no files logger.log(chalk.yellow('No files to retrieve. Retrieve skipped'))
-    .log('The following files/metadata will be retrieved:', 'yellow')
-    .log(printFileAndMetadataList)
+    // Computing renderers remaps
+    .through(applyRemaps(config.plugins))
+
+    // Applying before retrieve plugins (to add metadata inter dependencies)
+    .through(applyBeforeRetrievePlugins(config.plugins, config))
 
     // Building package.xml. the member list is a composition of data coming
     // from --files and --meta
     .through(buildPackageXml())
 
-    // Applying before retrieve plugins (to add metadata inter dependencies)
-    .through(applyBeforeRetrievePlugins(config.plugins, config))
+    // Printing the list of files and metadata
+    // TODO -> exit if no files logger.log(chalk.yellow('No files to retrieve. Retrieve skipped'))
+    .log('The following files/metadata will be retrieved:', 'yellow')
+    .log(printFileAndMetadataList)
 
     // Retrieving from SFDC + unzipping in memory
     .through(retrieveMetadata())

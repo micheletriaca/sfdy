@@ -5,20 +5,36 @@ const _ = require('exstream.js')
 const getConfiguredBundles = _.makeGetter('config.staticResources.useBundleRenderer', [])
 
 module.exports = {
-  transform: async (ctx, { remap, xmlTransformer, includeFiles, excludeFilesWhen, getFiles, removeFilesFromFilesystem }) => {
+  remaps: [
+    {
+      transformed: 'staticresources/*/**/*',
+      normalized: f => {
+        const r = f.replace(/^(staticresources\/[^/]+)\/.*$/, '$1') + '.resource'
+        return [r, r + '-meta.xml']
+      }
+    },
+    {
+      transformed: 'staticresources/*.resource-meta.xml',
+      normalized: f => {
+        const r = f.replace('-meta.xml', '')
+        return [f, r]
+      }
+    }
+  ],
+
+  transform: async (ctx, { xmlTransformer, includeFiles, excludeFilesWhen, getFiles, removeFilesFromFilesystem }) => {
     const patterns = getConfiguredBundles(ctx).map(x => `staticresources/${x}-meta.xml`)
 
-    await remap('staticresources/**/*', f => f.replace(/^(staticresources\/[^/]+)\/.*$/, '$1') + '.resource-meta.xml')
     await xmlTransformer(patterns, async (filename, xml) => {
       if (xml.contentType[0] === 'application/zip') {
         const resourceName = filename.replace('-meta.xml', '')
         const dir = resourceName.replace('.resource', '')
 
+        const resource = await getFiles(resourceName)
         await removeFilesFromFilesystem([dir, resourceName])
         excludeFilesWhen(f => f === resourceName)
 
         const r = /\/__MACOSX/
-        const resource = await getFiles(resourceName)
         await _(unzip(resource[0].data))
           .flatten()
           .reject(f => r.test(f.fileName))
@@ -28,10 +44,9 @@ module.exports = {
     })
   },
 
-  normalize: async (ctx, { remap, xmlTransformer, getFiles, includeFiles, excludeFilesWhen }) => {
+  normalize: async (ctx, { xmlTransformer, getFiles, includeFiles, excludeFilesWhen }) => {
     const patterns = getConfiguredBundles(ctx).map(x => `staticresources/${x}-meta.xml`)
 
-    await remap('staticresources/**/*', f => f.replace(/^(staticresources\/[^/]+)\/.*$/, '$1') + '.resource-meta.xml')
     await xmlTransformer(patterns, async (filename, xml) => {
       if (xml.contentType[0] === 'application/zip') {
         const resourceName = filename.replace('-meta.xml', '')
