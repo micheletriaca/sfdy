@@ -22,10 +22,10 @@ module.exports = {
     }
   ],
 
-  transform: async (ctx, { xmlTransformer, includeFiles, excludeFilesWhen, getFiles, removeFilesFromFilesystem }) => {
+  transform: async (ctx, { xmlParser, includeFiles, excludeFilesWhen, getFiles, removeFilesFromFilesystem }) => {
     const patterns = getConfiguredBundles(ctx).map(x => `staticresources/${x}-meta.xml`)
 
-    await xmlTransformer(patterns, async (filename, xml) => {
+    await xmlParser(patterns, async (filename, xml) => {
       if (xml.contentType[0] === 'application/zip') {
         const resourceName = filename.replace('-meta.xml', '')
         const dir = resourceName.replace('.resource', '')
@@ -44,10 +44,10 @@ module.exports = {
     })
   },
 
-  normalize: async (ctx, { xmlTransformer, getFiles, includeFiles, excludeFilesWhen }) => {
+  normalize: async (ctx, { xmlParser, getFiles, includeFiles, excludeFilesWhen }) => {
     const patterns = getConfiguredBundles(ctx).map(x => `staticresources/${x}-meta.xml`)
 
-    await xmlTransformer(patterns, async (filename, xml) => {
+    await xmlParser(patterns, async (filename, xml) => {
       if (xml.contentType[0] === 'application/zip') {
         const resourceName = filename.replace('-meta.xml', '')
         const dir = resourceName.replace('.resource', '')

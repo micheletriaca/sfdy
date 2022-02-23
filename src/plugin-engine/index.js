@@ -52,6 +52,14 @@ const genXmlTransformer = ctx => async (patterns, callback) => {
   }
 }
 
+const genXmlParser = ctx => async (patterns, callback) => {
+  const matches = multimatch(Object.keys(ctx.inMemoryFilesMap), patterns)
+  for (const m of matches) {
+    const f = ctx.inMemoryFilesMap[m]
+    await callback(f.fileName, Object.values(await parseXml(f.data))[0])
+  }
+}
+
 const genGetFiles = ctx => async (patterns, readBuffers = true, fromFilesystem = true, fromMemory = true) => {
   // TODO -> SE I FILE ARRIVANO DA FILESYSTEM, VA FATTO UNRENDER IN MODO DA NORMALIZZARLI
   const fileList = fromFilesystem ? await globby(patterns, { cwd: pathService.getSrcFolder(true) }) : []
@@ -110,6 +118,7 @@ const executePlugins = async (plugins = [], methodName, ctx, config = {}) => {
   const pCtx = { env: process.env.environment, log: logger.log, config, sfdc: ctx.sfdc }
   const excludeFilesWhen = genExcludeFilesWhen(ctx)
   const xmlTransformer = genXmlTransformer(ctx)
+  const xmlParser = genXmlParser(ctx)
   const includeFiles = genIncludeFiles(ctx)
   const getFiles = genGetFiles(ctx)
   const remap = genRemap(ctx, getFiles, includeFiles)
@@ -123,6 +132,7 @@ const executePlugins = async (plugins = [], methodName, ctx, config = {}) => {
     excludeFilesWhen,
     includeFiles,
     xmlTransformer,
+    xmlParser,
     getFiles,
     removeFilesFromFilesystem,
     includeInList
