@@ -3,11 +3,11 @@ const { getPackageMapping, buildPackageXmlFromFiles, addTypesToPackageFromMeta, 
 const { parseGlobPatterns, saveFiles } = require('../services/file-service')
 const loggerService = require('../services/log-service')
 const { printLogo } = require('../utils/branding-utils')
-// const nativeRequire = require('../utils/native-require')
+const nativeRequire = require('../utils/native-require')
 const pathService = require('../services/path-service')
 const pluginEngine = require('../plugin-engine')
 const { unzip } = require('../utils/zip-utils')
-// const stdRenderers = require('../renderers')
+const stdRenderers = require('../renderers')
 const Sfdc = require('../utils/sfdc-utils')
 const stdPlugins = require('../plugins')
 const _ = require('../utils/exstream')
@@ -74,21 +74,32 @@ const applyBeforeRetrievePlugins = (plugins = [], config) => p().asyncMap(async 
   return ctx
 })
 
-const applyAfterRetrievePlugins = (plugins = [], renderers = [], config) => p().asyncMap(async ctx => {
-  console.log('WIP', renderers)
-  // const stdR = stdRenderers.map(x => x.transform)
-  // const customR = renderers.map(x => nativeRequire(x).transform)
+const applyAfterRetrievePlugins = (plugins = [], config) => p().asyncMap(async ctx => {
   await pluginEngine.executeAfterRetrievePlugins([...stdPlugins, ...plugins], ctx, config)
-  // await pluginEngine.executePlugins([...stdR, ...customR], ctx, config)
+  return ctx
+})
+
+const applyRenderers = (renderers = [], config) => p().asyncMap(async ctx => {
+  const stdR = stdRenderers
+  const customR = renderers.map(x => nativeRequire(x))
+  await pluginEngine.executeRenderersTransformations([...stdR, ...customR], ctx, config)
   return ctx
 })
 
 const saveFilesToDisk = () => p().asyncMap(async ctx => {
   const metadataToFilterSet = new Set(ctx.companions)
+  const isNotInOriginalPackage = f => metadataToFilterSet.has(getMetadataFromFileName(f, ctx.packageMapping))
+  const conflictLogger = f => {
+    if (f.includedByPlugin && f.filteredByPlugin) {
+      return 'WARNING: plugin conflict. One plugin has added a file, another one has removed it: ' + f.fileName
+    }
+  }
+
   await _(ctx.inMemoryFiles)
+    .log(conflictLogger)
     .reject(f => f.filteredByPlugin)
     .reject(f => f.fileName === 'package.xml')
-    .reject(f => metadataToFilterSet.has(getMetadataFromFileName(f.fileName, ctx.packageMapping)))
+    .reject(f => !f.includedByPlugin && isNotInOriginalPackage(f.fileName))
     .apply(saveFiles)
   return ctx
 })
@@ -151,7 +162,8 @@ module.exports = async function retrieve ({ loginOpts, basePath, logger, files, 
     .through(unzipper())
 
     // Applying afterRetrieve plugins
-    .through(applyAfterRetrievePlugins(config.plugins, config.renderers, config))
+    .through(applyAfterRetrievePlugins(config.plugins, config))
+    .through(applyRenderers(config.renderers, config))
 
     // Saving data to disk
     // TODO -> ALERT IF FILE IS NOT IN SALESFORCE. POSSIBILITY TO CLEAN IT

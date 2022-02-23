@@ -7,13 +7,30 @@ const _ = require('exstream.js')
 const l = require('lodash')
 const { readFiles } = require('../services/file-service')
 const { addTypesToPackageFromMeta } = require('../utils/package-utils')
+const del = require('del')
 
 const genExcludeFilesWhen = ctx => patterns => {
   const fileList = Object.keys(ctx.inMemoryFilesMap)
-  const matches = typeof patterns === 'string'
+  const matches = typeof patterns === 'string' || Array.isArray(patterns)
     ? multimatch(fileList, patterns)
     : _(fileList).filter(patterns).values()
   matches.forEach(m => { ctx.inMemoryFilesMap[m].filteredByPlugin = true })
+}
+
+const genIncludeFiles = ctx => files => {
+  for (const f of files) {
+    f.includedByPlugin = true
+    const alreadyPresent = !!ctx.inMemoryFilesMap[f.fileName]
+    ctx.inMemoryFilesMap[f.fileName] = f
+    if (!alreadyPresent) ctx.inMemoryFiles.push(f)
+    else ctx.inMemoryFiles.splice(ctx.inMemoryFiles.findIndex(x => x.fileName === f.fileName), 1, f)
+  }
+}
+
+const genRemoveFilesFromFilesystem = () => async files => {
+  await del([...files], {
+    cwd: pathService.getSrcFolder(true)
+  })
 }
 
 const genXmlTransformer = ctx => async (patterns, callback) => {
@@ -71,9 +88,11 @@ const executePlugins = async (plugins = [], methodName, ctx, config = {}) => {
   const pCtx = { env: process.env.environment, log: logger.log, config, sfdc: ctx.sfdc }
   ctx.inMemoryFilesMap = _(ctx.inMemoryFiles).keyBy('fileName').value()
   const excludeFilesWhen = genExcludeFilesWhen(ctx)
+  const includeFiles = genIncludeFiles(ctx)
   const xmlTransformer = genXmlTransformer(ctx)
   const getFiles = genGetFiles(ctx)
-  const helpers = { excludeFilesWhen, xmlTransformer, getFiles }
+  const removeFilesFromFilesystem = genRemoveFilesFromFilesystem(ctx)
+  const helpers = { excludeFilesWhen, includeFiles, xmlTransformer, getFiles, removeFilesFromFilesystem }
   await _(plugins).pluck(methodName).filter(p => p).asyncMap(p => p(pCtx, helpers)).values()
 }
 
@@ -90,5 +109,14 @@ module.exports = {
   executeBeforeDeployPlugins: async (plugins = [], ctx, config = {}) => {
     await executePlugins(plugins, 'beforeDeploy', ctx, config)
     for (const f of ctx.inMemoryFiles.filter(x => !!x.transformed)) f.data = Buffer.from(buildXml(f.transformed) + '\n')
+  },
+  executeRenderersTransformations: async (plugins = [], ctx, config = {}) => {
+    await executePlugins(plugins, 'transform', ctx, config)
+    for (const f of ctx.inMemoryFiles.filter(x => !!x.transformed)) f.data = Buffer.from(buildXml(f.transformed) + '\n')
+  },
+  executeRenderersNormalizations: async (plugins = [], ctx, config = {}) => {
+    await executePlugins(plugins, 'normalize', ctx, config)
+    for (const f of ctx.inMemoryFiles.filter(x => !!x.transformed)) f.data = Buffer.from(buildXml(f.transformed) + '\n')
   }
+
 }

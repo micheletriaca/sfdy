@@ -5,16 +5,16 @@ const util = require('util')
 const { buildXml } = require('./xml-utils')
 
 module.exports = {
-  zip: (fileList, buffers, pkgJson, isForDestructive) => {
+  zip: (fileList, buffers, pkgJson, isForDestructive = false) => {
     const zip = new yazl.ZipFile()
     const fileSet = new Set(fileList)
-    const pkgBuffer = Buffer.from(buildXml(pkgJson) + '\n')
+    const pkgBuffer = pkgJson ? Buffer.from(buildXml(pkgJson) + '\n') : null
     if (isForDestructive) {
       zip.addBuffer(pkgBuffer, 'destructiveChanges.xml')
       zip.addBuffer(buildXml({ Package: { version: pkgJson.Package.version } }) + '\n', 'package.xml')
     } else {
       for (const f of buffers.filter(b => fileSet.has(b.fileName))) zip.addBuffer(f.data, f.fileName)
-      zip.addBuffer(pkgBuffer, 'package.xml')
+      if (pkgBuffer) zip.addBuffer(pkgBuffer, 'package.xml')
     }
     zip.end()
     return zip
