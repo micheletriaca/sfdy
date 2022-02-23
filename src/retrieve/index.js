@@ -3,7 +3,6 @@ const { getPackageMapping, buildPackageXmlFromFiles, addTypesToPackageFromMeta, 
 const { parseGlobPatterns, saveFiles } = require('../services/file-service')
 const loggerService = require('../services/log-service')
 const { printLogo } = require('../utils/branding-utils')
-const nativeRequire = require('../utils/native-require')
 const pathService = require('../services/path-service')
 const pluginEngine = require('../plugin-engine')
 const { unzip } = require('../utils/zip-utils')
@@ -80,9 +79,7 @@ const applyAfterRetrievePlugins = (plugins = [], config) => p().asyncMap(async c
 })
 
 const applyRenderers = (renderers = [], config) => p().asyncMap(async ctx => {
-  const stdR = stdRenderers
-  const customR = renderers.map(x => nativeRequire(x))
-  await pluginEngine.executeRenderersTransformations([...stdR, ...customR], ctx, config)
+  await pluginEngine.executeRenderersTransformations([...stdRenderers, ...renderers], ctx, config)
   return ctx
 })
 
@@ -108,6 +105,7 @@ module.exports = async function retrieve ({ loginOpts, basePath, logger, files, 
   if (basePath) pathService.setBasePath(basePath)
   if (logger) loggerService.setLogger(logger)
   return await _([{
+    retrieve: true,
     sfdc: null,             // SFDC connector
     packageMapping: {},     // Mapping between folder names and SFDC Metadata names
     creds: null,            // Credentials object

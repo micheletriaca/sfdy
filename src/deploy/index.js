@@ -3,7 +3,6 @@ const { readFiles, parseGlobPatterns, getDiffList } = require('../services/file-
 const { printDeployResult, pollCallback } = require('./result-logger')
 const buildJunitTestReport = require('./junit-test-report-builder')
 const { printLogo } = require('../utils/branding-utils')
-const nativeRequire = require('../utils/native-require')
 const pathService = require('../services/path-service')
 const logService = require('../services/log-service')
 const pluginEngine = require('../plugin-engine')
@@ -64,11 +63,9 @@ const addCompanionsToFinalFileList = () => p().asyncMap(async ctx => {
   return ctx
 })
 
-const applyPlugins = (preDeployPlugins, config, renderers, destructive) => p().asyncMap(async ctx => {
-  const stdR = stdRenderers.map(x => x.untransform)
-  const customR = renderers.map(x => nativeRequire(x).untransform)
-  await pluginEngine.executePlugins([...stdR, ...customR], ctx, config)
-  if (!destructive) await pluginEngine.executeBeforeDeployPlugins(preDeployPlugins, ctx, config)
+const applyPlugins = (plugins, config, renderers, destructive) => p().asyncMap(async ctx => {
+  await pluginEngine.executeRenderersNormalizations([...stdRenderers, ...renderers], ctx, config)
+  if (!destructive) await pluginEngine.executeBeforeDeployPlugins(plugins, ctx, config)
   return ctx
 })
 
@@ -114,7 +111,7 @@ const generateJUnitTestResults = (testReport) => p().map(ctx => {
 module.exports = async function deploy (opts) {
   const {
     loginOpts: creds, files, diffCfg, diffMask, specifiedTests, destructive, basePath, srcFolder,
-    testLevel, checkOnly, testReport, preDeployPlugins, config, renderers, excludeFiles, logger
+    testLevel, checkOnly, testReport, plugins, config, renderers, excludeFiles, logger
   } = opts
 
   if (basePath) pathService.setBasePath(basePath)
@@ -124,6 +121,7 @@ module.exports = async function deploy (opts) {
   const allExcludedFiles = [...(excludeFiles || []), ...(config.excludeFiles || [])]
 
   const s1 = _([{
+    deploy: true,
     sfdc: null,
     packageMapping: {},
     creds: null,
@@ -152,8 +150,7 @@ module.exports = async function deploy (opts) {
     .log('Logged in!', 'green')
     .through(addCompanionsToFinalFileList())
     .through(loadFilesInMemory())
-    .through(applyPlugins(preDeployPlugins, config, renderers, destructive))
-    .through(addCompanionsToFinalFileList()) // Must be done again, in case the plugins have added something to the list
+    .through(applyPlugins(plugins, config, renderers, destructive))
     .tap(x => process.env.DEBUG === 'true' ? console.log(x) : null)
     .tap(x => process.env.TRACE === 'true' ? fs.writeFileSync('dump.json', JSON.stringify(x)) : null)
 

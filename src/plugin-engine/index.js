@@ -8,6 +8,7 @@ const l = require('lodash')
 const { readFiles } = require('../services/file-service')
 const { addTypesToPackageFromMeta } = require('../utils/package-utils')
 const del = require('del')
+const nativeRequire = require('../utils/native-require')
 
 const genExcludeFilesWhen = ctx => patterns => {
   const fileList = Object.keys(ctx.inMemoryFilesMap)
@@ -15,6 +16,17 @@ const genExcludeFilesWhen = ctx => patterns => {
     ? multimatch(fileList, patterns)
     : _(fileList).filter(patterns).values()
   matches.forEach(m => { ctx.inMemoryFilesMap[m].filteredByPlugin = true })
+  if (ctx.deploy) ctx.finalFileList = ctx.finalFileList.filter(x => !ctx.inMemoryFilesMap[x].filteredByPlugin)
+}
+
+const upsert = (arr, vals) => {
+  vals = Array.isArray(vals) ? vals : [vals]
+  for (const val of vals) {
+    const valIdx = arr.indexOf(val)
+    if (valIdx !== -1) arr.splice(valIdx, 1, val)
+    else arr.push(val)
+  }
+  arr.sort()
 }
 
 const genIncludeFiles = ctx => files => {
@@ -24,6 +36,7 @@ const genIncludeFiles = ctx => files => {
     ctx.inMemoryFilesMap[f.fileName] = f
     if (!alreadyPresent) ctx.inMemoryFiles.push(f)
     else ctx.inMemoryFiles.splice(ctx.inMemoryFiles.findIndex(x => x.fileName === f.fileName), 1, f)
+    if (ctx.deploy) upsert(ctx.finalFileList, f.fileName)
   }
 }
 
@@ -42,18 +55,14 @@ const genXmlTransformer = ctx => async (patterns, callback) => {
   }
 }
 
-const genGetFiles = ctx => async (patterns, readBuffers = true, onlyFromFilesystem = false) => {
+const genGetFiles = ctx => async (patterns, readBuffers = true, fromFilesystem = true, fromMemory = true) => {
   // TODO -> SE I FILE ARRIVANO DA FILESYSTEM, VA FATTO UNRENDER IN MODO DA NORMALIZZARLI
-  const fileList = await globby(patterns, { cwd: pathService.getSrcFolder(true) })
-  const fileListInMemory = multimatch(Object.keys(ctx.inMemoryFilesMap), patterns)
+  const fileList = fromFilesystem ? await globby(patterns, { cwd: pathService.getSrcFolder(true) }) : []
+  const fileListInMemory = fromMemory ? multimatch(Object.keys(ctx.inMemoryFilesMap), patterns) : []
   const wholeFileList = [...new Set([...fileList, ...fileListInMemory])]
-  if (!readBuffers && onlyFromFilesystem) {
-    return fileList
-  } else if (!readBuffers && !onlyFromFilesystem) {
+  if (!readBuffers) {
     return wholeFileList
-  } else if (readBuffers && onlyFromFilesystem) {
-    return readFiles(fileList)
-  } else if (readBuffers && !onlyFromFilesystem) {
+  } else if (readBuffers) {
     const notInMemory = l.difference(fileList, fileListInMemory)
     const inMemory = wholeFileList.filter(f => ctx.inMemoryFilesMap[f])
     const buffers = readFiles(notInMemory).map(f => { f.addedInASecondTime = true; return f })
@@ -84,23 +93,56 @@ const genSetMetaCompanions = ctx => async (patterns, callback, onlyVersioned = t
   }
 }
 
+const genRemap = (ctx, getFiles, includeFiles) => async (inputPatterns, outputPatternFn) => {
+  const inputFiles = await _(getFiles(inputPatterns, false, false))
+    .flatten()
+    .map(outputPatternFn)
+    .uniq()
+    .values()
+
+  const outputFileBuffers = await getFiles(inputFiles)
+  await includeFiles(outputFileBuffers)
+}
+
 const executePlugins = async (plugins = [], methodName, ctx, config = {}) => {
+  const pL = requireCustomPlugins(plugins)
   const pCtx = { env: process.env.environment, log: logger.log, config, sfdc: ctx.sfdc }
   ctx.inMemoryFilesMap = _(ctx.inMemoryFiles).keyBy('fileName').value()
   const excludeFilesWhen = genExcludeFilesWhen(ctx)
   const includeFiles = genIncludeFiles(ctx)
   const xmlTransformer = genXmlTransformer(ctx)
   const getFiles = genGetFiles(ctx)
+  const remap = genRemap(ctx, getFiles, includeFiles)
+  const includeInList = async files => {
+    upsert(ctx.finalFileList, files)
+    await getFiles(ctx.finalFileList)
+  }
   const removeFilesFromFilesystem = genRemoveFilesFromFilesystem(ctx)
-  const helpers = { excludeFilesWhen, includeFiles, xmlTransformer, getFiles, removeFilesFromFilesystem }
-  await _(plugins).pluck(methodName).filter(p => p).asyncMap(p => p(pCtx, helpers)).values()
+  const helpers = {
+    remap,
+    excludeFilesWhen,
+    includeFiles,
+    xmlTransformer,
+    getFiles,
+    removeFilesFromFilesystem,
+    includeInList
+  }
+  await _(pL).pluck(methodName).filter(p => p).asyncMap(p => p(pCtx, helpers)).values()
+}
+
+const requireCustomPlugins = plugins => {
+  return plugins.map(p => {
+    if (typeof p === 'string') return nativeRequire(p)
+    else return p
+  })
 }
 
 module.exports = {
   executeBeforeRetrievePlugins: async (plugins = [], ctx, config = {}) => {
+    const pL = requireCustomPlugins(plugins)
     const pCtx = { env: process.env.environment, log: logger.log, config, sfdc: ctx.sfdc }
     const setMetaCompanions = genSetMetaCompanions(ctx)
-    for (const p of plugins.map(x => x.beforeRetrieve).filter(x => x)) await p(pCtx, { setMetaCompanions })
+    for (const p of pL.map(x => x.beforeRetrieve).filter(x => x)) await p(pCtx, { setMetaCompanions })
   },
   executeAfterRetrievePlugins: async (plugins = [], ctx, config = {}) => {
     await executePlugins(plugins, 'afterRetrieve', ctx, config)
