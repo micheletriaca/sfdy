@@ -1,6 +1,6 @@
 const multimatch = require('multimatch')
 const logger = require('../services/log-service')
-const { parseXml } = require('../utils/xml-utils')
+const { parseXml, buildXml } = require('../utils/xml-utils')
 const globby = require('globby')
 const pathService = require('../services/path-service')
 const _ = require('exstream.js')
@@ -84,9 +84,11 @@ module.exports = {
     for (const p of plugins.map(x => x.beforeRetrieve).filter(x => x)) await p(pCtx, { setMetaCompanions })
   },
   executeAfterRetrievePlugins: async (plugins = [], ctx, config = {}) => {
-    return executePlugins(plugins, 'afterRetrieve', ctx, config)
+    await executePlugins(plugins, 'afterRetrieve', ctx, config)
+    for (const f of ctx.inMemoryFiles.filter(x => !!x.transformed)) f.data = Buffer.from(buildXml(f.transformed) + '\n')
   },
   executeBeforeDeployPlugins: async (plugins = [], ctx, config = {}) => {
-    return executePlugins(plugins, 'beforeDeploy', ctx, config)
+    await executePlugins(plugins, 'beforeDeploy', ctx, config)
+    for (const f of ctx.inMemoryFiles.filter(x => !!x.transformed)) f.data = Buffer.from(buildXml(f.transformed) + '\n')
   }
 }

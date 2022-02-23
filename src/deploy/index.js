@@ -6,7 +6,6 @@ const { printLogo } = require('../utils/branding-utils')
 const nativeRequire = require('../utils/native-require')
 const pathService = require('../services/path-service')
 const logService = require('../services/log-service')
-const { buildXml } = require('../utils/xml-utils')
 const pluginEngine = require('../plugin-engine')
 const { zip } = require('../utils/zip-utils')
 const stdRenderers = require('../renderers')
@@ -69,8 +68,7 @@ const applyPlugins = (preDeployPlugins, config, renderers, destructive) => p().a
   const stdR = stdRenderers.map(x => x.untransform)
   const customR = renderers.map(x => nativeRequire(x).untransform)
   await pluginEngine.executePlugins([...stdR, ...customR], ctx, config)
-  if (!destructive) await pluginEngine.executePlugins(preDeployPlugins, ctx, config)
-  for (const f of ctx.inMemoryFiles.filter(x => !!x.transformed)) f.data = buildXml(f.transformed) + '\n'
+  if (!destructive) await pluginEngine.executeBeforeDeployPlugins(preDeployPlugins, ctx, config)
   return ctx
 })
 

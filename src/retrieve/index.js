@@ -5,7 +5,6 @@ const loggerService = require('../services/log-service')
 const { printLogo } = require('../utils/branding-utils')
 // const nativeRequire = require('../utils/native-require')
 const pathService = require('../services/path-service')
-const { buildXml } = require('../utils/xml-utils')
 const pluginEngine = require('../plugin-engine')
 const { unzip } = require('../utils/zip-utils')
 // const stdRenderers = require('../renderers')
@@ -42,7 +41,7 @@ const buildPackageXml = () => p().map(ctx => {
   return ctx
 })
 
-const buildFilesMetaMap = (storeIn) => p().asyncMap(async ctx => {
+const buildFilesMetaMap = storeIn => p().asyncMap(async ctx => {
   const files = await globby(['**/*'], { cwd: pathService.getSrcFolder(true) })
   ctx[storeIn] = buildMetaMap(files, ctx.packageMapping)
   return ctx
@@ -76,11 +75,11 @@ const applyBeforeRetrievePlugins = (plugins = [], config) => p().asyncMap(async 
 })
 
 const applyAfterRetrievePlugins = (plugins = [], renderers = [], config) => p().asyncMap(async ctx => {
+  console.log('WIP', renderers)
   // const stdR = stdRenderers.map(x => x.transform)
   // const customR = renderers.map(x => nativeRequire(x).transform)
   await pluginEngine.executeAfterRetrievePlugins([...stdPlugins, ...plugins], ctx, config)
   // await pluginEngine.executePlugins([...stdR, ...customR], ctx, config)
-  for (const f of ctx.inMemoryFiles.filter(x => !!x.transformed)) f.data = Buffer.from(buildXml(f.transformed) + '\n')
   return ctx
 })
 
@@ -143,7 +142,7 @@ module.exports = async function retrieve ({ loginOpts, basePath, logger, files, 
     .through(buildPackageXml())
 
     // Applying before retrieve plugins (to add metadata inter dependencies)
-    .through(applyBeforeRetrievePlugins(config.postRetrievePlugins, config))
+    .through(applyBeforeRetrievePlugins(config.plugins, config))
 
     // Retrieving from SFDC + unzipping in memory
     .through(retrieveMetadata())
@@ -152,20 +151,13 @@ module.exports = async function retrieve ({ loginOpts, basePath, logger, files, 
     .through(unzipper())
 
     // Applying afterRetrieve plugins
-    .through(applyAfterRetrievePlugins(config.postRetrievePlugins, config.renderers, config))
+    .through(applyAfterRetrievePlugins(config.plugins, config.renderers, config))
 
+    // Saving data to disk
     // TODO -> ALERT IF FILE IS NOT IN SALESFORCE. POSSIBILITY TO CLEAN IT
     .through(saveFilesToDisk()) // TODO -> SAVE ONLY FILES PRESENT IN FILELIST OR IN META LIST
     // TODO -> CALCULATE PACKAGE.XML
+
     .log('Unzipped!', 'green')
-    .tap(x => console.log({
-      sfdc: x.sfdc,
-      creds: x.creds,
-      filesGlobPatterns: x.filesGlobPatterns,
-      finalFileList: x.finalFileList,
-      inMemoryFiles: x.inMemoryFiles,
-      packageJson: JSON.stringify(x.packageJson, null, 2),
-      zip: x.zip
-    }))
     .values()
 }
