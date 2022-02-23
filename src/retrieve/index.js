@@ -149,12 +149,12 @@ module.exports = async function retrieve ({ loginOpts, basePath, logger, files, 
     // Computing renderers remaps
     .through(applyRemaps(config.plugins))
 
-    // Applying before retrieve plugins (to add metadata inter dependencies)
-    .through(applyBeforeRetrievePlugins(config.plugins, config))
-
     // Building package.xml. the member list is a composition of data coming
     // from --files and --meta
     .through(buildPackageXml())
+
+    // Applying before retrieve plugins (to add metadata inter dependencies)
+    .through(applyBeforeRetrievePlugins(config.plugins, config))
 
   const forks = [
     s1.fork()
