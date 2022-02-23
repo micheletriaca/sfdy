@@ -1,4 +1,4 @@
-const _ = require('highland')
+const _ = require('exstream.js')
 const logger = require('../services/log-service')
 const chalk = require('chalk')
 

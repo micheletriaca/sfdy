@@ -33,4 +33,22 @@ _.extend('mapEntry', function (propName, fn) {
   })
 })
 
+_.extend('wrapStream', function (prefix, suffix) {
+  let prefixAdded = false
+  return this.consumeSync((err, x, push) => {
+    if (err) {
+      push(err)
+    } else if (x === _.nil) {
+      if (suffix) push(null, Buffer.from(suffix))
+      push(null, _.nil)
+    } else {
+      if (!prefixAdded && prefix) {
+        push(null, Buffer.from(prefix))
+        prefixAdded = true
+      }
+      push(null, x)
+    }
+  })
+})
+
 module.exports = _

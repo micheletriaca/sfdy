@@ -2,8 +2,7 @@ const { buildXml, parseXmlNoArray } = require('./xml-utils')
 const logger = require('../services/log-service')
 const chalk = require('chalk')
 const fetch = require('node-fetch').default
-const { Base64Encode } = require('base64-stream')
-const _ = require('highland')
+const _ = require('exstream.js')
 
 const sleep = async ms => new Promise((resolve) => setTimeout(resolve, ms))
 const incrementalSleep = (level0, count1, level1, count2, level2) => {
@@ -14,29 +13,6 @@ const incrementalSleep = (level0, count1, level1, count2, level2) => {
     else if (count <= count2) return sleep(level1)
     else return sleep(level2)
   }
-}
-
-const wrapStream = (prefix, suffix) => source => {
-  let prefixAdded = false
-
-  return source.consume((err, x, push, next) => {
-    if (err) {
-      push(err)
-      next()
-    } else if (x === _.nil) {
-      if (suffix) {
-        push(null, Buffer.from(suffix))
-      }
-      push(null, _.nil)
-    } else {
-      if (!prefixAdded && prefix) {
-        push(null, Buffer.from(prefix))
-        prefixAdded = true
-      }
-      push(null, x)
-      next()
-    }
-  })
 }
 
 const wsdlMap = {
@@ -168,8 +144,11 @@ class SfdcConn {
       DeployOptions: opts
     }).split('$$ZIPFILE$$')
 
-    const bodyStream = _(contentStream.pipe(new Base64Encode()))
-      .through(wrapStream(preBody, postBody))
+    console.time('aa')
+    const bodyStream = _(contentStream)
+      .encode('base64')
+      .wrapStream(preBody, postBody)
+      .on('end', () => console.timeEnd('aa'))
       .toNodeStream()
 
     return this.metadata('deploy', bodyStream, { rawBody: true })
