@@ -1,6 +1,6 @@
 /* eslint-disable quote-props */
 const _ = require('exstream.js')
-const __ = require('lodash')
+const memoize = require('lodash/memoize')
 
 const remapProfileName = async (f, ctx) => {
   f = f.replace(/^.*\/(.*)\.profile/, '$1').split(' ').map(x => decodeURIComponent(x)).join(' ')
@@ -53,7 +53,7 @@ const remapProfileName = async (f, ctx) => {
   return stdProfiles[f] || f
 }
 
-const retrievePermissionsList = __.memoize(async (profileName, ctx) => {
+const retrievePermissionsList = memoize(async (profileName, ctx) => {
   const psetId = (await ctx.q(`SELECT Id FROM PermissionSet Where Profile.Name = '${profileName}'`))[0].Id
   const res = await ctx.sfdc.rest(`/sobjects/PermissionSet/${psetId}`)
   return Object.keys(res)
@@ -64,7 +64,7 @@ const retrievePermissionsList = __.memoize(async (profileName, ctx) => {
     }))
 })
 
-const retrieveAllObjects = __.memoize(async (byLicenseOrByProfile = 'license', ctx) => {
+const retrieveAllObjects = memoize(async (byLicenseOrByProfile = 'license', ctx) => {
   return _(ctx.q(`SELECT
     Id,
     Parent.Profile.Name,
