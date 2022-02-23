@@ -109,7 +109,7 @@ const saveFilesToDisk = () => p().asyncMap(async ctx => {
 module.exports = async function retrieve ({ loginOpts, basePath, logger, files, meta, config }) {
   if (basePath) pathService.setBasePath(basePath)
   if (logger) loggerService.setLogger(logger)
-  return await _([{
+  const s1 = _([{
     retrieve: true,
     sfdc: null,             // SFDC connector
     packageMapping: {},     // Mapping between folder names and SFDC Metadata names
@@ -156,26 +156,37 @@ module.exports = async function retrieve ({ loginOpts, basePath, logger, files, 
     // from --files and --meta
     .through(buildPackageXml())
 
-    // Printing the list of files and metadata
-    // TODO -> exit if no files logger.log(chalk.yellow('No files to retrieve. Retrieve skipped'))
-    .log('The following files/metadata will be retrieved:', 'yellow')
-    .log(printFileAndMetadataList)
+  const forks = [
+    s1.fork()
+      .filter(ctx => ctx.finalFileList.length === 0 && ctx.metaGlobPatterns.length === 0)
+      .log('No files or metadata to retrieve. Retrieve skipped', 'green')
+      .map(() => ({ status: 'Succeeded' })),
 
-    // Retrieving from SFDC + unzipping in memory
-    .through(retrieveMetadata())
-    .log('Retrieve completed!', 'green')
-    .log('(3/3) Unzipping & applying patches...', 'yellow')
-    .through(unzipper())
+    s1.fork()
+      .filter(ctx => ctx.finalFileList.length || ctx.metaGlobPatterns.length)
 
-    // Applying afterRetrieve plugins
-    .through(applyAfterRetrievePlugins(config.plugins, config))
-    .through(applyRenderers(config.renderers, config))
+      // Printing the list of files and metadata
+      // TODO -> exit if no files logger.log(chalk.yellow('No files to retrieve. Retrieve skipped'))
+      .log('The following files/metadata will be retrieved:', 'yellow')
+      .log(printFileAndMetadataList)
 
-    // Saving data to disk
-    // TODO -> ALERT IF FILE IS NOT IN SALESFORCE. POSSIBILITY TO CLEAN IT
-    .through(saveFilesToDisk()) // TODO -> SAVE ONLY FILES PRESENT IN FILELIST OR IN META LIST
-    // TODO -> CALCULATE PACKAGE.XML
+      // Retrieving from SFDC + unzipping in memory
+      .through(retrieveMetadata())
+      .log('Retrieve completed!', 'green')
+      .log('(3/3) Unzipping & applying patches...', 'yellow')
+      .through(unzipper())
 
-    .log('Unzipped!', 'green')
-    .values()
+      // Applying afterRetrieve plugins
+      .through(applyAfterRetrievePlugins(config.plugins, config))
+      .through(applyRenderers(config.renderers, config))
+
+      // Saving data to disk
+      // TODO -> ALERT IF FILE IS NOT IN SALESFORCE. POSSIBILITY TO CLEAN IT
+      .through(saveFilesToDisk())
+      // TODO -> CALCULATE PACKAGE.XML
+
+      .log('Unzipped!', 'green')
+  ]
+
+  return _(forks).merge().value()
 }

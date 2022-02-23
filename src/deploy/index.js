@@ -158,7 +158,7 @@ module.exports = async function deploy (opts) {
   const forks = [
     s1.fork()
       .filter(ctx => ctx.finalFileList.length === 0)
-      .log('No files to deploy. Deploy skipped', 'yellow')
+      .log('No files to deploy. Deploy skipped', 'green')
       .map(() => ({ status: 'Succeeded' })),
 
     s1.fork()
