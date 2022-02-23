@@ -13,7 +13,6 @@ const multimatch = require('multimatch')
 const _ = require('../utils/exstream')
 const globby = require('globby')
 const chalk = require('chalk')
-const fs = require('fs')
 const p = _.pipeline
 
 const injectSfdc = creds => p().asyncMap(async ctx => {
@@ -152,8 +151,6 @@ module.exports = async function deploy (opts) {
     .through(addCompanionsToFinalFileList())
     .through(loadFilesInMemory())
     .through(applyPlugins(plugins, config, renderers, destructive))
-    .tap(x => process.env.DEBUG === 'true' ? console.log(x) : null)
-    .tap(x => process.env.TRACE === 'true' ? fs.writeFileSync('dump.json', JSON.stringify(x)) : null)
 
   const forks = [
     s1.fork()
