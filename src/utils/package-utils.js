@@ -102,6 +102,17 @@ module.exports = {
     }
   },
 
+  removeTypeFromPackage (pkgJson, metaName, metaMember) {
+    const pkgClone = cloneDeep(pkgJson)
+    const typeObjIdx = pkgClone.Package.types.findIndex(x => x.name === metaName)
+    if (typeObjIdx !== -1) {
+      const members = pkgClone.Package.types[typeObjIdx].members
+      pkgClone.Package.types[typeObjIdx].members = members.filter(x => x !== metaMember)
+    }
+    pkgClone.Package.types = pkgClone.Package.types.filter(x => x.members.length)
+    return pkgClone
+  },
+
   addTypesToPackageFromMeta (pkgJson, metaGlobPatterns) {
     const pkgClone = cloneDeep(pkgJson)
 

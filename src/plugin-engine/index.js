@@ -6,7 +6,7 @@ const pathService = require('../services/path-service')
 const _ = require('exstream.js')
 const l = require('lodash')
 const { readFiles } = require('../services/file-service')
-const { addTypesToPackageFromMeta } = require('../utils/package-utils')
+const { addTypesToPackageFromMeta, removeTypeFromPackage } = require('../utils/package-utils')
 const del = require('del')
 const nativeRequire = require('../utils/native-require')
 
@@ -113,6 +113,14 @@ const genRemap = (ctx, getFiles, includeFiles, excludeFilesWhen) => async (input
     .apply(includeFiles)
 }
 
+const genAddToPackage = ctx => (metaName, metaMember) => {
+  upsert(ctx.scheduledAddToPackage, metaName + '/' + metaMember)
+}
+
+const genRemoveFromPackage = ctx => (metaName, metaMember) => {
+  upsert(ctx.scheduledRemoveFromPackage, { metaName, metaMember })
+}
+
 const executePlugins = async (plugins = [], methodName, ctx, config = {}) => {
   const pL = requireCustomPlugins(plugins)
   const pCtx = { env: process.env.environment, log: logger.log, config, sfdc: ctx.sfdc }
@@ -122,6 +130,8 @@ const executePlugins = async (plugins = [], methodName, ctx, config = {}) => {
   const includeFiles = genIncludeFiles(ctx)
   const getFiles = genGetFiles(ctx)
   const remap = genRemap(ctx, getFiles, includeFiles)
+  const addToPackage = genAddToPackage(ctx)
+  const removeFromPackage = genRemoveFromPackage(ctx)
   const includeInList = async files => {
     upsert(ctx.finalFileList, files)
     await getFiles(ctx.finalFileList)
@@ -129,6 +139,8 @@ const executePlugins = async (plugins = [], methodName, ctx, config = {}) => {
   const removeFilesFromFilesystem = genRemoveFilesFromFilesystem(ctx)
   const helpers = {
     remap,
+    addToPackage,
+    removeFromPackage,
     excludeFilesWhen,
     includeFiles,
     xmlTransformer,
@@ -169,6 +181,12 @@ module.exports = {
   executeRenderersNormalizations: async (plugins = [], ctx, config = {}) => {
     await executePlugins(plugins, 'normalize', ctx, config)
     for (const f of Object.values(ctx.inMemoryFilesMap).filter(x => !!x.transformed)) f.data = Buffer.from(buildXml(f.transformed) + '\n')
+  },
+  executeRenderersPackagePatch: (ctx) => {
+    for (const p of ctx.scheduledRemoveFromPackage) {
+      ctx.packageJson = removeTypeFromPackage(ctx.packageJson, p.metaName, p.metaMember)
+    }
+    ctx.packageJson = addTypesToPackageFromMeta(ctx.packageJson, ctx.scheduledAddToPackage)
   },
   executeRemap: async (plugins = [], ctx) => {
     const includeFiles = genIncludeFiles(ctx)

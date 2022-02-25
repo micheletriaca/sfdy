@@ -1,6 +1,7 @@
 const { getPackageMapping, buildPackageXmlFromFiles, getCompanionsFileList } = require('../utils/package-utils')
 const { readFiles, parseGlobPatterns, getDiffList } = require('../services/file-service')
 const { printDeployResult, pollCallback } = require('./result-logger')
+const { executeRenderersPackagePatch } = require('../plugin-engine')
 const buildJunitTestReport = require('./junit-test-report-builder')
 const { printLogo } = require('../utils/branding-utils')
 const pathService = require('../services/path-service')
@@ -74,6 +75,11 @@ const buildPackageXml = () => p().map(ctx => {
   return ctx
 })
 
+const applyPackagePatch = () => p().map(ctx => {
+  executeRenderersPackagePatch(ctx)
+  return ctx
+})
+
 const zipper = destructive => p().map(ctx => {
   ctx.zip = zip(ctx.finalFileList, Object.values(ctx.inMemoryFilesMap), ctx.packageJson, destructive)
   return ctx
@@ -133,6 +139,8 @@ module.exports = async function deploy (opts) {
     finalFileList: [],
     inMemoryFilesMap: {},
     packageJson: null,
+    scheduledAddToPackage: [],
+    scheduledRemoveFromPackage: [],
     zip: null,
     deployJob: null,
     deployResult: null
@@ -162,6 +170,7 @@ module.exports = async function deploy (opts) {
       .filter(ctx => ctx.finalFileList.length > 0)
       .log('(3/5) Building package.xml...', 'yellow')
       .through(buildPackageXml())
+      .through(applyPackagePatch())
       .log('Built!', 'green')
       .log(`The following files will be ${destructive ? 'deleted' : 'deployed'}:`, destructive ? 'red' : 'blue')
       .log(ctx => ctx.finalFileList.join('\n'))
