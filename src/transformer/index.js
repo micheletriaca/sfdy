@@ -54,8 +54,8 @@ module.exports = {
     await Promise.all(files
       .filter(pluginEngine.applyFilters())
       .map(async y => {
-        await mMakeDir(path.resolve(pathService.getBasePath(), 'src', getFolderName(y.fileName)))
-        await wf(path.resolve(pathService.getBasePath(), 'src', y.fileName), y.data)
+        await mMakeDir(path.resolve(pathService.getSrcFolder(), getFolderName(y.fileName)))
+        await wf(path.resolve(pathService.getSrcFolder(), y.fileName), y.data)
       }))
   },
   untransform: async ({

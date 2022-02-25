@@ -106,9 +106,11 @@ const saveFilesToDisk = () => p().asyncMap(async ctx => {
   return ctx
 })
 
-module.exports = async function retrieve ({ loginOpts, basePath, logger, files, meta, config }) {
+module.exports = async function retrieve (opts) {
+  const { loginOpts, basePath, logger, files, meta, config, srcFolder } = opts
   if (basePath) pathService.setBasePath(basePath)
   if (logger) loggerService.setLogger(logger)
+  if (srcFolder) pathService.setSrcFolder(srcFolder)
   const s1 = _([{
     retrieve: true,
     sfdc: null,             // SFDC connector
@@ -166,7 +168,6 @@ module.exports = async function retrieve ({ loginOpts, basePath, logger, files, 
       .filter(ctx => ctx.finalFileList.length || ctx.metaGlobPatterns.length)
 
       // Printing the list of files and metadata
-      // TODO -> exit if no files logger.log(chalk.yellow('No files to retrieve. Retrieve skipped'))
       .log('The following files/metadata will be retrieved:', 'yellow')
       .log(printFileAndMetadataList)
 
