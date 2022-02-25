@@ -3,6 +3,7 @@ const path = require('path')
 const _ = require('exstream.js')
 
 const getConfiguredBundles = _.makeGetter('config.staticResources.useBundleRenderer', [])
+const objRegex = /^StaticResource\/([^/]+)\/.*$/
 
 module.exports = {
   remaps: [
@@ -19,6 +20,13 @@ module.exports = {
         const r = f.replace('-meta.xml', '')
         return [f, r]
       }
+    }
+  ],
+
+  metadataRemaps: [
+    {
+      transformed: 'staticresources/*/**/*',
+      normalized: f => 'StaticResource/' + f.replace(objRegex, '$1')
     }
   ],
 

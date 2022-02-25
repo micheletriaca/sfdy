@@ -23,7 +23,6 @@ const buildObj = async (objName, objData, addToPackage) => {
   for (const key of objectsSplit.split) {
     objJson[key[0]] = []
     const data = objData.filter(x => x.fileName.endsWith(`${key[1]}-meta.xml`))
-    console.log(data)
     for (const f of data) {
       const componentName = f.fileName.match(new RegExp(`([^/]+)\\.${key[1]}-meta.xml$`))[1]
       if (componentName && objectsSplit.useChildXml) addToPackage(key[2], objName + '.' + componentName)
@@ -40,6 +39,12 @@ module.exports = {
       normalized: f => [objectsSplit.folderName + '/' + f.replace(objRegex, '$1') + objectsSplit.suffix]
     }
   ],
+  metadataRemaps: objectsSplit.split.map(x => {
+    return {
+      transformed: `${objectsSplit.folderName}/*/${x[0]}/*`,
+      normalized: f => x[2] + '/' + f.replace(objRegex, '$1') + '.' + f.match(new RegExp(`([^/]+)\\.${x[1]}-meta.xml$`))[1]
+    }
+  }),
   useChildXml: objectsSplit.useChildXml,
   transform: async (ctx, { xmlTransformer, includeFiles, removeFilesFromFilesystem, excludeFilesWhen }) => {
     await xmlTransformer(`${objectsSplit.folderName}/*${objectsSplit.suffix}`, async (filename, xml) => {

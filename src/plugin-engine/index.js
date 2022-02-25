@@ -160,6 +160,7 @@ const requireCustomPlugins = plugins => {
 }
 
 module.exports = {
+  requireCustomPlugins,
   executeBeforeRetrievePlugins: async (plugins = [], ctx, config = {}) => {
     const pL = requireCustomPlugins(plugins)
     const pCtx = { env: process.env.environment, log: logger.log, config, sfdc: ctx.sfdc }

@@ -1,6 +1,7 @@
 /* eslint-disable no-multi-spaces */
-const { getPackageMapping, buildPackageXmlFromFiles, addTypesToPackageFromMeta, buildMetaMap, getMetadataFromFileName } = require('../utils/package-utils')
+const { getPackageMapping, buildPackageXmlFromFiles, addTypesToPackageFromMeta, buildMetaMap, getMetadataFromFileName, getChildXmlMap } = require('../utils/package-utils')
 const { parseGlobPatterns, saveFiles } = require('../services/file-service')
+const { requireCustomPlugins } = require('../plugin-engine')
 const loggerService = require('../services/log-service')
 const { printLogo } = require('../utils/branding-utils')
 const pathService = require('../services/path-service')
@@ -40,9 +41,13 @@ const buildPackageXml = () => p().map(ctx => {
   return ctx
 })
 
-const buildFilesMetaMap = storeIn => p().asyncMap(async ctx => {
+const buildFilesMetaMap = (storeIn, renderers) => p().asyncMap(async ctx => {
+  loggerService.time('buildFilesMetaMap')
+  renderers = requireCustomPlugins([...stdRenderers, ...renderers])
+  renderers = renderers.map(x => x.metadataRemaps).filter(x => x).flat()
   const files = await globby(['**/*'], { cwd: pathService.getSrcFolder(true) })
-  ctx[storeIn] = buildMetaMap(files, ctx.packageMapping)
+  ctx[storeIn] = buildMetaMap(files, ctx.packageMapping, renderers)
+  loggerService.timeEnd('buildFilesMetaMap')
   return ctx
 })
 
@@ -138,7 +143,7 @@ module.exports = async function retrieve (opts) {
     // Building a map  metadata => [filenames] containing all src files
     // This is needed for adding additional metadata to package if we ask for profiles or objectTraslations
     // (whose content depends by the metadata present in package.xml)
-    .through(buildFilesMetaMap('meta2filesMap'))
+    .through(buildFilesMetaMap('meta2filesMap', config.renderers))
 
     // Computing the list of files from --files glob patterns
     .through(injectGlobPatterns(files, 'filesGlobPatterns'))

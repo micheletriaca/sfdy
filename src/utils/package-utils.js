@@ -6,6 +6,7 @@ const cloneDeep = require('lodash').cloneDeep
 const os = require('os')
 const pathService = require('../services/path-service')
 const crypto = require('crypto')
+const multimatch = require('multimatch')
 
 const reverseObj = obj => _(Object.entries(obj))
   .map(([k, v]) => ({ m: v, f: k }))
@@ -60,6 +61,21 @@ module.exports = {
     return packageMapping
   },
 
+  getChildXmlMap: () => {
+    return {
+      CustomField: 'CustomObject',
+      Index: 'CustomObject',
+      BusinessProcess: 'CustomObject',
+      RecordType: 'CustomObject',
+      CompactLayout: 'CustomObject',
+      WebLink: 'CustomObject',
+      ValidationRule: 'CustomObject',
+      SharingReason: 'CustomObject',
+      ListView: 'CustomObject',
+      FieldSet: 'CustomObject'
+    }
+  },
+
   getMetadataFromFileName: (fileName, packageMapping) => {
     const firstSlashIdx = fileName.indexOf('/')
     const folder = fileName.substring(0, firstSlashIdx)
@@ -71,9 +87,15 @@ module.exports = {
     return xmlName + '/' + componentName
   },
 
-  buildMetaMap: (fileList, packageMapping) => {
+  buildMetaMap: (fileList, packageMapping, metadataRemaps = []) => {
     const res = {}
     for (const f of fileList) {
+      for (const mr of metadataRemaps) {
+        if (multimatch(f, mr.transformed).length) {
+          res[f] = mr.normalized(f)
+        }
+      }
+      if (res[f]) continue
       const metaName = module.exports.getMetadataFromFileName(f, packageMapping)
       if (metaName) res[f] = metaName
     }
