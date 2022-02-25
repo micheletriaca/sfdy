@@ -33,19 +33,22 @@ const buildObj = async (objName, objData, addToPackage) => {
 }
 
 module.exports = {
+  isEnabled: config => config.splitObjects,
+
   remaps: [
     {
       transformed: `${objectsSplit.folderName}/*/**/*`,
       normalized: f => [objectsSplit.folderName + '/' + f.replace(objRegex, '$1') + objectsSplit.suffix]
     }
   ],
-  metadataRemaps: objectsSplit.split.map(x => {
-    return {
-      transformed: `${objectsSplit.folderName}/*/${x[0]}/*`,
-      normalized: f => x[2] + '/' + f.replace(objRegex, '$1') + '.' + f.match(new RegExp(`([^/]+)\\.${x[1]}-meta.xml$`))[1]
-    }
-  }),
+
+  metadataRemaps: objectsSplit.split.map(x => ({
+    transformed: `${objectsSplit.folderName}/*/${x[0]}/*`,
+    normalized: f => x[2] + '/' + f.replace(objRegex, '$1') + '.' + f.match(new RegExp(`([^/]+)\\.${x[1]}-meta.xml$`))[1]
+  })),
+
   useChildXml: objectsSplit.useChildXml,
+
   transform: async (ctx, { xmlTransformer, includeFiles, removeFilesFromFilesystem, excludeFilesWhen }) => {
     await xmlTransformer(`${objectsSplit.folderName}/*${objectsSplit.suffix}`, async (filename, xml) => {
       await removeFilesFromFilesystem([filename])
@@ -62,6 +65,7 @@ module.exports = {
       }
     })
   },
+
   normalize: async (ctx, { getFiles, includeFiles, addToPackage, removeFromPackage }) => {
     const fileList = await _(getFiles(`${objectsSplit.folderName}/*/**/*`, true, false))
       .flatten()

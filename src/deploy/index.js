@@ -64,7 +64,7 @@ const addCompanionsToFinalFileList = () => p().asyncMap(async ctx => {
 })
 
 const applyPlugins = (plugins, config, renderers, destructive) => p().asyncMap(async ctx => {
-  await pluginEngine.executeRemap([...stdRenderers, ...renderers], ctx)
+  await pluginEngine.executeRemap([...stdRenderers, ...renderers], ctx, config)
   await pluginEngine.executeRenderersNormalizations([...stdRenderers, ...renderers], ctx, config)
   if (!destructive) await pluginEngine.executeBeforeDeployPlugins(plugins, ctx, config)
   return ctx

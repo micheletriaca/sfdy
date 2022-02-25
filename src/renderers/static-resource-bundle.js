@@ -6,6 +6,8 @@ const getConfiguredBundles = _.makeGetter('config.staticResources.useBundleRende
 const objRegex = /^StaticResource\/([^/]+)\/.*$/
 
 module.exports = {
+  isEnabled: config => getConfiguredBundles(config).length,
+
   remaps: [
     {
       transformed: 'staticresources/*/**/*',

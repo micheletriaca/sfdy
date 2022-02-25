@@ -149,7 +149,7 @@ const executePlugins = async (plugins = [], methodName, ctx, config = {}) => {
     removeFilesFromFilesystem,
     includeInList
   }
-  await _(pL).pluck(methodName).filter(p => p).asyncMap(p => p(pCtx, helpers)).values()
+  await _(pL).filter(checkEnabled(config)).pluck(methodName).filter(p => p).asyncMap(p => p(pCtx, helpers)).values()
 }
 
 const requireCustomPlugins = plugins => {
@@ -159,13 +159,15 @@ const requireCustomPlugins = plugins => {
   })
 }
 
+const checkEnabled = config => p => p.isEnabled && p.isEnabled(config)
+
 module.exports = {
   requireCustomPlugins,
   executeBeforeRetrievePlugins: async (plugins = [], ctx, config = {}) => {
     const pL = requireCustomPlugins(plugins)
     const pCtx = { env: process.env.environment, log: logger.log, config, sfdc: ctx.sfdc }
     const setMetaCompanions = genSetMetaCompanions(ctx)
-    for (const p of pL.map(x => x.beforeRetrieve).filter(x => x)) await p(pCtx, { setMetaCompanions })
+    for (const p of pL.filter(checkEnabled(config)).map(x => x.beforeRetrieve).filter(x => x)) await p(pCtx, { setMetaCompanions })
   },
   executeAfterRetrievePlugins: async (plugins = [], ctx, config = {}) => {
     await executePlugins(plugins, 'afterRetrieve', ctx, config)
@@ -189,13 +191,13 @@ module.exports = {
     }
     ctx.packageJson = addTypesToPackageFromMeta(ctx.packageJson, ctx.scheduledAddToPackage)
   },
-  executeRemap: async (plugins = [], ctx) => {
+  executeRemap: async (plugins = [], ctx, config) => {
     const includeFiles = genIncludeFiles(ctx)
     const getFiles = genGetFiles(ctx)
     const excludeFilesWhen = genExcludeFilesWhen(ctx)
     const remap = genRemap(ctx, getFiles, includeFiles, excludeFilesWhen)
     const pL = requireCustomPlugins(plugins)
-    for (const p of pL.map(x => x.remaps).flat().filter(x => x)) {
+    for (const p of pL.filter(checkEnabled(config)).map(x => x.remaps).flat().filter(x => x)) {
       await remap(p.transformed, p.normalized)
     }
   }

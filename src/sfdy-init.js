@@ -26,5 +26,6 @@ fs.writeFileSync(configPath, JSON.stringify({
     useBundleRenderer: ['*']
   },
   stripManagedPackageFields: [],
-  excludeFiles: ['lwc/**/__tests__/**/*']
+  excludeFiles: ['lwc/**/__tests__/**/*'],
+  splitObjects: false
 }, null, 2))

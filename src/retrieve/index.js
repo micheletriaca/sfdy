@@ -41,10 +41,14 @@ const buildPackageXml = () => p().map(ctx => {
   return ctx
 })
 
-const buildFilesMetaMap = (storeIn, renderers) => p().asyncMap(async ctx => {
+const buildFilesMetaMap = (storeIn, renderers, config) => p().asyncMap(async ctx => {
   loggerService.time('buildFilesMetaMap')
   renderers = requireCustomPlugins([...stdRenderers, ...renderers])
-  renderers = renderers.map(x => x.metadataRemaps).filter(x => x).flat()
+  renderers = renderers
+    .filter(x => x.isEnabled && x.isEnabled(config))
+    .map(x => x.metadataRemaps)
+    .filter(x => x)
+    .flat()
   const files = await globby(['**/*'], { cwd: pathService.getSrcFolder(true) })
   ctx[storeIn] = buildMetaMap(files, ctx.packageMapping, renderers)
   loggerService.timeEnd('buildFilesMetaMap')
@@ -83,8 +87,8 @@ const applyAfterRetrievePlugins = (plugins = [], config) => p().asyncMap(async c
   return ctx
 })
 
-const applyRemaps = (renderers = []) => p().asyncMap(async ctx => {
-  await pluginEngine.executeRemap([...stdRenderers, ...renderers], ctx)
+const applyRemaps = (renderers = [], config) => p().asyncMap(async ctx => {
+  await pluginEngine.executeRemap([...stdRenderers, ...renderers], ctx, config)
   return ctx
 })
 
@@ -143,7 +147,7 @@ module.exports = async function retrieve (opts) {
     // Building a map  metadata => [filenames] containing all src files
     // This is needed for adding additional metadata to package if we ask for profiles or objectTraslations
     // (whose content depends by the metadata present in package.xml)
-    .through(buildFilesMetaMap('meta2filesMap', config.renderers))
+    .through(buildFilesMetaMap('meta2filesMap', config.renderers, config))
 
     // Computing the list of files from --files glob patterns
     .through(injectGlobPatterns(files, 'filesGlobPatterns'))
@@ -154,7 +158,7 @@ module.exports = async function retrieve (opts) {
     // TODO -> validate meta glob
 
     // Computing renderers remaps
-    .through(applyRemaps(config.plugins))
+    .through(applyRemaps(config.plugins, config))
 
     // Building package.xml. the member list is a composition of data coming
     // from --files and --meta
