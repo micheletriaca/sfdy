@@ -14,35 +14,38 @@ const _ = require('../utils/exstream')
 const globby = require('globby')
 
 const p = _.pipeline
+const time = (timeName, pipeline) => p()
+  .tap(() => loggerService.time(timeName))
+  .through(pipeline)
+  .tap(() => loggerService.timeEnd(timeName))
 
-const injectSfdc = creds => p().asyncMap(async ctx => {
+const injectSfdc = creds => time('injectSfdc', p().asyncMap(async ctx => {
   ctx.sfdc = await Sfdc.newInstance(creds)
   ctx.packageMapping = await getPackageMapping(ctx.sfdc)
   ctx.creds = creds
   return ctx
-})
+}))
 
-const injectGlobPatterns = (patternString = '', storeIn) => p().map(ctx => {
+const injectGlobPatterns = (patternString = '', storeIn) => time('injectGlobPattenrs', p().map(ctx => {
   ctx[storeIn] = parseGlobPatterns(patternString)
   return ctx
-})
+}))
 
-const calculateManualFileList = () => p().asyncMap(async ctx => {
+const calculateManualFileList = () => time('calculateManualFileList', p().asyncMap(async ctx => {
   if (!ctx.filesGlobPatterns.length) return ctx
   ctx.finalFileList = await globby(ctx.filesGlobPatterns, { cwd: pathService.getSrcFolder(true) })
   return ctx
-})
+}))
 
-const buildPackageXml = () => p().map(ctx => {
+const buildPackageXml = () => time('buildPackageXml', p().map(ctx => {
   ctx.packageJson = buildPackageXmlFromFiles(ctx.finalFileList, ctx.packageMapping, ctx.sfdc.apiVersion)
   const packageMetaMap = buildMetaMap(ctx.finalFileList, ctx.packageMapping)
   ctx.allMetaInPackage = [...new Set(Object.keys(packageMetaMap).concat(ctx.metaGlobPatterns))]
   if (ctx.metaGlobPatterns.length) ctx.packageJson = addTypesToPackageFromMeta(ctx.packageJson, ctx.metaGlobPatterns)
   return ctx
-})
+}))
 
-const buildFilesMetaMap = (storeIn, renderers, config) => p().asyncMap(async ctx => {
-  loggerService.time('buildFilesMetaMap')
+const buildFilesMetaMap = (storeIn, renderers, config) => time('buildFilesMetaMap', p().asyncMap(async ctx => {
   renderers = requireCustomPlugins([...stdRenderers, ...renderers])
   renderers = renderers
     .filter(x => x.isEnabled && x.isEnabled(config))
@@ -51,9 +54,8 @@ const buildFilesMetaMap = (storeIn, renderers, config) => p().asyncMap(async ctx
     .flat()
   const files = await globby(['**/*'], { cwd: pathService.getSrcFolder(true) })
   ctx[storeIn] = buildMetaMap(files, ctx.packageMapping, renderers)
-  loggerService.timeEnd('buildFilesMetaMap')
   return ctx
-})
+}))
 
 const printFileAndMetadataList = ctx => {
   let res = ''
@@ -62,42 +64,42 @@ const printFileAndMetadataList = ctx => {
   return res
 }
 
-const retrieveMetadata = () => p().asyncMap(async (ctx) => {
+const retrieveMetadata = () => time('retrieveMetadata', p().asyncMap(async (ctx) => {
   ctx.retrieveJob = await ctx.sfdc.retrieveMetadata(ctx.packageJson.Package)
   ctx.retrieveResult = await ctx.sfdc.pollRetrieveMetadataStatus(ctx.retrieveJob.id)
   ctx.zip = Buffer.from(ctx.retrieveResult.zipFile, 'base64')
   delete ctx.retrieveResult.zipFile // free memory
   return ctx
-})
+}))
 
-const unzipper = () => p().asyncMap(async ctx => {
+const unzipper = () => time('unzipper', p().asyncMap(async ctx => {
   const unzipPromise = unzip(ctx.zip, ctx.companions, ctx.packageMapping)
   delete ctx.zip // free memory
   await _(unzipPromise).flatten().tap(x => { ctx.inMemoryFilesMap[x.fileName] = x }).toPromise()
   return ctx
-})
+}))
 
-const applyBeforeRetrievePlugins = (plugins = [], config) => p().asyncMap(async ctx => {
+const applyBeforeRetrievePlugins = (plugins = [], config) => time('beforeRetrievePlugin', p().asyncMap(async ctx => {
   await pluginEngine.executeBeforeRetrievePlugins([...stdPlugins, ...plugins], ctx, config)
   return ctx
-})
+}))
 
-const applyAfterRetrievePlugins = (plugins = [], config) => p().asyncMap(async ctx => {
+const applyAfterRetrievePlugins = (plugins = [], config) => time('applyAfterRetrievePlugins', p().asyncMap(async ctx => {
   await pluginEngine.executeAfterRetrievePlugins([...stdPlugins, ...plugins], ctx, config)
   return ctx
-})
+}))
 
-const applyRemaps = (renderers = [], config) => p().asyncMap(async ctx => {
+const applyRemaps = (renderers = [], config) => time('applyRemaps', p().asyncMap(async ctx => {
   await pluginEngine.executeRemap([...stdRenderers, ...renderers], ctx, config)
   return ctx
-})
+}))
 
-const applyRenderers = (renderers = [], config) => p().asyncMap(async ctx => {
+const applyRenderers = (renderers = [], config) => time('applyRenderers', p().asyncMap(async ctx => {
   await pluginEngine.executeRenderersTransformations([...stdRenderers, ...renderers], ctx, config)
   return ctx
-})
+}))
 
-const saveFilesToDisk = () => p().asyncMap(async ctx => {
+const saveFilesToDisk = () => time('saveFilesToDisk', p().asyncMap(async ctx => {
   const metadataToFilterSet = new Set(ctx.companions)
   const isNotInOriginalPackage = f => metadataToFilterSet.has(getMetadataFromFileName(f, ctx.packageMapping))
   const conflictLogger = f => {
@@ -113,7 +115,7 @@ const saveFilesToDisk = () => p().asyncMap(async ctx => {
     .reject(f => !f.includedByPlugin && isNotInOriginalPackage(f.fileName))
     .apply(saveFiles)
   return ctx
-})
+}))
 
 module.exports = async function retrieve (opts) {
   const { loginOpts, basePath, logger, files, meta, config, srcFolder } = opts
