@@ -32,7 +32,7 @@ module.exports = {
     const hasFilesToProcess = []
     if (isStripUnversionedPluginEnabled(ctx.config)) hasFilesToProcess.push('profiles/**/*')
     if (isStripUnversionedFieldsPluginEnabled(ctx.config)) hasFilesToProcess.push('objectTranslations/**/*')
-    const filesToProcess = await getFiles(hasFilesToProcess, true, false, true)
+    const filesToProcess = await getFiles(hasFilesToProcess, true, false, true) // Se sono in retrieve leggo sempre i buffer
     if (!filesToProcess.length) {
       ctx.logger.timeEnd('strip-unversioned-stuff')
       return

@@ -18,10 +18,7 @@ module.exports = {
     },
     {
       transformed: 'staticresources/*.resource-meta.xml',
-      normalized: f => {
-        const r = f.replace('-meta.xml', '')
-        return [f, r]
-      }
+      normalized: f => [f, f.replace('-meta.xml', '')]
     }
   ],
 
@@ -41,7 +38,7 @@ module.exports = {
         const resourceName = filename.replace('-meta.xml', '')
         const dir = resourceName.replace('.resource', '')
 
-        const resource = await getFiles(resourceName)
+        const resource = await getFiles(resourceName, true, false, true, false)
         await removeFilesFromFilesystem([dir, resourceName])
         excludeFilesWhen(f => f === resourceName)
 
@@ -64,7 +61,7 @@ module.exports = {
         const resourceName = filename.replace('-meta.xml', '')
         const dir = resourceName.replace('.resource', '')
 
-        const filesToZip = await _(getFiles(`${dir}/**/*`))
+        const filesToZip = await _(getFiles(`${dir}/**/*`, true, true, true, false))
           .flatten()
           .mapEntry('fileName', f => f.replace(dir + '/', ''))
           .values()

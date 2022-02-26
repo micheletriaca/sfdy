@@ -69,7 +69,7 @@ module.exports = {
   },
 
   normalize: async (ctx, { getFiles, includeFiles, addToPackage, removeFromPackage }) => {
-    const fileList = await _(getFiles(`${objectsSplit.folderName}/*/**/*`, true, false))
+    const fileList = await _(getFiles(`${objectsSplit.folderName}/*/**/*`, true, false, true, false))
       .flatten()
       .map(x => ({ ...x, objName: x.fileName.match(objRegex)[1] }))
       .filter(x => x.objName)

@@ -60,8 +60,9 @@ const genXmlParser = ctx => async (patterns, callback) => {
   }
 }
 
-const genGetFiles = (ctx, count = 0) => async (patterns, readBuffers = true, fromFilesystem = true, fromMemory = true) => {
+const genGetFiles = (ctx, count = 0) => async (patterns, readBuffers = true, fromFilesystem = true, fromMemory = true, normalizeFileSystemData = true) => {
   // TODO -> SE I FILE ARRIVANO DA FILESYSTEM, VA FATTO UNRENDER IN MODO DA NORMALIZZARLI
+  // TODO -> ANDREBBERO GESTITI REMAPPER AL CONTRARIO SE LEGGO DA FILESYSTEM (ES, voglio prender objects/* ma su filesystem gli oggetti sono esplosi in mille files)
   const timeSpan = '--> getFiles' + (count++)
   logger.time(timeSpan)
   try {
@@ -75,6 +76,7 @@ const genGetFiles = (ctx, count = 0) => async (patterns, readBuffers = true, fro
       const notInMemory = l.difference(fileList, fileListInMemory)
       const inMemory = fromMemory ? wholeFileList.filter(f => ctx.inMemoryFilesMap[f]) : []
       const buffers = readFiles(notInMemory).map(f => { f.addedInASecondTime = true; return f })
+      // if(normalizeFileSystemData) await normalizeBuffers(buffers)
       for (const f of inMemory) buffers.push(ctx.inMemoryFilesMap[f])
       return buffers
     }

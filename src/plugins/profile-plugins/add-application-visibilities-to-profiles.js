@@ -14,7 +14,7 @@ module.exports = {
     const extraAppsGlob = getExtraAppsGlob(ctx.config)
 
     await xmlTransformer('profiles/**/*', async (filename, fJson) => {
-      const appsToConsider = await _(getFiles('applications/**/*', false, true))
+      const appsToConsider = await _(getFiles('applications/**/*', false))
         .flatten()
         .map(x => x.replace(/^applications\/(.*)\.app$/, '$1'))
         .values()
