@@ -78,6 +78,7 @@ const genGetFiles = ctx => async (patterns, readBuffers = true, fromFilesystem =
 }
 
 const genSetMetaCompanions = ctx => async (patterns, callback, onlyVersioned = true) => {
+  // TODO -> CHE SUCCEDE SE CHIAMO STO METODO TANTE VOLTE? LA LISTA DI METACOMPANIONS PRECEDENTE SI RESETTA?
   const hasMatches = multimatch(ctx.allMetaInPackage, patterns)
   if (!hasMatches.length) return
 
@@ -141,10 +142,6 @@ const executePlugins = async (plugins = [], methodName, ctx, config = {}) => {
   const remap = genRemap(ctx, getFiles, includeFiles)
   const addToPackage = genAddToPackage(ctx)
   const removeFromPackage = genRemoveFromPackage(ctx)
-  const includeInList = async files => {
-    upsert(ctx.finalFileList, files)
-    await getFiles(ctx.finalFileList)
-  }
   const removeFilesFromFilesystem = genRemoveFilesFromFilesystem(ctx)
   const helpers = {
     remap,
@@ -155,8 +152,7 @@ const executePlugins = async (plugins = [], methodName, ctx, config = {}) => {
     xmlTransformer,
     xmlParser,
     getFiles,
-    removeFilesFromFilesystem,
-    includeInList
+    removeFilesFromFilesystem
   }
   await _(pL).filter(checkEnabled(config)).pluck(methodName).filter(p => p).asyncMap(p => p(pCtx, helpers)).values()
 }

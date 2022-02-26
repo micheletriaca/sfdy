@@ -2,14 +2,19 @@ const multimatch = require('multimatch')
 const chalk = require('chalk')
 const _ = require('exstream.js')
 const { remapProfileName, retrieveAllObjects, getVersionedObjects } = require('./utils')
-const isExtraObjPluginEnabled = _.makeGetter('config.profiles.addExtraObjects', false)
-const isDisabledVersionedPluginEnabled = _.makeGetter('config.profiles.addDisabledVersionedObjects', false)
+const isExtraObjPluginEnabled = _.makeGetter('profiles.addExtraObjects', false)
+const isDisabledVersionedPluginEnabled = _.makeGetter('profiles.addDisabledVersionedObjects', false)
 const get = require('lodash/get')
 const memoize = require('lodash/memoize')
 
 module.exports = {
+  isEnabled: config => {
+    const eop = isExtraObjPluginEnabled(config) && !!config.profiles.addExtraObjects.length
+    const vop = isDisabledVersionedPluginEnabled(config)
+    return vop || eop
+  },
+
   afterRetrieve: async (ctx, { xmlTransformer, getFiles }) => {
-    if (!isExtraObjPluginEnabled(ctx) && !isDisabledVersionedPluginEnabled(ctx)) return
     ctx.q = memoize(ctx.sfdc.query)
     const extraObjectsPatterns = get(ctx, 'config.profiles.addExtraObjects', [])
 
@@ -34,7 +39,7 @@ module.exports = {
       const missingVersionedObjects = allObjects.filter(x => !currentProfileObjects.has(x.SobjectType) && versionedObjects.has(x.SobjectType))
       const finalPermissions = {}
 
-      if (isDisabledVersionedPluginEnabled(ctx)) {
+      if (isDisabledVersionedPluginEnabled(ctx.config)) {
         for (const obj of missingVersionedObjects) {
           finalPermissions[obj.SobjectType] = {
             allowCreate: false,

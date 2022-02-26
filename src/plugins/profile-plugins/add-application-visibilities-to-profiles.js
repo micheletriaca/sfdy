@@ -1,16 +1,17 @@
 const multimatch = require('multimatch')
 const _ = require('exstream.js')
-const getExtraAppsGlob = _.makeGetter('config.profiles.addExtraApplications', false)
+const getExtraAppsGlob = _.makeGetter('profiles.addExtraApplications', [])
 
 module.exports = {
+  isEnabled: config => !!getExtraAppsGlob(config).length,
+
   beforeRetrieve: async (ctx, { setMetaCompanions }) => {
-    const extraAppsGlob = getExtraAppsGlob(ctx)
-    if (!extraAppsGlob) return
     await setMetaCompanions('Profile/*', () => ['CustomApplication/*'], false)
   },
+
   afterRetrieve: async (ctx, { xmlTransformer, getFiles, excludeFilesWhen }) => {
-    const extraAppsGlob = getExtraAppsGlob(ctx)
-    if (!extraAppsGlob) return
+    const extraAppsGlob = getExtraAppsGlob(ctx.config)
+
     await xmlTransformer('profiles/**/*', async (filename, fJson) => {
       const appsToConsider = await _(getFiles('applications/**/*', false, true))
         .flatten()

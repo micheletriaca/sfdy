@@ -18,6 +18,22 @@ const objectStructure = {
   webLinks: 'fullName'
 }
 
+const profileStructure = {
+  applicationVisibilities: 'application',
+  fieldPermissions: 'field',
+  classAccesses: 'apexClass',
+  // layoutAssignments: 'layout'  //TODO -> I LAYOUT HANNO UNA CHIAVE COMPOSITA
+  objectPermissions: 'object',
+  recordTypeVisibilities: 'recordType',
+  tabVisibilities: 'tab',
+  userPermissions: 'name'
+}
+
+const structures = {
+  objects: objectStructure,
+  profiles: profileStructure
+}
+
 const processXml = (baseInMemory, baseInFilesystem, structure) => {
   const sorter = (a, b) => {
     if (a[0] === 'fullName') return -1
@@ -54,24 +70,34 @@ const processXml = (baseInMemory, baseInFilesystem, structure) => {
     .value()
 }
 
-const mergeXml = async (inMemory, inFilesystem) => {
+const mergeXml = async (inMemory, inFilesystem, structure) => {
   if (!inFilesystem) return
   const xmlInMemory = await parseXml(inMemory.data)
   const xmlInFilesystem = await parseXml(inFilesystem.data)
   const baseInMemory = Object.values(xmlInMemory)[0]
   const baseInFilesystem = Object.values(xmlInFilesystem)[0]
   const key = Object.keys(xmlInMemory)[0]
-  xmlInMemory[key] = processXml(baseInMemory, baseInFilesystem, objectStructure)
+  xmlInMemory[key] = processXml(baseInMemory, baseInFilesystem, structure)
 
   inMemory.data = Buffer.from(buildXml(xmlInMemory) + '\n', 'utf8')
 }
 
+const substringBefore = (str, char) => {
+  if (!str) return str
+  const idx = str.indexOf(char)
+  if (idx === -1) return str
+  else return str.substring(0, idx)
+}
+
 module.exports = {
+  isEnabled: () => true,
+
   afterRetrieve: async (ctx, { getFiles }) => {
     const childXmlMap = getChildXmlMap()
     const childXmlInPackage = ctx._raw.allMetaInPackage.filter(x => childXmlMap[x.split('/')[0]])
 
     const typesToMerge = []
+    if (ctx.config.profileStrategy === 'merge') typesToMerge.push('profiles/*.profile')
     if (!ctx.config.splitObjects && childXmlInPackage.length) typesToMerge.push('objects/*.object')
 
     const typesToMergeInMemory = await _(getFiles(typesToMerge, true, false, true))
@@ -85,7 +111,8 @@ module.exports = {
       .value()
 
     for (const x in typesToMergeInMemory) {
-      await mergeXml(typesToMergeInMemory[x], typesToMergeInFilesystem[x])
+      const metaRootName = substringBefore(typesToMergeInMemory[x].fileName, '/')
+      await mergeXml(typesToMergeInMemory[x], typesToMergeInFilesystem[x], structures[metaRootName])
     }
   }
 }

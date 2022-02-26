@@ -27,5 +27,6 @@ fs.writeFileSync(configPath, JSON.stringify({
   },
   stripManagedPackageFields: [],
   excludeFiles: ['lwc/**/__tests__/**/*'],
-  splitObjects: false
+  splitObjects: false,
+  profileStrategy: 'merge'
 }, null, 2))

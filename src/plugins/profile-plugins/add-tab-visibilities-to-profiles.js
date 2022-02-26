@@ -3,7 +3,8 @@ const chalk = require('chalk')
 const memoize = require('lodash/memoize')
 const _ = require('exstream.js')
 const { remapProfileName, retrieveAllTabVisibilities, getVersionedObjects } = require('./utils')
-const isPluginEnabled = _.makeGetter('config.profiles.addExtraTabVisibility', false)
+const getExtraTabVisibility = _.makeGetter('profiles.addExtraTabVisibility', [])
+const isPluginEnabled = config => !!getExtraTabVisibility(config).length
 
 const getVersionedTabs = memoize((allTabs, versionedTabs, versionedObjects) => {
   return versionedTabs
@@ -61,9 +62,10 @@ const patchProfile = (ctx, extraTabsGlob, getFiles) => async (filename, fJson) =
 }
 
 module.exports = {
+  isEnabled: isPluginEnabled,
+
   afterRetrieve: async (ctx, { xmlTransformer, getFiles }) => {
-    const extraTabsGlob = isPluginEnabled(ctx)
-    if (!extraTabsGlob) return
+    const extraTabsGlob = ctx.config.profiles.addExtraTabVisibility
     ctx.q = memoize(ctx.sfdc.query)
     await xmlTransformer('profiles/**/*', patchProfile(ctx, extraTabsGlob, getFiles))
   }
