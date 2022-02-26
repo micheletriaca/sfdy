@@ -16,7 +16,9 @@ const afterRetrieve = async (namespaces, xmlTransformer) => {
 
 module.exports = {
   afterRetrieve: async (ctx, { xmlTransformer }) => {
+    ctx.logger.time('strip-managed-package-stuff')
     if (!ctx.config.stripManagedPackageFields) return
     await afterRetrieve(ctx.config.stripManagedPackageFields, xmlTransformer)
+    ctx.logger.timeEnd('strip-managed-package-stuff')
   }
 }

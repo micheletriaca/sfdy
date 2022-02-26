@@ -33,6 +33,7 @@ module.exports = {
   ],
 
   transform: async (ctx, { xmlParser, includeFiles, excludeFilesWhen, getFiles, removeFilesFromFilesystem }) => {
+    ctx.logger.time('static-resource-bundle')
     const patterns = getConfiguredBundles(ctx).map(x => `staticresources/${x}-meta.xml`)
 
     await xmlParser(patterns, async (filename, xml) => {
@@ -52,6 +53,7 @@ module.exports = {
           .apply(includeFiles)
       }
     })
+    ctx.logger.timeEnd('static-resource-bundle')
   },
 
   normalize: async (ctx, { xmlParser, getFiles, includeFiles, excludeFilesWhen }) => {

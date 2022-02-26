@@ -2,11 +2,13 @@ const _ = require('exstream.js')
 const memoize = require('lodash').memoize
 const chalk = require('chalk')
 const { remapProfileName, retrievePermissionsList } = require('./utils')
-const isPluginEnabled = _.makeGetter('config.profiles.addAllUserPermissions', false)
+const isPluginEnabled = _.makeGetter('profiles.addAllUserPermissions', false)
 
 module.exports = {
+  isEnabled: isPluginEnabled,
+
   afterRetrieve: async (ctx, { xmlTransformer }) => {
-    if (!isPluginEnabled(ctx)) return
+    ctx.logger.time('add-all-permissions-to-custom-profiles')
     ctx.q = memoize(ctx.sfdc.query)
 
     await xmlTransformer('profiles/**/*', async (filename, fJson) => {
@@ -23,5 +25,6 @@ module.exports = {
         ctx.log(chalk.blue('----> Done'))
       }
     })
+    ctx.logger.timeEnd('add-all-permissions-to-custom-profiles')
   }
 }

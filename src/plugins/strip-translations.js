@@ -1,5 +1,5 @@
 const _ = require('exstream.js')
-const isPluginEnabled = _.makeGetter('config.objectTranslations.stripUntranslatedFields', false)
+const isPluginEnabled = _.makeGetter('objectTranslations.stripUntranslatedFields', false)
 
 const processXml = (root, keysToProcess) => {
   return Object.keys(keysToProcess).reduce((filterIt, key) => {
@@ -62,10 +62,13 @@ const fixObjectTranslations = async xmlTransformer => {
 }
 
 module.exports = {
+  isEnabled: isPluginEnabled,
+
   afterRetrieve: async (ctx, { xmlTransformer }) => {
-    if (!isPluginEnabled(ctx)) return
+    ctx.logger.time('strip-translations')
     await fixTranslations(xmlTransformer)
     await fixStdValueSetTranslations(xmlTransformer)
     await fixObjectTranslations(xmlTransformer)
+    ctx.logger.timeEnd('strip-translations')
   }
 }

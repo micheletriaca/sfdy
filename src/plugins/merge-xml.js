@@ -1,5 +1,5 @@
 const _ = require('exstream.js')
-const { parseXml, buildXml } = require('../utils/xml-utils')
+const { parseXml } = require('../utils/xml-utils')
 const { getChildXmlMap } = require('../utils/package-utils')
 
 const objectStructure = {
@@ -79,7 +79,7 @@ const mergeXml = async (inMemory, inFilesystem, structure) => {
   const key = Object.keys(xmlInMemory)[0]
   xmlInMemory[key] = processXml(baseInMemory, baseInFilesystem, structure)
 
-  inMemory.data = Buffer.from(buildXml(xmlInMemory) + '\n', 'utf8')
+  inMemory.transformed = xmlInMemory
 }
 
 const substringBefore = (str, char) => {
@@ -93,6 +93,7 @@ module.exports = {
   isEnabled: () => true,
 
   afterRetrieve: async (ctx, { getFiles }) => {
+    ctx.logger.time('mergeXml')
     const childXmlMap = getChildXmlMap()
     const childXmlInPackage = ctx._raw.allMetaInPackage.filter(x => childXmlMap[x.split('/')[0]])
 
@@ -114,5 +115,6 @@ module.exports = {
       const metaRootName = substringBefore(typesToMergeInMemory[x].fileName, '/')
       await mergeXml(typesToMergeInMemory[x], typesToMergeInFilesystem[x], structures[metaRootName])
     }
+    ctx.logger.timeEnd('mergeXml')
   }
 }

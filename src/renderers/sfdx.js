@@ -50,6 +50,7 @@ module.exports = {
   useChildXml: objectsSplit.useChildXml,
 
   transform: async (ctx, { xmlTransformer, includeFiles, removeFilesFromFilesystem, excludeFilesWhen }) => {
+    ctx.logger.time('sfdx')
     await xmlTransformer(`${objectsSplit.folderName}/*${objectsSplit.suffix}`, async (filename, xml) => {
       await removeFilesFromFilesystem([filename])
       excludeFilesWhen(f => f === filename)
@@ -64,6 +65,7 @@ module.exports = {
         }])
       }
     })
+    ctx.logger.timeEnd('sfdx')
   },
 
   normalize: async (ctx, { getFiles, includeFiles, addToPackage, removeFromPackage }) => {

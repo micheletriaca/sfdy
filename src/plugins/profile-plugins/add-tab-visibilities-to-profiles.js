@@ -65,8 +65,10 @@ module.exports = {
   isEnabled: isPluginEnabled,
 
   afterRetrieve: async (ctx, { xmlTransformer, getFiles }) => {
+    ctx.logger.time('add-tab-visibilities-to-profiles')
     const extraTabsGlob = ctx.config.profiles.addExtraTabVisibility
     ctx.q = memoize(ctx.sfdc.query)
     await xmlTransformer('profiles/**/*', patchProfile(ctx, extraTabsGlob, getFiles))
+    ctx.logger.timeEnd('add-tab-visibilities-to-profiles')
   }
 }

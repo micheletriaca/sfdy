@@ -15,6 +15,7 @@ module.exports = {
   },
 
   afterRetrieve: async (ctx, { xmlTransformer, getFiles }) => {
+    ctx.logger.time('add-objects-to-profiles')
     ctx.q = memoize(ctx.sfdc.query)
     const extraObjectsPatterns = get(ctx, 'config.profiles.addExtraObjects', [])
 
@@ -86,5 +87,6 @@ module.exports = {
       }
       ctx.log(chalk.blue('----> Done'))
     })
+    ctx.logger.timeEnd('add-objects-to-profiles')
   }
 }

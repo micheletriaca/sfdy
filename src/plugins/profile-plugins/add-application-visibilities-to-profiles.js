@@ -10,6 +10,7 @@ module.exports = {
   },
 
   afterRetrieve: async (ctx, { xmlTransformer, getFiles, excludeFilesWhen }) => {
+    ctx.logger.time('add-application-visibilities-to-profiles')
     const extraAppsGlob = getExtraAppsGlob(ctx.config)
 
     await xmlTransformer('profiles/**/*', async (filename, fJson) => {
@@ -24,5 +25,6 @@ module.exports = {
         return multimatch(x.application[0], realGlob).length > 0
       })
     })
+    ctx.logger.timeEnd('add-application-visibilities-to-profiles')
   }
 }
