@@ -13,7 +13,7 @@ const serializeValue = (tagname, v, indentLevel) => {
   let res = ''
   if (typeof (v) === 'object') {
     res += '\n'
-    const keys = Object.keys(v)
+    const keys = Object.keys(v).filter(x => x !== '$')
     const l = keys.length
     for (let i = 0; i < l; i++) {
       const serializedSubXml = sfdcXmlBuilder(keys[i], v[keys[i]], false, indentLevel)
@@ -61,7 +61,6 @@ const sfdcXmlBuilder = (tagname, value, isRoot = true, indentLevel = '') => {
   for (let i = 0; i < l; i++) {
     const isObject = typeof (value[i]) === 'object' && !Object.prototype.hasOwnProperty.call(value[i], '_')
     res += indentLevel + buildTag(tagname, value[i].$ || {})
-    delete value[i].$
     const serializedValue = serializeValue(tagname, value[i]._ || value[i], indentLevel + renderOpts.indent)
     res += serializedValue
     if (!serializedValue && renderOpts.emptyTag) res = res.replace(/>$/, '/>')

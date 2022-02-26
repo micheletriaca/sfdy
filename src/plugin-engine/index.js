@@ -70,7 +70,7 @@ const genGetFiles = ctx => async (patterns, readBuffers = true, fromFilesystem =
     return wholeFileList
   } else if (readBuffers) {
     const notInMemory = l.difference(fileList, fileListInMemory)
-    const inMemory = wholeFileList.filter(f => ctx.inMemoryFilesMap[f])
+    const inMemory = fromMemory ? wholeFileList.filter(f => ctx.inMemoryFilesMap[f]) : []
     const buffers = readFiles(notInMemory).map(f => { f.addedInASecondTime = true; return f })
     for (const f of inMemory) buffers.push(ctx.inMemoryFilesMap[f])
     return buffers
@@ -121,9 +121,18 @@ const genRemoveFromPackage = ctx => (metaName, metaMember) => {
   upsert(ctx.scheduledRemoveFromPackage, { metaName, metaMember })
 }
 
+const requireCustomPlugins = plugins => {
+  return plugins.map(p => {
+    if (typeof p === 'string') return nativeRequire(p)
+    else return p
+  })
+}
+
+const checkEnabled = config => p => p.isEnabled == null || p.isEnabled(config)
+
 const executePlugins = async (plugins = [], methodName, ctx, config = {}) => {
   const pL = requireCustomPlugins(plugins)
-  const pCtx = { env: process.env.environment, log: logger.log, config, sfdc: ctx.sfdc }
+  const pCtx = { env: process.env.environment, log: logger.log, config, sfdc: ctx.sfdc, _raw: ctx }
   const excludeFilesWhen = genExcludeFilesWhen(ctx)
   const xmlTransformer = genXmlTransformer(ctx)
   const xmlParser = genXmlParser(ctx)
@@ -151,15 +160,6 @@ const executePlugins = async (plugins = [], methodName, ctx, config = {}) => {
   }
   await _(pL).filter(checkEnabled(config)).pluck(methodName).filter(p => p).asyncMap(p => p(pCtx, helpers)).values()
 }
-
-const requireCustomPlugins = plugins => {
-  return plugins.map(p => {
-    if (typeof p === 'string') return nativeRequire(p)
-    else return p
-  })
-}
-
-const checkEnabled = config => p => p.isEnabled && p.isEnabled(config)
 
 module.exports = {
   requireCustomPlugins,

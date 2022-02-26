@@ -1,4 +1,5 @@
 module.exports = [
+  require('./merge-xml'),
   require('./profile-plugins/add-application-visibilities-to-profiles'),
   require('./dependency-graph'),
   require('./strip-unversioned-stuff'),

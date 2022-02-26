@@ -1,5 +1,5 @@
 /* eslint-disable no-multi-spaces */
-const { getPackageMapping, buildPackageXmlFromFiles, addTypesToPackageFromMeta, buildMetaMap, getMetadataFromFileName, getChildXmlMap } = require('../utils/package-utils')
+const { getPackageMapping, buildPackageXmlFromFiles, addTypesToPackageFromMeta, buildMetaMap, getMetadataFromFileName } = require('../utils/package-utils')
 const { parseGlobPatterns, saveFiles } = require('../services/file-service')
 const { requireCustomPlugins } = require('../plugin-engine')
 const loggerService = require('../services/log-service')
