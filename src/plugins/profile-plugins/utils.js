@@ -98,7 +98,7 @@ const retrieveAllTabVisibilities = async (profile, ctx) => {
 }
 
 const getVersionedObjects = objectFileNames => {
-  return new Set(objectFileNames.map(x => x.fileName.replace(/^objects\/(.*)\.object$/, '$1')))
+  return new Set(objectFileNames.filter(x => !x.filteredByPlugin).map(x => x.fileName.replace(/^objects\/(.*)\.object$/, '$1')))
 }
 
 module.exports = {

@@ -1,11 +1,14 @@
 const { parseXml } = require('../utils/xml-utils')
 const _ = require('exstream.js')
+const multimatch = require('multimatch')
 const isStripUnversionedPluginEnabled = _.makeGetter('profiles.stripUnversionedStuff', false)
 const isStripUnversionedFieldsPluginEnabled = _.makeGetter('objectTranslations.stripNotVersionedFields', false)
 
 const getFieldMap = async (logger, objFileNames) => {
+  const filesToConsider = new Set(multimatch(objFileNames.map(x => x.fileName), 'objects/*.object'))
   logger.time('strip-unversioned-stuff/getFieldMap')
   return _(objFileNames)
+    .filter(x => filesToConsider.has(x.fileName))
     .asyncMap(async x => ({
       content: x.transformed || await parseXml(x.data),
       obj: x.fileName.replace(/^objects\/(.*)\.object$/, '$1')

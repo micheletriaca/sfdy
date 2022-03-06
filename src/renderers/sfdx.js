@@ -68,7 +68,7 @@ module.exports = {
     ctx.logger.timeEnd('sfdx')
   },
 
-  normalize: async (ctx, { getFiles, includeFiles, addToPackage, removeFromPackage }) => {
+  normalize: async (ctx, { getFiles, includeFiles, excludeFilesWhen, addToPackage, removeFromPackage }) => {
     const fileList = await _(getFiles(`${objectsSplit.folderName}/*/**/*`, true, false, true, false))
       .flatten()
       .map(x => ({ ...x, objName: x.fileName.match(objRegex)[1] }))
@@ -85,6 +85,7 @@ module.exports = {
         fileName: `${objectsSplit.folderName}/${obj}${objectsSplit.suffix}`,
         data: Buffer.from(buildXml(await buildObj(obj, listByObj, addToPackage)), 'utf8')
       }])
+      excludeFilesWhen(`${objectsSplit.folderName}/*/**/*`)
     }
   }
 }

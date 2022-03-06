@@ -1,7 +1,7 @@
 const afterRetrieve = async (namespaces, xmlTransformer) => {
   const fn = apiName => x => !namespaces.some(mp => x[apiName][0].startsWith(mp))
 
-  await xmlTransformer('objects/**/*', async (filename, fJson) => {
+  await xmlTransformer('objects/*.object', async (filename, fJson) => {
     fJson.fields = (fJson.fields || []).filter(fn('fullName'))
     fJson.webLinks = (fJson.webLinks || []).filter(fn('fullName'))
     ;(fJson.recordTypes || [])
@@ -9,7 +9,7 @@ const afterRetrieve = async (namespaces, xmlTransformer) => {
       .forEach(v => (v.picklistValues = v.picklistValues.filter(fn('picklist'))))
   })
 
-  await xmlTransformer(['permissionsets/**/*', 'profiles/**/*'], async (filename, fJson) => {
+  await xmlTransformer(['permissionsets/*.permissionset', 'profiles/*.profile'], async (filename, fJson) => {
     fJson.fieldPermissions = (fJson.fieldPermissions || []).filter(fn('field'))
   })
 }

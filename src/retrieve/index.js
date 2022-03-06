@@ -84,8 +84,8 @@ const applyBeforeRetrievePlugins = (plugins = [], config) => time('beforeRetriev
   return ctx
 }))
 
-const applyAfterRetrievePlugins = (plugins = [], config) => time('applyAfterRetrievePlugins', p().asyncMap(async ctx => {
-  await pluginEngine.executeAfterRetrievePlugins([...stdPlugins, ...plugins], ctx, config)
+const applyAfterRetrievePlugins = (plugins = [], renderers = [], config) => time('applyAfterRetrievePlugins', p().asyncMap(async ctx => {
+  await pluginEngine.executeAfterRetrievePlugins([...stdPlugins, ...plugins], [...stdRenderers, ...renderers], ctx, config)
   return ctx
 }))
 
@@ -189,7 +189,7 @@ module.exports = async function retrieve (opts) {
       .through(unzipper())
 
       // Applying afterRetrieve plugins
-      .through(applyAfterRetrievePlugins(config.plugins, config))
+      .through(applyAfterRetrievePlugins(config.plugins, config.renderers, config))
       .through(applyRenderers(config.renderers, config))
 
       // Saving data to disk

@@ -9,6 +9,7 @@ const { readFiles } = require('../services/file-service')
 const { addTypesToPackageFromMeta, removeTypeFromPackage } = require('../utils/package-utils')
 const del = require('del')
 const nativeRequire = require('../utils/native-require')
+const cloneDeep = require('lodash').cloneDeep
 
 const genExcludeFilesWhen = ctx => patterns => {
   const fileList = Object.keys(ctx.inMemoryFilesMap).concat(ctx.finalFileList)
@@ -60,8 +61,19 @@ const genXmlParser = ctx => async (patterns, callback) => {
   }
 }
 
-const genGetFiles = (ctx, count = 0) => async (patterns, readBuffers = true, fromFilesystem = true, fromMemory = true, normalizeFileSystemData = true) => {
-  // TODO -> SE I FILE ARRIVANO DA FILESYSTEM, VA FATTO UNRENDER IN MODO DA NORMALIZZARLI
+const normalizeBuffers = async (ctx, buffers, renderers, config) => {
+  const fakeCtx = {
+    inMemoryFilesMap: _(buffers).keyBy('fileName').value(),
+    finalFileList: ctx.finalFileList,
+    packageJson: cloneDeep(ctx.packageJson),
+    scheduledRemoveFromPackage: [],
+    scheduledAddToPackage: []
+  }
+  await module.exports.executeRenderersNormalizations(renderers, fakeCtx, config)
+  return Object.values(fakeCtx.inMemoryFilesMap)
+}
+
+const genGetFiles = (ctx, config = {}, renderers = [], count = 0) => async (patterns, readBuffers = true, fromFilesystem = true, fromMemory = true, normalizeFileSystemData = true) => {
   // TODO -> ANDREBBERO GESTITI REMAPPER AL CONTRARIO SE LEGGO DA FILESYSTEM (ES, voglio prender objects/* ma su filesystem gli oggetti sono esplosi in mille files)
   const timeSpan = '--> getFiles' + (count++)
   logger.time(timeSpan)
@@ -75,8 +87,8 @@ const genGetFiles = (ctx, count = 0) => async (patterns, readBuffers = true, fro
     } else if (readBuffers) {
       const notInMemory = l.difference(fileList, fileListInMemory)
       const inMemory = fromMemory ? wholeFileList.filter(f => ctx.inMemoryFilesMap[f]) : []
-      const buffers = readFiles(notInMemory).map(f => { f.addedInASecondTime = true; return f })
-      // if(normalizeFileSystemData) await normalizeBuffers(buffers)
+      let buffers = readFiles(notInMemory).map(f => { f.addedInASecondTime = true; return f })
+      if (normalizeFileSystemData) buffers = await normalizeBuffers(ctx, buffers, renderers, config)
       for (const f of inMemory) buffers.push(ctx.inMemoryFilesMap[f])
       return buffers
     }
@@ -139,14 +151,14 @@ const requireCustomPlugins = plugins => {
 
 const checkEnabled = config => p => p.isEnabled == null || p.isEnabled(config)
 
-const executePlugins = async (plugins = [], methodName, ctx, config = {}) => {
+const executePlugins = async (plugins = [], methodName, ctx, config = {}, renderers = []) => {
   const pL = requireCustomPlugins(plugins)
   const pCtx = { env: process.env.environment, log: logger.log, logger, config, sfdc: ctx.sfdc, _raw: ctx }
   const excludeFilesWhen = genExcludeFilesWhen(ctx)
   const xmlTransformer = genXmlTransformer(ctx)
   const xmlParser = genXmlParser(ctx)
   const includeFiles = genIncludeFiles(ctx)
-  const getFiles = genGetFiles(ctx)
+  const getFiles = genGetFiles(ctx, config, renderers)
   const remap = genRemap(ctx, getFiles, includeFiles)
   const addToPackage = genAddToPackage(ctx)
   const removeFromPackage = genRemoveFromPackage(ctx)
@@ -182,8 +194,8 @@ module.exports = {
     const setMetaCompanions = genSetMetaCompanions(ctx)
     for (const p of pL.filter(checkEnabled(config)).map(x => x.beforeRetrieve).filter(x => x)) await p(pCtx, { setMetaCompanions })
   },
-  executeAfterRetrievePlugins: async (plugins = [], ctx, config = {}) => {
-    await executePlugins(plugins, 'afterRetrieve', ctx, config)
+  executeAfterRetrievePlugins: async (plugins = [], renderers = [], ctx, config = {}) => {
+    await executePlugins(plugins, 'afterRetrieve', ctx, config, renderers)
     rebuildBinaries(ctx)
   },
   executeBeforeDeployPlugins: async (plugins = [], ctx, config = {}) => {
