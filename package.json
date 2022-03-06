@@ -24,7 +24,7 @@
     "chalk": "^3.0.0",
     "commander": "^2.20.3",
     "del": "^5.1.0",
-    "exstream.js": "^0.20.0-next.1",
+    "exstream.js": "^0.21.0-next.6",
     "fs-extra": "^8.1.0",
     "globby": "^11.0.0",
     "junit-report-builder": "^1.3.3",
