@@ -25,9 +25,9 @@ module.exports = async ({ loginOpts, basePath, logger: _logger, files, meta, con
     serverUrl: loginOpts.serverUrl,
     apiVersion: (await getPackageXml()).version[0]
   })
-  logger.log(chalk.green(`Logged in!`))
+  logger.log(chalk.green('Logged in!'))
 
-  logger.log(chalk.yellow(`(2/3) Retrieving metadata...`))
+  logger.log(chalk.yellow('(2/3) Retrieving metadata...'))
   const getFiles = (files = []) => {
     let hasPar = false
     const res = []
@@ -47,7 +47,7 @@ module.exports = async ({ loginOpts, basePath, logger: _logger, files, meta, con
   let specificFiles = getFiles(files)
   const specificMeta = (meta && meta.split(',').map(x => x.trim())) || []
   if (specificFiles.length) {
-    logger.log(chalk.yellow(`--files specified. Retrieving only specific files...`))
+    logger.log(chalk.yellow('--files specified. Retrieving only specific files...'))
     specificFiles = pluginEngine.applyRemappers(specificFiles)
     const packageMapping = await getPackageMapping(sfdcConnector)
     specificFiles = await getListOfSrcFiles(packageMapping, specificFiles, true)
@@ -58,7 +58,7 @@ module.exports = async ({ loginOpts, basePath, logger: _logger, files, meta, con
     logger.log(chalk.yellow('The following files will be retrieved:'))
     logger.log(chalk.grey(specificFiles.join('\n')))
   } else if (specificMeta.length) {
-    logger.log(chalk.yellow(`--meta specified. Retrieving only specific metadata types...`))
+    logger.log(chalk.yellow('--meta specified. Retrieving only specific metadata types...'))
     logger.log(chalk.yellow('The following metadata will be retrieved:'))
     logger.log(chalk.grey(specificMeta.join('\n')))
   }
@@ -67,7 +67,7 @@ module.exports = async ({ loginOpts, basePath, logger: _logger, files, meta, con
     specificMeta,
     sfdcConnector
   })
-  if (specificFiles.length) logger.log(chalk.yellow(`delta package generated`))
+  if (specificFiles.length) logger.log(chalk.yellow('delta package generated'))
 
   await pluginEngine.registerPlugins(
     [
@@ -84,10 +84,10 @@ module.exports = async ({ loginOpts, basePath, logger: _logger, files, meta, con
   const packageJsonWithDependencies = await pluginEngine.buildFinalPackageXml(pkgJson, await getPackageXml())
   const retrieveJob = await sfdcConnector.retrieveMetadata(packageJsonWithDependencies)
   const retrieveResult = await sfdcConnector.pollRetrieveMetadataStatus(retrieveJob.id)
-  logger.log(chalk.green(`Retrieve completed!`))
-  logger.log(chalk.yellow(`(3/3) Unzipping & applying patches...`))
+  logger.log(chalk.green('Retrieve completed!'))
+  logger.log(chalk.yellow('(3/3) Unzipping & applying patches...'))
   const zipBuffer = Buffer.from(retrieveResult.zipFile, 'base64')
   await unzipAndPatch(zipBuffer, sfdcConnector, pkgJson)
-  logger.log(chalk.green(`Unzipped!`))
+  logger.log(chalk.green('Unzipped!'))
   console.timeEnd('running time')
 }
