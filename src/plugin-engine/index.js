@@ -155,7 +155,7 @@ module.exports = {
         logger.time('building')
         Object.values(l.keyBy(tL, 'pattern')).forEach(t => {
           if (t.type === 'xmlTransformer') {
-            fileMap[t.pattern].data = buildXml(fileMap[t.pattern].transformedJson) + '\n'
+            fileMap[t.pattern].data = Buffer.from(buildXml(fileMap[t.pattern].transformedJson) + '\n', 'utf8')
           }
         })
         logger.timeEnd('building')
