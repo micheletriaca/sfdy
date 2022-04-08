@@ -94,9 +94,11 @@ $ export SFDY_REFRESH_TOKEN=refreshtoken
 $ export SFDY_INSTANCE_URL=instanceurl
 ```
 
-By default, the SFDY connected app will be used. If you want to use yours, you can pass a user defined `client_id` and `client_secret` in all the available commands:
+By default, the SFDY connected app will be used. If you want to use yours, you can pass a user defined `client_id` and `client_secret` in all the available commands.
 ```
-$ sfdy retrieve --refresh-token REFRESH_TOKEN --instance-url INSTANCE_URL --client-id=CLIENT_ID --client-secret=CLIENT_SECRET -s ...
+$ sfdy auth --client-id CLIENT_ID --client-secret CLIENT_SECRET -s ...
+
+$ sfdy retrieve --refresh-token REFRESH_TOKEN --instance-url INSTANCE_URL --client-id CLIENT_ID --client-secret CLIENT_SECRET -s ...
 ```
 Or you can use the env vars:
 
@@ -107,6 +109,8 @@ $ export SFDY_CLIENT_ID=clientid
 $ export SFDY_CLIENT_SECRET=clientsecret
 $ sfdy retrieve -s ...
 ```
+
+> **Warning:** You must add `http://localhost:3000/callback` as redirect_uri in your connected app setup
 
 ### Retrieve full metadata
 
