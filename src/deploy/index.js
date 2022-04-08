@@ -14,6 +14,7 @@ const logger = require('../services/log-service')
 const { readFiles } = require('../services/file-service')
 const path = require('path')
 const nativeRequire = require('../utils/native-require')
+const { DEFAULT_CLIENT_ID } = require('../utils/constants')
 
 module.exports = async ({
   loginOpts,
@@ -38,16 +39,22 @@ module.exports = async ({
   if (_logger) logger.setLogger(_logger)
   console.time('running time')
   printLogo()
-  logger.log(chalk.yellow(`(1/4) Logging in salesforce as ${loginOpts.username}...`))
+  logger.log(chalk.yellow(`(1/4) Logging in salesforce...`))
   const apiVersion = (await getPackageXml()).version[0]
   const sfdcConnector = await Sfdc.newInstance({
     username: loginOpts.username,
     password: loginOpts.password,
+    oauth2: loginOpts.refreshToken && loginOpts.instanceUrl ? {
+      refreshToken: loginOpts.refreshToken,
+      instanceUrl: loginOpts.instanceUrl,
+      clientId: loginOpts.clientId || DEFAULT_CLIENT_ID,
+      clientSecret: loginOpts.clientSecret || undefined
+    } : undefined,
     isSandbox: !!loginOpts.sandbox,
     serverUrl: loginOpts.serverUrl,
     apiVersion
   })
-  logger.log(chalk.green(`Logged in!`))
+  logger.log(chalk.green(`Logged in as ${sfdcConnector.username}!`))
   logger.log(chalk.yellow(`(2/4) Building package.xml...`))
 
   const specificFilesMode = diffCfg !== undefined || files !== undefined

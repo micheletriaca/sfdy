@@ -51,8 +51,35 @@ const wsdlMap = {
 }
 
 class SfdcConn {
-  async login ({ username, password, isSandbox = true, serverUrl, apiVersion, sessionId, instanceHostname }) {
+  async login ({ username, password, isSandbox = true, serverUrl, oauth2, apiVersion, sessionId, instanceHostname }) {
     this.apiVersion = apiVersion
+    this.username = username
+    if (oauth2) await this.oauth2Refresh(oauth2)
+    else await this.soapLogin(username, password, isSandbox, serverUrl, sessionId, instanceHostname)
+  }
+
+  async oauth2Refresh ({ instanceUrl, refreshToken, clientId, clientSecret }) {
+    const get = (url, at) => fetch(url, { headers: { 'authorization': `Bearer ${at}` } }).then(res => res.json())
+    const post = (url, body, ct = 'application/x-www-form-urlencoded') => fetch(url, {
+      method: 'POST', body, headers: { 'content-type': ct }
+    }).then(res => res.json())
+
+    const body = new URLSearchParams()
+    body.append('grant_type', 'refresh_token')
+    body.append('refresh_token', refreshToken)
+    body.append('client_id', clientId)
+    if (clientSecret) body.append('client_secret', clientSecret)
+
+    const resOauth2 = await post(`${instanceUrl}/services/oauth2/token`, body.toString())
+    if (!this.username) {
+      const userInfo = await get(resOauth2.id, resOauth2.access_token)
+      this.username = userInfo.username
+    }
+    this.instanceUrl = instanceUrl
+    this.sessionId = resOauth2.access_token
+  }
+
+  async soapLogin ({ username, password, isSandbox = true, serverUrl, sessionId, instanceHostname }) {
     if (!sessionId || !instanceHostname) {
       this.instanceUrl = 'https://' + ((serverUrl && serverUrl.replace('https://', '')) || `${isSandbox ? 'test' : 'login'}.salesforce.com`)
       const { serverUrl: instanceUrl, sessionId } = await this.metadata('login', { username, password }, { wsdl: 'partner' })
@@ -195,9 +222,9 @@ class SfdcConn {
 }
 
 module.exports = {
-  newInstance: async ({ username, password, isSandbox = true, serverUrl, apiVersion, sessionId, instanceHostname }) => {
+  newInstance: async ({ username, password, isSandbox = true, serverUrl, oauth2, apiVersion, sessionId, instanceHostname }) => {
     const res = new SfdcConn()
-    await res.login({ username, password, isSandbox, serverUrl, apiVersion, sessionId, instanceHostname })
+    await res.login({ username, password, isSandbox, oauth2, serverUrl, apiVersion, sessionId, instanceHostname })
     res.query = res.query.bind(res)
     return res
   }

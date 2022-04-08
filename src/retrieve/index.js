@@ -11,21 +11,28 @@ const standardRenderers = require('../renderers').map(x => x.transform)
 const pathService = require('../services/path-service')
 const nativeRequire = require('../utils/native-require')
 const path = require('path')
+const { DEFAULT_CLIENT_ID } = require('../utils/constants')
 
 module.exports = async ({ loginOpts, basePath, logger: _logger, files, meta, config }) => {
   if (basePath) pathService.setBasePath(basePath)
   if (_logger) logger.setLogger(_logger)
   console.time('running time')
   printLogo()
-  logger.log(chalk.yellow(`(1/3) Logging in salesforce as ${loginOpts.username}...`))
+  logger.log(chalk.yellow(`(1/3) Logging in salesforce...`))
   const sfdcConnector = await Sfdc.newInstance({
     username: loginOpts.username,
     password: loginOpts.password,
+    oauth2: loginOpts.refreshToken && loginOpts.instanceUrl ? {
+      refreshToken: loginOpts.refreshToken,
+      instanceUrl: loginOpts.instanceUrl,
+      clientId: loginOpts.clientId || DEFAULT_CLIENT_ID,
+      clientSecret: loginOpts.clientSecret || undefined
+    } : undefined,
     isSandbox: !!loginOpts.sandbox,
     serverUrl: loginOpts.serverUrl,
     apiVersion: (await getPackageXml()).version[0]
   })
-  logger.log(chalk.green('Logged in!'))
+  logger.log(chalk.green(`Logged in as ${sfdcConnector.username}!`))
 
   logger.log(chalk.yellow('(2/3) Retrieving metadata...'))
   const getFiles = (files = []) => {
