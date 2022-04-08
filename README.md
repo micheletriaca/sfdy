@@ -46,6 +46,7 @@ $ sfdy init
 this command creates a `.sfdy.json` file whithin the root folder of your current workspace with the configuration of the 'standard' patches (more on this [later](#apply-standard-patches-and-renderers-to-metadata))
 
 ## Features
+1. [Authenticate to Salesforce](#authenticate-to-salesforce)
 1. [Retrieve full metadata (based on package.xml)](#retrieve-full-metadata)
 1. [Retrieve partial metadata (glob pattern or metadata-based)](#retrieve-partial-metadata)
 1. [Deploy full metadata (based on package.xml)](#deploy-full-metadata)
@@ -55,6 +56,57 @@ this command creates a `.sfdy.json` file whithin the root folder of your current
 1. [Build your own plugins (pre-deploy and after-retrieve)](#build-your-own-plugins)
 1. [Build your own renderers](#build-your-own-renderers)
 1. [Use `sfdy` as a library](#use-sfdy-as-a-library)
+
+### Authenticate to Salesforce
+
+You can pass username and password in all the available commands. For example:
+```
+sfdy retrieve -u USERNAME -p PASSWORD ...
+```
+
+Otherwise, just type:
+
+```
+$ sfdy auth -s
+```
+This command will start an oauth2 web server flow an will output a refresh token and an instance url.
+
+The `-s` flag should be used when connecting to a sandbox.
+
+The `refresh token` can be used in all the available commands as an authentication method instead of username+password. Example:
+```
+$ sfdy retrieve --refresh-token REFRESH_TOKEN --instance-url INSTANCE_URL -s ...
+```
+
+If you want to avoid passing `refresh token` and `instance url` all the times, you can use the auth command in this way:
+```
+$ eval $(sfdy auth -s -e)
+```
+This will set the returned `refresh token` and `instance url` as environment variables. The subsequent commands will read them from the enviroment. Example:
+```
+$ sfdy retrieve -s ...
+```
+
+Otherwise, you can just export them manually:
+```
+$ sfdy auth -s
+$ export SFDY_REFRESH_TOKEN=refreshtoken
+$ export SFDY_INSTANCE_URL=instanceurl
+```
+
+By default, the SFDY connected app will be used. If you want to use yours, you can pass a user defined `client_id` and `client_secret` in all the available commands:
+```
+$ sfdy retrieve --refresh-token REFRESH_TOKEN --instance-url INSTANCE_URL --client-id=CLIENT_ID --client-secret=CLIENT_SECRET -s ...
+```
+Or you can use the env vars:
+
+```
+$ export SFDY_REFRESH_TOKEN=refreshtoken
+$ export SFDY_INSTANCE_URL=instanceurl
+$ export SFDY_CLIENT_ID=clientid
+$ export SFDY_CLIENT_SECRET=clientsecret
+$ sfdy retrieve -s ...
+```
 
 ### Retrieve full metadata
 
@@ -484,6 +536,9 @@ deploy({
 
 
 ## Changelog
+
+* 1.6.0
+  * Oauth2 web server auth flow: get a refresh token using an oauth2 flow. If you have enabled MFA you should use this auth method
 
 * 1.5.3
   * Minor bugfixing
