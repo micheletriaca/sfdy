@@ -55,7 +55,7 @@ class SfdcConn {
     this.apiVersion = apiVersion
     this.username = username
     if (oauth2) await this.oauth2Refresh(oauth2)
-    else await this.soapLogin(username, password, isSandbox, serverUrl, sessionId, instanceHostname)
+    else await this.soapLogin({ username, password, isSandbox, serverUrl, sessionId, instanceHostname })
   }
 
   async oauth2Refresh ({ instanceUrl, refreshToken, clientId, clientSecret }) {
