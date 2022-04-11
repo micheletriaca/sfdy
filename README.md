@@ -541,6 +541,9 @@ deploy({
 
 ## Changelog
 
+* 1.6.1
+  * Minor bugfixing
+
 * 1.6.0
   * Oauth2 web server auth flow: get a refresh token using an oauth2 flow. If you have enabled MFA you should use this auth method
 
