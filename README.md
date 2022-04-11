@@ -541,6 +541,9 @@ deploy({
 
 ## Changelog
 
+* 1.6.2
+  * Fixed broken soapLogin
+
 * 1.6.1
   * Minor bugfixing
 
