@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-const fetch = require('node-fetch')
+const fetch = require('node-fetch').default
 const http = require('http')
 const open = require('open')
 
