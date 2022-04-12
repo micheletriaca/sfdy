@@ -97,7 +97,7 @@ module.exports = async ({
     ...(renderers.map(x => nativeRequire(path.resolve(pathService.getBasePath(), x)).untransform)),
     ...(destructive ? [] : preDeployPlugins)
   ]
-  await pluginEngine.registerPlugins(plugins, sfdcConnector, loginOpts.username, await getPackageXml({ specificFiles, sfdcConnector }), config)
+  await pluginEngine.registerPlugins(plugins, sfdcConnector, sfdcConnector.username, await getPackageXml({ specificFiles, sfdcConnector }), config)
 
   specificFiles = pluginEngine.applyRemappers(specificFiles)
 

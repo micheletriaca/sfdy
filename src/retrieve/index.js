@@ -84,7 +84,7 @@ module.exports = async ({ loginOpts, basePath, logger: _logger, files, meta, con
       ...((config.renderers || []).map(x => nativeRequire(path.resolve(pathService.getBasePath(), x)).transform))
     ],
     sfdcConnector,
-    loginOpts.username,
+    sfdcConnector.username,
     pkgJson,
     config)
 

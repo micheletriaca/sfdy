@@ -48,7 +48,7 @@ module.exports = {
       ...((config.renderers || []).map(x => nativeRequire(path.resolve(pathService.getBasePath(), x)).transform))
     ]
 
-    await pluginEngine.registerPlugins(plugins, sfdcConnector, loginOpts.username, await getPackageXml(), config)
+    await pluginEngine.registerPlugins(plugins, sfdcConnector, sfdcConnector.username, await getPackageXml(), config)
     await pluginEngine.applyTransformations(files)
     await pluginEngine.applyCleans()
     await Promise.all(files
@@ -88,7 +88,7 @@ module.exports = {
       ...(stdRenderers.map(x => x.untransform)),
       ...(renderers.map(x => nativeRequire(path.resolve(pathService.getBasePath(), x)).untransform))
     ]
-    await pluginEngine.registerPlugins(plugins, sfdcConnector, loginOpts.username, await getPackageXml({ specificFiles, sfdcConnector }), config)
+    await pluginEngine.registerPlugins(plugins, sfdcConnector, sfdcConnector.username, await getPackageXml({ specificFiles, sfdcConnector }), config)
 
     specificFiles = pluginEngine.applyRemappers(specificFiles)
 
