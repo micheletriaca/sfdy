@@ -541,6 +541,9 @@ deploy({
 
 ## Changelog
 
+* 1.6.3
+  * Fixed plugins context variable when OAuth2 flow is used
+
 * 1.6.2
   * Fixed broken soapLogin
 
