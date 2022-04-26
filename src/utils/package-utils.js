@@ -56,7 +56,7 @@ module.exports = {
 
     globPatterns = files.filter(f => glob.hasMagic(f))
     rawFiles = files.filter(f => !glob.hasMagic(f))
-    if (!globPatterns.length) return rawFiles.filter(x => !ignoreDiffs.has(x))
+    if (!globPatterns.length || (pattern.length === 1 && pattern[0] === ['**/*'])) return rawFiles.filter(x => !ignoreDiffs.has(x))
     else {
       const filesFromGlobPatterns = await glob(files, { cwd: pathService.getSrcFolder(true) })
       return filesFromGlobPatterns.filter(x => !ignoreDiffs.has(x))
