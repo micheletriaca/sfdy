@@ -39,9 +39,9 @@ module.exports = async (baseUrl, clientId, clientSecret, callbackPort) => new Pr
   const query = authorizeUrl.searchParams
   query.append('client_id', clientId)
   query.append('response_type', 'code')
-  query.append('prompt', 'login consent')
+  query.append('prompt', 'login')
   query.append('redirect_uri', `http://localhost:${callbackPort}/callback`)
-  query.append('scope', 'api refresh_token')
+  query.append('scope', 'api web refresh_token')
 
   open(authorizeUrl.toString())
 })
