@@ -541,6 +541,11 @@ deploy({
 
 ## Changelog
 
+* 1.6.4
+  * Faster getListOfSrcFiles when using `**/*`
+  * Added web scope to Oauth2 auth
+  * Faster `PermissionSet` retrieval
+
 * 1.6.3
   * Fixed plugins context variable when OAuth2 flow is used
 
