@@ -541,6 +541,9 @@ deploy({
 
 ## Changelog
 
+* 1.6.5
+  * Fix instanceUrl redirection to new `*.sandbox.my.salesforce.com` domains when using oauth2
+
 * 1.6.4
   * Faster getListOfSrcFiles when using `**/*`
   * Added web scope to Oauth2 auth
