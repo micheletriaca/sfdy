@@ -75,7 +75,7 @@ class SfdcConn {
       const userInfo = await get(resOauth2.id, resOauth2.access_token)
       this.username = userInfo.username
     }
-    this.instanceUrl = instanceUrl
+    this.instanceUrl = resOauth2.instance_url
     this.sessionId = resOauth2.access_token
   }
 
