@@ -14,5 +14,7 @@
   "parserOptions": {
     "ecmaVersion": 2022
   },
-  "rules": {}
+  "rules": {
+    "no-unused-vars": ["error", { "args": "after-used" }]
+  }
 }
