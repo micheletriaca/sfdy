@@ -44,8 +44,8 @@ const config = configService.getConfig()
     isSandbox: !!program.sandbox,
     apiVersion: packageXml.version[0]
   })
-  logger.log(chalk.green(`Logged in!`))
-  logger.log(chalk.yellow(`(2/2) Applying patches...`))
+  logger.log(chalk.green('Logged in!'))
+  logger.log(chalk.yellow('(2/2) Applying patches...'))
 
   const basePath = getSrcFolder(true)
   const allFiles = readAllFilesInFolder(basePath)
@@ -62,6 +62,6 @@ const config = configService.getConfig()
     await wf(path.join(basePath, y.fileName), y.data)
   }))
 
-  logger.log(chalk.green(`Patches applied!`))
+  logger.log(chalk.green('Patches applied!'))
   console.timeEnd('running time')
 })()

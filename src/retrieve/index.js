@@ -18,16 +18,18 @@ module.exports = async ({ loginOpts, basePath, logger: _logger, files, meta, con
   if (_logger) logger.setLogger(_logger)
   console.time('running time')
   printLogo()
-  logger.log(chalk.yellow(`(1/3) Logging in salesforce...`))
+  logger.log(chalk.yellow('(1/3) Logging in salesforce...'))
   const sfdcConnector = await Sfdc.newInstance({
     username: loginOpts.username,
     password: loginOpts.password,
-    oauth2: loginOpts.refreshToken && loginOpts.instanceUrl ? {
-      refreshToken: loginOpts.refreshToken,
-      instanceUrl: loginOpts.instanceUrl,
-      clientId: loginOpts.clientId || DEFAULT_CLIENT_ID,
-      clientSecret: loginOpts.clientSecret || undefined
-    } : undefined,
+    oauth2: loginOpts.refreshToken && loginOpts.instanceUrl
+      ? {
+          refreshToken: loginOpts.refreshToken,
+          instanceUrl: loginOpts.instanceUrl,
+          clientId: loginOpts.clientId || DEFAULT_CLIENT_ID,
+          clientSecret: loginOpts.clientSecret || undefined
+        }
+      : undefined,
     isSandbox: !!loginOpts.sandbox,
     serverUrl: loginOpts.serverUrl,
     apiVersion: (await getPackageXml()).version[0]

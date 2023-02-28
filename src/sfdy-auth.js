@@ -27,7 +27,7 @@ const CLIENT_SECRET = program.clientSecret || process.env.SFDY_CLIENT_SECRET || 
     logger.log(`export SFDY_REFRESH_TOKEN=${oauth2.refresh_token}`)
   } else {
     printLogo()
-    logger.log(chalk.green(`Login completed`))
+    logger.log(chalk.green('Login completed'))
     logger.log(`Username: ${chalk.green(userInfo.username)}`)
     logger.log(`Instance url: ${chalk.green(oauth2.instance_url)}`)
     logger.log(`Refresh token: ${chalk.green(oauth2.refresh_token)}`)

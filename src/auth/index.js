@@ -4,7 +4,7 @@ const fetch = require('node-fetch').default
 const http = require('http')
 const open = require('open')
 
-const get = (url, at) => fetch(url, { headers: { 'authorization': `Bearer ${at}` } }).then(res => res.json())
+const get = (url, at) => fetch(url, { headers: { authorization: `Bearer ${at}` } }).then(res => res.json())
 const post = (url, body, ct = 'application/x-www-form-urlencoded') => fetch(url, {
   method: 'POST', body, headers: { 'content-type': ct }
 }).then(res => res.json())

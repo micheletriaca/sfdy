@@ -39,23 +39,25 @@ module.exports = async ({
   if (_logger) logger.setLogger(_logger)
   console.time('running time')
   printLogo()
-  logger.log(chalk.yellow(`(1/4) Logging in salesforce...`))
+  logger.log(chalk.yellow('(1/4) Logging in salesforce...'))
   const apiVersion = (await getPackageXml()).version[0]
   const sfdcConnector = await Sfdc.newInstance({
     username: loginOpts.username,
     password: loginOpts.password,
-    oauth2: loginOpts.refreshToken && loginOpts.instanceUrl ? {
-      refreshToken: loginOpts.refreshToken,
-      instanceUrl: loginOpts.instanceUrl,
-      clientId: loginOpts.clientId || DEFAULT_CLIENT_ID,
-      clientSecret: loginOpts.clientSecret || undefined
-    } : undefined,
+    oauth2: loginOpts.refreshToken && loginOpts.instanceUrl
+      ? {
+          refreshToken: loginOpts.refreshToken,
+          instanceUrl: loginOpts.instanceUrl,
+          clientId: loginOpts.clientId || DEFAULT_CLIENT_ID,
+          clientSecret: loginOpts.clientSecret || undefined
+        }
+      : undefined,
     isSandbox: !!loginOpts.sandbox,
     serverUrl: loginOpts.serverUrl,
     apiVersion
   })
   logger.log(chalk.green(`Logged in as ${sfdcConnector.username}!`))
-  logger.log(chalk.yellow(`(2/4) Building package.xml...`))
+  logger.log(chalk.yellow('(2/4) Building package.xml...'))
 
   const specificFilesMode = diffCfg !== undefined || files !== undefined
   const getFiles = (files = []) => {
@@ -90,7 +92,7 @@ module.exports = async ({
   }
 
   let specificFiles = [...new Set([...getDiffFiles(), ...getFiles(files)])]
-  if (specificFiles.length) logger.log(chalk.yellow(`--files specified. Deploying only specific files...`))
+  if (specificFiles.length) logger.log(chalk.yellow('--files specified. Deploying only specific files...'))
 
   const plugins = [
     ...(stdRenderers.map(x => x.untransform)),
@@ -105,8 +107,8 @@ module.exports = async ({
     throw Error('Full destructive changeset is too dangerous. You must specify --files, --diff or a value for the destructive option')
   }
 
-  logger.log(chalk.green(`Built package.xml!`))
-  logger.log(chalk.yellow(`(3/4) Creating zip & applying predeploy patches...`))
+  logger.log(chalk.green('Built package.xml!'))
+  logger.log(chalk.yellow('(3/4) Creating zip & applying predeploy patches...'))
 
   const packageMapping = await getPackageMapping(sfdcConnector)
   const filesToRead = await getListOfSrcFiles(packageMapping, specificFilesMode ? specificFiles : ['**/*'])
@@ -155,7 +157,7 @@ module.exports = async ({
 
   zip.end()
   logger.timeEnd('zip creation')
-  logger.log(chalk.green(`Zip created`))
+  logger.log(chalk.green('Zip created'))
   logger.log(chalk.yellow('(4/4) Uploading...'))
   const testOptions = {}
   if (specifiedTests) testOptions.runTests = specifiedTests.split(',').map(x => x.trim())
@@ -165,7 +167,7 @@ module.exports = async ({
     singlePackage: true,
     rollbackOnError: true
   }))
-  logger.log(chalk.yellow(`Data uploaded. Polling...`))
+  logger.log(chalk.yellow('Data uploaded. Polling...'))
   const typeOfDeploy = checkOnly ? 'Validate' : 'Deploy'
   const deployResult = await sfdcConnector.pollDeployMetadataStatus(deployJob.id, testReport, r => {
     const numProcessed = parseInt(r.numberComponentsDeployed, 10) + parseInt(r.numberComponentErrors, 10)

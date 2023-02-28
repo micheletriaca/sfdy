@@ -42,11 +42,11 @@ const wrapStream = (prefix, suffix) => source => {
 const wsdlMap = {
   partner: {
     urlPath: '/services/Soap/u/',
-    namespaces: { 'xmlns': 'urn:partner.soap.sforce.com', 'xmlns:sf': 'urn:sobject.partner.soap.sforce.com' }
+    namespaces: { xmlns: 'urn:partner.soap.sforce.com', 'xmlns:sf': 'urn:sobject.partner.soap.sforce.com' }
   },
   metadata: {
     urlPath: '/services/Soap/m/',
-    namespaces: { 'xmlns': 'http://soap.sforce.com/2006/04/metadata' }
+    namespaces: { xmlns: 'http://soap.sforce.com/2006/04/metadata' }
   }
 }
 
@@ -59,7 +59,7 @@ class SfdcConn {
   }
 
   async oauth2Refresh ({ instanceUrl, refreshToken, clientId, clientSecret }) {
-    const get = (url, at) => fetch(url, { headers: { 'authorization': `Bearer ${at}` } }).then(res => res.json())
+    const get = (url, at) => fetch(url, { headers: { authorization: `Bearer ${at}` } }).then(res => res.json())
     const post = (url, body, ct = 'application/x-www-form-urlencoded') => fetch(url, {
       method: 'POST', body, headers: { 'content-type': ct }
     }).then(res => res.json())
@@ -93,14 +93,14 @@ class SfdcConn {
 
   async query (q, useTooling = false) {
     const url = `${this.instanceUrl}/services/data/v${this.apiVersion}/${useTooling ? 'tooling/' : ''}query/?q=${encodeURIComponent(q.replace(/\n|\t/g, ''))}`
-    return fetch(url, { headers: { 'Authorization': `Bearer ${this.sessionId}` } })
+    return fetch(url, { headers: { Authorization: `Bearer ${this.sessionId}` } })
       .then(res => res.json())
       .then(json => json.records)
   }
 
   async rest (path) {
     const url = this.instanceUrl + `/services/data/v${this.apiVersion}${path}`
-    return fetch(url, { headers: { 'Authorization': `Bearer ${this.sessionId}` } }).then(res => res.json())
+    return fetch(url, { headers: { Authorization: `Bearer ${this.sessionId}` } }).then(res => res.json())
   }
 
   buildMetadataBody (method, args, wsdl = 'metadata') {
@@ -124,7 +124,7 @@ class SfdcConn {
       body: rawBody ? args : this.buildMetadataBody(method, args, wsdl),
       headers: {
         'Content-Type': 'text/xml',
-        'SOAPAction': '""'
+        SOAPAction: '""'
       }
     })
     if (rawResponse) {
@@ -150,7 +150,7 @@ class SfdcConn {
   }
 
   async retrieveMetadata (pkgJson) {
-    delete pkgJson['$']
+    delete pkgJson.$
     return this.metadata('retrieve', {
       RetrieveRequest: {
         apiVersion: this.apiVersion,
@@ -212,10 +212,12 @@ class SfdcConn {
       })
       if (progressCallback) progressCallback(res)
       if (res.done === 'true') {
-        return !includeDetails && res.status === 'Succeeded' ? res : this.metadata('checkDeployStatus', {
-          asyncProcessId: deployMetadataId,
-          includeDetails: true
-        })
+        return !includeDetails && res.status === 'Succeeded'
+          ? res
+          : this.metadata('checkDeployStatus', {
+            asyncProcessId: deployMetadataId,
+            includeDetails: true
+          })
       }
     }
   }

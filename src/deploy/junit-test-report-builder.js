@@ -19,6 +19,7 @@ const buildJunitTestReport = (runTestResult, reportPath = 'test-reports/test-rep
           .failure(x.message, x.type)
           .stacktrace(x.stackTrace)
       }
+      return null
     })
     .collect()
     .toPromise(Promise)

@@ -55,8 +55,8 @@ module.exports = async (context, helpers) => {
         .keyBy('tab')
         .value(),
       ..._(fJson.tabVisibilities || [])
-        .filter(x => versionedTabs.has(x['tab'][0]))
-        .keyBy(x => x['tab'][0])
+        .filter(x => versionedTabs.has(x.tab[0]))
+        .keyBy(x => x.tab[0])
         .value()
     }
 
