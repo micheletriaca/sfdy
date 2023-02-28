@@ -103,6 +103,11 @@ class SfdcConn {
     return fetch(url, { headers: { Authorization: `Bearer ${this.sessionId}` } }).then(res => res.json())
   }
 
+  async publishCommunity (communityId) {
+    const url = this.instanceUrl + `/services/data/v${this.apiVersion}/connect/communities/${communityId}/publish`
+    return fetch(url, { headers: { Authorization: `Bearer ${this.sessionId}` }, method: 'POST' }).then(res => res.json())
+  }
+
   buildMetadataBody (method, args, wsdl = 'metadata') {
     return buildXml({
       'soapenv:Envelope': {
