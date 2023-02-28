@@ -20,6 +20,7 @@ program
   .option('--destructive [file]', 'Deploy a destructive changeset - optionally specify the path for the package.xml of the destructive changeset')
   .option('--validate', 'Simulate a deployment')
   .option('--test-level <testLevel>', 'Override default testLevel')
+  .option('--quick-deploy <quickDeployId>', 'Quick deploy')
   .option('--specified-tests <specifiedTests>', 'Comma separated list of tests to execute if testlevel=RunSpecifiedTests')
   .option('--folder <folder>', 'Set alternative src folder')
   .parse(process.argv)
@@ -50,6 +51,7 @@ deploy({
     clientId: program.clientId,
     clientSecret: program.clientSecret
   },
+  quickDeploy: program.quickDeploy,
   destructive: !!program.destructive,
   destructivePackage: typeof program.destructive === 'string' && program.destructive,
   checkOnly: !!program.validate,

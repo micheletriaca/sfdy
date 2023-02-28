@@ -27,6 +27,7 @@ module.exports = async ({
   files,
   preDeployPlugins = [],
   renderers = [],
+  quickDeploy = false,
   specifiedTests,
   testLevel,
   testReport,
@@ -57,6 +58,79 @@ module.exports = async ({
     apiVersion
   })
   logger.log(chalk.green(`Logged in as ${sfdcConnector.username}!`))
+
+  let deployJob
+  if (quickDeploy) {
+    deployJob = await performQuickDeploy({
+      sfdcConnector,
+      deploymentId: quickDeploy
+    })
+  } else {
+    deployJob = await performFullDeploy({
+      diffCfg,
+      files,
+      renderers,
+      destructive,
+      sfdcConnector,
+      preDeployPlugins,
+      destructivePackage,
+      config,
+      excludeFiles,
+      apiVersion,
+      specifiedTests,
+      checkOnly,
+      testLevel
+    })
+  }
+
+  const typeOfDeploy = checkOnly ? 'Validate' : 'Deploy'
+  const deployResult = await sfdcConnector.pollDeployMetadataStatus(deployJob.id, testReport, r => {
+    const numProcessed = parseInt(r.numberComponentsDeployed, 10) + parseInt(r.numberComponentErrors, 10)
+    if (numProcessed + '' === r.numberComponentsTotal && r.runTestsEnabled === 'true' && r.numberTestsTotal !== '0') {
+      const errors = r.numberTestErrors > 0 ? chalk.red(r.numberTestErrors) : chalk.green(r.numberTestErrors)
+      const numProcessed = parseInt(r.numberTestsCompleted, 10) + parseInt(r.numberTestErrors, 10)
+      logger.log(chalk.grey(`Run tests: (${numProcessed}/${r.numberTestsTotal}) - Errors: ${errors}`))
+    } else if (r.numberComponentsTotal !== '0') {
+      const errors = r.numberComponentErrors > 0 ? chalk.red(r.numberComponentErrors) : chalk.green(r.numberComponentErrors)
+      logger.log(chalk.grey(`${typeOfDeploy}: (${numProcessed}/${r.numberComponentsTotal}) - Errors: ${errors}`))
+    } else {
+      logger.log(chalk.grey(`${typeOfDeploy}: starting...`))
+    }
+  })
+
+  const d = deployResult.details
+  if (testReport && d.runTestResult) {
+    await buildJunitTestReport(d.runTestResult)
+  }
+
+  printDeployResult(deployResult)
+  console.timeEnd('running time')
+
+  return deployResult
+}
+
+const performQuickDeploy = async ({
+  sfdcConnector,
+  deploymentId
+}) => {
+  return await sfdcConnector.quickDeployMetadata(deploymentId)
+}
+
+const performFullDeploy = async ({
+  diffCfg,
+  files,
+  renderers,
+  destructive,
+  sfdcConnector,
+  preDeployPlugins,
+  destructivePackage,
+  config,
+  excludeFiles,
+  apiVersion,
+  specifiedTests,
+  checkOnly,
+  testLevel
+}) => {
   logger.log(chalk.yellow('(2/4) Building package.xml...'))
 
   const specificFilesMode = diffCfg !== undefined || files !== undefined
@@ -168,28 +242,5 @@ module.exports = async ({
     rollbackOnError: true
   }))
   logger.log(chalk.yellow('Data uploaded. Polling...'))
-  const typeOfDeploy = checkOnly ? 'Validate' : 'Deploy'
-  const deployResult = await sfdcConnector.pollDeployMetadataStatus(deployJob.id, testReport, r => {
-    const numProcessed = parseInt(r.numberComponentsDeployed, 10) + parseInt(r.numberComponentErrors, 10)
-    if (numProcessed + '' === r.numberComponentsTotal && r.runTestsEnabled === 'true' && r.numberTestsTotal !== '0') {
-      const errors = r.numberTestErrors > 0 ? chalk.red(r.numberTestErrors) : chalk.green(r.numberTestErrors)
-      const numProcessed = parseInt(r.numberTestsCompleted, 10) + parseInt(r.numberTestErrors, 10)
-      logger.log(chalk.grey(`Run tests: (${numProcessed}/${r.numberTestsTotal}) - Errors: ${errors}`))
-    } else if (r.numberComponentsTotal !== '0') {
-      const errors = r.numberComponentErrors > 0 ? chalk.red(r.numberComponentErrors) : chalk.green(r.numberComponentErrors)
-      logger.log(chalk.grey(`${typeOfDeploy}: (${numProcessed}/${r.numberComponentsTotal}) - Errors: ${errors}`))
-    } else {
-      logger.log(chalk.grey(`${typeOfDeploy}: starting...`))
-    }
-  })
-
-  const d = deployResult.details
-  if (testReport && d.runTestResult) {
-    await buildJunitTestReport(d.runTestResult)
-  }
-
-  printDeployResult(deployResult)
-  console.timeEnd('running time')
-
-  return deployResult
+  return deployJob
 }

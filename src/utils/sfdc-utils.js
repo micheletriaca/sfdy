@@ -207,6 +207,12 @@ class SfdcConn {
     return this.metadata('deploy', bodyStream, { rawBody: true })
   }
 
+  async quickDeployMetadata (deploymentId) {
+    return this.metadata('deployRecentValidation', {
+      validationId: deploymentId
+    })
+  }
+
   async pollDeployMetadataStatus (deployMetadataId, includeDetails, progressCallback) {
     const iSleep = incrementalSleep(1000, 2, 2000, 5, 5000)
     while (true) {
