@@ -33,7 +33,7 @@ module.exports = async (baseUrl, clientId, clientSecret, callbackPort) => new Pr
     } finally {
       server.close()
     }
-  }).listen(3000)
+  }).listen(callbackPort)
 
   const authorizeUrl = new URL(`https://${baseUrl}/services/oauth2/authorize`)
   const query = authorizeUrl.searchParams
