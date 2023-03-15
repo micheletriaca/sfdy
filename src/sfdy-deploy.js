@@ -18,6 +18,7 @@ program
   .option('-d, --diff <branchRange>', 'Delta deploy from branch to branch - example develop..uat')
   .option('-t, --test-report', 'Generate junit test-report.xml')
   .option('--destructive [file]', 'Deploy a destructive changeset - optionally specify the path for the package.xml of the destructive changeset')
+  .option('--ignoreWarnings', 'Ignore deploy warnings')
   .option('--validate', 'Simulate a deployment')
   .option('--test-level <testLevel>', 'Override default testLevel')
   .option('--quick-deploy <quickDeployId>', 'Quick deploy')
@@ -54,6 +55,7 @@ deploy({
   quickDeploy: program.quickDeploy,
   destructive: !!program.destructive,
   destructivePackage: typeof program.destructive === 'string' && program.destructive,
+  ignoreWarnings: !!program.ignoreWarnings,
   checkOnly: !!program.validate,
   preDeployPlugins: config.preDeployPlugins || [],
   renderers: config.renderers || [],
