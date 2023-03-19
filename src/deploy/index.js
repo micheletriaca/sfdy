@@ -19,6 +19,7 @@ const { DEFAULT_CLIENT_ID } = require('../utils/constants')
 module.exports = async ({
   loginOpts,
   checkOnly = false,
+  ignoreWarnings = false,
   destructive = false,
   destructivePackage,
   basePath,
@@ -79,6 +80,7 @@ module.exports = async ({
       apiVersion,
       specifiedTests,
       checkOnly,
+      ignoreWarnings,
       testLevel
     })
   }
@@ -129,6 +131,7 @@ const performFullDeploy = async ({
   apiVersion,
   specifiedTests,
   checkOnly,
+  ignoreWarnings,
   testLevel
 }) => {
   logger.log(chalk.yellow('(2/4) Building package.xml...'))
@@ -238,6 +241,7 @@ const performFullDeploy = async ({
   if (testLevel) testOptions.testLevel = testLevel
   const deployJob = await sfdcConnector.deployMetadata(zip.outputStream, Object.assign(testOptions, {
     checkOnly,
+    ignoreWarnings,
     singlePackage: true,
     rollbackOnError: true
   }))

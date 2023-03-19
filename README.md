@@ -224,6 +224,12 @@ You can also run a destructive deploy changeset with a custom destructiveChanges
 sfdy deploy -u USERNAME -p PASSWORD -s --destructive <destructiveChanges.xml path>
 ```
 
+Optionally you can pass the `--ignoreWarnings` flag to ignore deploy warnings
+
+```bash
+sfdy deploy -u USERNAME -p PASSWORD -s --destructive <destructiveChanges.xml path> --ignoreWarnings
+```
+
 > **Warning:** Full destructive deploy is deliberately not supported
 
 > **Warning:** This command deletes the metadata files from Salesforce, but they remain on the filesystem
