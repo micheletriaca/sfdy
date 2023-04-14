@@ -572,6 +572,10 @@ deploy({
 
 ## Changelog
 
+- 1.7.2
+  - Handling `Territory2*` metadata, that works differently from everything else
+  - Updated dependencies to fix vulnerabilities
+
 - 1.7.1
   - Added `--ignoreWarnings` option to `sfdy deploy` to ignore deployment warnings. If you don't pass this option, a warning during the deployment will cause the entire deployment to fail. Thanks, [maiantialberto](https://github.com/maiantialberto)
   - Corrected several typos in the documentation
