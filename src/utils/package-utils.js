@@ -64,10 +64,15 @@ module.exports = {
   },
   getPackageMapping: async sfdcConnector => {
     const cacheKey = crypto.createHash('md5').update(sfdcConnector.sessionId).digest('hex')
-    const cachePath = path.resolve(os.tmpdir(), 'sfdy_v1.4.6_' + cacheKey)
+    const cachePath = path.resolve(os.tmpdir(), 'sfdy_v1.7.9_' + cacheKey)
     const hasCache = fs.existsSync(cachePath)
     if (hasCache) return JSON.parse(fs.readFileSync(cachePath))
     const packageMapping = _((await sfdcConnector.describeMetadata()).metadataObjects)
+      .map(x => {
+        if (x.xmlName === 'Territory2') x.subDirectoryName = 'territories/'
+        else if (x.xmlName === 'Territory2Rule') x.subDirectoryName = 'rules/'
+        return x
+      })
       .groupBy(x => x.directoryName)
       .mapValues(x => x.length === 1 ? x[0] : x)
       .value()
@@ -111,12 +116,11 @@ module.exports = {
         const key = x.substring(0, x.indexOf('/'))
         const hasSuffix = x.replace('-meta.xml', '').match(/\.([^.]+)$/)
         const suffix = (hasSuffix && hasSuffix[1]) || ''
-        return {
-          mapping: module.exports.getMeta(packageMapping, x, key),
-          name: x.replace(key + '/', '').replace('-meta.xml', '').replace(suffix ? '.' + suffix : '', ''),
-          suffix,
-          key
-        }
+        const mapping = module.exports.getMeta(packageMapping, x, key)
+        const subDir = mapping.subDirectoryName ? '/' + mapping.subDirectoryName : '' // territory metadata are super strange
+        let name = x.replace(key + '/', '').replace('-meta.xml', '').replace(suffix ? '.' + suffix : '', '')
+        if (subDir) name = name.replace(subDir, '.')
+        return { mapping, name, suffix, key }
       })
       .filter(f => f.mapping)
       .groupBy(f => f.mapping.xmlName)

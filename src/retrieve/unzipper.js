@@ -35,7 +35,12 @@ module.exports = async (zipBuffer, sfdcConnector, pkgJson) => {
           if (packageTypesToKeep.has(metaInfo.xmlName + '/*')) return true
           let metaName = x.fileName.substring(idx + 1).replace('-meta.xml', '')
           if (metaInfo.inFolder === 'false' && metaName.indexOf('/') !== -1) {
-            metaName = metaName.substring(0, metaName.indexOf('/'))
+            // To handle territory metadata that are inside hardcoded subfolders without any reason
+            if (metaInfo.subDirectoryName) {
+              metaName = metaName.replace('/' + metaInfo.subDirectoryName, '.')
+            } else {
+              metaName = metaName.substring(0, metaName.indexOf('/'))
+            }
           }
           const finalMeta = metaInfo.xmlName + '/' + metaName.replace(new RegExp('.' + metaInfo.suffix + '$'), '')
           return packageTypesToKeep.has(finalMeta)
