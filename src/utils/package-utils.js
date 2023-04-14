@@ -48,7 +48,7 @@ module.exports = {
           res.push(key + '/' + subx.substring(0, subx.indexOf('/')) + '/**')
           res.push(key + '/' + subx.substring(0, subx.indexOf('/')) + '.site-meta.xml')
         }
-        if (pkgEntry.inFolder !== 'true' && subx.indexOf('/') !== -1) res.push(key + '/' + subx.substring(0, subx.indexOf('/')) + '/**')
+        if (pkgEntry.inFolder !== 'true' && subx.indexOf('/') !== -1 && !pkgEntry.subDirectoryName) res.push(key + '/' + subx.substring(0, subx.indexOf('/')) + '/**')
         return res
       })
       .uniq()

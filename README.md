@@ -573,6 +573,9 @@ deploy({
 ## Changelog
 
 - 1.7.2
+  - Bugfixing
+
+- 1.7.2
   - Handling `Territory2*` metadata, that works differently from everything else
   - Updated dependencies to fix vulnerabilities
 
