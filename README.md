@@ -572,7 +572,10 @@ deploy({
 
 ## Changelog
 
-- 1.7.2
+- 1.7.4
+  - Bugfixing
+
+- 1.7.3
   - Bugfixing
 
 - 1.7.2

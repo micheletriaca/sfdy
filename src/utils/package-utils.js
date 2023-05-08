@@ -117,7 +117,7 @@ module.exports = {
         const hasSuffix = x.replace('-meta.xml', '').match(/\.([^.]+)$/)
         const suffix = (hasSuffix && hasSuffix[1]) || ''
         const mapping = module.exports.getMeta(packageMapping, x, key)
-        const subDir = mapping.subDirectoryName ? '/' + mapping.subDirectoryName : '' // territory metadata are super strange
+        const subDir = mapping && mapping.subDirectoryName ? '/' + mapping.subDirectoryName : '' // territory metadata are super strange
         let name = x.replace(key + '/', '').replace('-meta.xml', '').replace(suffix ? '.' + suffix : '', '')
         if (subDir) name = name.replace(subDir, '.')
         return { mapping, name, suffix, key }
