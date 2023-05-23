@@ -71,7 +71,7 @@ module.exports = async (context, helpers) => {
       .map(x => Array.isArray(x.object) ? x.object[0] : x.object)
       .value())
     if (fJson.fieldPermissions) {
-      fJson.fieldPermissions = fJson.fieldPermissions.filter(x => !disabledObjects.has(x.field[0].split('.')[0]))
+      fJson.fieldPermissions = fJson.fieldPermissions.filter(x => !disabledObjects.has(x.field[0].split('.')[0]) || x.editable === 'true' || x.readable == 'true')
     }
     context.log(chalk.blue('----> Done'))
   })
