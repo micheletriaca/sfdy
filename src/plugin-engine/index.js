@@ -9,6 +9,7 @@ const logger = require('../services/log-service')
 const globby = require('globby')
 const fs = require('fs')
 const del = require('del')
+const chalk = require('chalk')
 
 const transformations = []
 const filterFns = []
@@ -191,7 +192,13 @@ module.exports = {
       .toPromise(Promise)
     logger.timeLog('finalPackage', 'after multimatch')
     const finalPackage = l.cloneDeep(deltaPackage)
-    const mergedTypes = l.keyBy(storedPackage.types.filter(x => finalPackageInfo.filters.has(x.name[0])), x => x.name[0])
+    const mergedTypes = l.keyBy(storedPackage.types.filter(x => {
+      if (!x.name) {
+        logger.log(chalk.red('package.xml is missing a <name> tag inside a <types> tag. Fix it and try again'))
+        process.exit(1)
+      }
+      return finalPackageInfo.filters.has(x.name[0])
+    }), x => x.name[0])
     const deltaPackageTypes = l.keyBy(finalPackage.types, x => x.name[0])
 
     const merger = (objValue, srcValue) => {
