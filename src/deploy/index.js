@@ -84,6 +84,7 @@ module.exports = async ({
       testLevel
     })
   }
+  logger.log(chalk.yellow(`Deployment Id: ${deployJob.id}`))
 
   const typeOfDeploy = checkOnly ? 'Validate' : 'Deploy'
   const deployResult = await sfdcConnector.pollDeployMetadataStatus(deployJob.id, testReport, r => {
