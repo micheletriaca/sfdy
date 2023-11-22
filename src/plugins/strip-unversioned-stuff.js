@@ -4,10 +4,18 @@ const get = require('lodash').get
 
 const getFieldMap = async objectFileNames => {
   return _(objectFileNames)
-    .map(async x => ({
-      content: x.transformedJson || await parseXml(x.data),
-      obj: x.fileName.replace(/^objects\/(.*)\.object$/, '$1')
-    }))
+    .map(async x => {
+      let content
+      try {
+        content = x.transformedJson || await parseXml(x.data)
+      } catch (e) {
+        throw new Error(`There was an error parsing ${x.fileName}: ${e.message}`)
+      }
+      return {
+        content,
+        obj: x.fileName.replace(/^objects\/(.*)\.object$/, '$1')
+      }
+    })
     .map(x => _(x))
     .sequence()
     .flatMap(objData => (objData.content.CustomObject.fields || []).map(x => `${objData.obj}.${x.fullName[0]}`))
