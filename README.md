@@ -572,6 +572,10 @@ deploy({
 
 ## Changelog
 
+- 1.7.5
+  - Printing deployment id
+  - Better error reporting when package.xml is corrupt
+
 - 1.7.4
   - Bugfixing
 
