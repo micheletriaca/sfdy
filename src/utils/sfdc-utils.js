@@ -208,10 +208,10 @@ class SfdcConn {
   }
 
   async quickDeployMetadata (deploymentId) {
-    await this.metadata('deployRecentValidation', {
+    const res = await this.metadata('deployRecentValidation', {
       validationId: deploymentId
     })
-    return { id: deploymentId }
+    return { id: res }
   }
 
   async pollDeployMetadataStatus (deployMetadataId, includeDetails, progressCallback) {
