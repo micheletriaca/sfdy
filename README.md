@@ -572,6 +572,9 @@ deploy({
 
 ## Changelog
 
+- 1.7.6
+  - Fix quick deploy polling
+  
 - 1.7.5
   - Printing deployment id
   - Better error reporting when package.xml is corrupt
