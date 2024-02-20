@@ -572,6 +572,9 @@ deploy({
 
 ## Changelog
 
+- 1.7.8
+  - Fix error when retrieving profiles that contain `'`
+
 - 1.7.7
   - Fix quick deploy polling
 

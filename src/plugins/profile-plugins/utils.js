@@ -43,7 +43,7 @@ const remapProfileName = async (f, context) => {
   const pNames = new Set(Object.values(fMap))
   const stdProfiles = await __(await context.q('SELECT Profile.Name FROM PermissionSet WHERE IsCustom = FALSE AND Profile.Name != NULL'))
     .filter(x => !pNames.has(x.Profile.Name))
-    .map(x => __(context.q(`SELECT FullName, Name FROM Profile WHERE Name = '${x.Profile.Name}' LIMIT 1`, true)))
+    .map(x => __(context.q(`SELECT FullName, Name FROM Profile WHERE Name = '${x.Profile.Name?.replace('\'', '\\\'')}' LIMIT 1`, true)))
     .parallel(4)
     .reduce(fMap, (memo, x) => ({ ...memo, [x[0].FullName]: x[0].Name }))
     .toPromise(Promise)
@@ -52,7 +52,7 @@ const remapProfileName = async (f, context) => {
 }
 
 const retrievePermissionsList = _.memoize(async (profileName, context) => {
-  const psetId = (await context.q(`SELECT Id FROM PermissionSet Where Profile.Name = '${profileName}'`))[0].Id
+  const psetId = (await context.q(`SELECT Id FROM PermissionSet Where Profile.Name = '${profileName?.replace('\'', '\\\'')}'`))[0].Id
   const res = await context.sfdcConnector.rest(`/sobjects/PermissionSet/${psetId}`)
   return Object.keys(res)
     .filter(x => x.startsWith('Permissions'))
