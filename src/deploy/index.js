@@ -187,6 +187,7 @@ const performFullDeploy = async ({
 
   logger.log(chalk.green('Built package.xml!'))
   logger.log(chalk.yellow('(3/4) Creating zip & applying predeploy patches...'))
+  logger.log(chalk.green(`Environment: ${process.env.environment}`))
 
   const packageMapping = await getPackageMapping(sfdcConnector)
   const filesToRead = await getListOfSrcFiles(packageMapping, specificFilesMode ? specificFiles : ['**/*'])
