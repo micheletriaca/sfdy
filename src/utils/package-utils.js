@@ -125,7 +125,12 @@ module.exports = {
       .filter(f => f.mapping)
       .groupBy(f => f.mapping.xmlName)
       .mapValues(x => x.map(y => {
-        if (y.mapping.inFolder !== 'true' && y.name.indexOf('/') !== -1) y.name = y.name.substring(0, y.name.indexOf('/'))
+        if (y.mapping.xmlName === 'DigitalExperienceBundle') {
+          const firstSlashIdx = y.name.indexOf('/')
+          y.name = y.name.substring(0, y.name.indexOf('/', firstSlashIdx + 1))
+        } else if (y.mapping.inFolder !== 'true' && y.name.indexOf('/') !== -1) {
+          y.name = y.name.substring(0, y.name.indexOf('/'))
+        }
         return y.name
       }))
       .value()

@@ -38,6 +38,10 @@ module.exports = async (zipBuffer, sfdcConnector, pkgJson) => {
             // To handle territory metadata that are inside hardcoded subfolders without any reason
             if (metaInfo.subDirectoryName) {
               metaName = metaName.replace('/' + metaInfo.subDirectoryName, '.')
+            // To handle digital experience bundles that have crazy folder structure
+            } else if (metaInfo.xmlName === 'DigitalExperienceBundle') {
+              const firstSlashIdx = metaName.indexOf('/')
+              metaName = metaName.substring(0, metaName.indexOf('/', firstSlashIdx + 1))
             } else {
               metaName = metaName.substring(0, metaName.indexOf('/'))
             }

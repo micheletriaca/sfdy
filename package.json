@@ -1,6 +1,6 @@
 {
   "name": "sfdy",
-  "version": "1.7.8",
+  "version": "1.8.0",
   "description": "Tool to better handle Salesforce metadata",
   "main": "src/sfdy.js",
   "bin": "src/sfdy.js",
