@@ -572,6 +572,10 @@ deploy({
 
 ## Changelog
 
+- 1.8.1
+  - Prints the corrupted filename if a trasformation fails because of a corrupt xml
+  - Fix minor vulnerability
+
 - 1.7.8
   - Fix error when retrieving profiles that contain `'`
 

@@ -125,27 +125,32 @@ module.exports = {
     await _(transformations)
       .flatMap(t => multimatch(filePaths, t.pattern).map(pattern => ({ ...t, pattern })))
       .map(async t => {
-        if (t.type === 'xmlTransformer') {
-          const transformedJson = fileMap[t.pattern].transformedJson || await parseXml(fileMap[t.pattern].data)
-          fileMap[t.pattern].transformedJson = transformedJson
-          const rootKey = Object.keys(transformedJson)[0]
-          await (t.callback(
-            t.pattern,
-            transformedJson[rootKey],
-            cachedRequireFiles,
-            addFiles(targetFiles),
-            cleanFiles
-          ) || transformedJson[rootKey])
-          return t
-        } else {
-          await (t.callback(
-            t.pattern,
-            fileMap[t.pattern],
-            cachedRequireFiles,
-            addFiles(targetFiles),
-            cleanFiles
-          ))
-          return t
+        try {
+          if (t.type === 'xmlTransformer') {
+            const transformedJson = fileMap[t.pattern].transformedJson || await parseXml(fileMap[t.pattern].data)
+            fileMap[t.pattern].transformedJson = transformedJson
+            const rootKey = Object.keys(transformedJson)[0]
+            await (t.callback(
+              t.pattern,
+              transformedJson[rootKey],
+              cachedRequireFiles,
+              addFiles(targetFiles),
+              cleanFiles
+            ) || transformedJson[rootKey])
+            return t
+          } else {
+            await (t.callback(
+              t.pattern,
+              fileMap[t.pattern],
+              cachedRequireFiles,
+              addFiles(targetFiles),
+              cleanFiles
+            ))
+            return t
+          }
+        } catch (e) {
+          console.error(chalk.red(`Error in transformation for pattern ${t.pattern}:\n ${e.message}`))
+          throw e
         }
       })
       .map(x => _(x))
