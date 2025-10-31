@@ -32,14 +32,17 @@ const CMD_SHELL = 'cmd'
       case LINUX_SHELL:
         logger.log(`export SFDY_INSTANCE_URL=${oauth2.instance_url}`)
         logger.log(`export SFDY_REFRESH_TOKEN=${oauth2.refresh_token}`)
+        logger.log(`export SFDY_USERNAME=${userInfo.username}`)
         break;
       case POWERSHELL:
         logger.log(`$env:SFDY_INSTANCE_URL="${oauth2.instance_url}";`)
-        logger.log(`$env:SFDY_REFRESH_TOKEN="${oauth2.refresh_token}"`)
+        logger.log(`$env:SFDY_REFRESH_TOKEN="${oauth2.refresh_token}";`)
+        logger.log(`$env:SFDY_USERNAME="${userInfo.username}"`)
         break;
       case CMD_SHELL:
         logger.log(`set SFDY_INSTANCE_URL=${oauth2.instance_url} &&`)
-        logger.log(`set SFDY_REFRESH_TOKEN=${oauth2.refresh_token}`)
+        logger.log(`set SFDY_REFRESH_TOKEN=${oauth2.refresh_token} &&`)
+        logger.log(`set SFDY_USERNAME=${userInfo.username}`)
         break;
       default:
         logger.log(chalk.red(`Unsupported CLI type: ${CLI_TYPE}`))
