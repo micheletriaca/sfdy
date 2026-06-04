@@ -46,12 +46,17 @@ module.exports = async ({
   const sfdcConnector = await Sfdc.newInstance({
     username: loginOpts.username,
     password: loginOpts.password,
+    /*
+    TODO: commented here, todo everywhere the newInstance is called
+    we need to expand the fix for oauth2 to consider client_credentials as well
+    */
     oauth2: loginOpts.refreshToken && loginOpts.instanceUrl
       ? {
           refreshToken: loginOpts.refreshToken,
           instanceUrl: loginOpts.instanceUrl,
           clientId: loginOpts.clientId || DEFAULT_CLIENT_ID,
           clientSecret: loginOpts.clientSecret || undefined
+          // grantType: 'client_credentials' or 'refresh_token'
         }
       : undefined,
     isSandbox: !!loginOpts.sandbox,

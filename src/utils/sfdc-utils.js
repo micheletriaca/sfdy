@@ -54,21 +54,26 @@ class SfdcConn {
   async login ({ username, password, isSandbox = true, serverUrl, oauth2, apiVersion, sessionId, instanceHostname }) {
     this.apiVersion = apiVersion
     this.username = username
-    if (oauth2) await this.oauth2Refresh(oauth2)
-    else await this.soapLogin({ username, password, isSandbox, serverUrl, sessionId, instanceHostname })
+    if (oauth2) {
+      // await this.oauth2Refresh(oauth2)
+      await this.oauth2Login(oauth2)
+    } else {
+      await this.soapLogin({ username, password, isSandbox, serverUrl, sessionId, instanceHostname })
+    }
   }
 
-  async oauth2Refresh ({ instanceUrl, refreshToken, clientId, clientSecret }) {
+  // handle both refresh_token and client_credentials
+  async oauth2Login ({ instanceUrl, grantType, refreshToken, clientId, clientSecret }) {
     const get = (url, at) => fetch(url, { headers: { authorization: `Bearer ${at}` } }).then(res => res.json())
     const post = (url, body, ct = 'application/x-www-form-urlencoded') => fetch(url, {
       method: 'POST', body, headers: { 'content-type': ct }
     }).then(res => res.json())
 
     const body = new URLSearchParams()
-    body.append('grant_type', 'refresh_token')
-    body.append('refresh_token', refreshToken)
+    body.append('grant_type', grantType)
     body.append('client_id', clientId)
     if (clientSecret) body.append('client_secret', clientSecret)
+    if (grantType === 'refresh_token' && refreshToken) body.append('refresh_token', refreshToken)
 
     const resOauth2 = await post(`${instanceUrl}/services/oauth2/token`, body.toString())
     if (!this.username) {
