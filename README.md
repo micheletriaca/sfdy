@@ -313,8 +313,28 @@ The configuration file is a JSON object:
 
 `sourceFormat` accepts `metadata` (the default) or `sfdx`. The command-line option
 `--source-format <format>` overrides the value in `.sfdy.json` for one deploy or retrieve.
-The initial SFDX adapter supports `Layout`, `ApexClass`, and decomposed `CustomObject`
-children such as fields, record types, validation rules, list views, and field sets.
+
+With `sfdx`, `src` is treated as a Salesforce source-format package directory. Metadata
+whose representation is already valid for Metadata API, including Apex, Aura, LWC and
+Experience Bundles, passes through unchanged. The adapter converts XML descriptor names,
+folder and Document descriptors, decomposed Custom Objects, Object Translations and Bots,
+expanded Static Resources, and partial Custom Label retrieves. Plugins continue to receive
+Metadata API-format files.
+
+For example, a single field can be deployed or retrieved without composing the object by
+hand:
+
+```bash
+sfdy deploy --source-format sfdx --files='objects/Account/fields/Status__c.field-meta.xml'
+sfdy retrieve --source-format sfdx --files='objects/Account/fields/Status__c.field-meta.xml'
+```
+
+Selecting a file inside a bundle selects the complete bundle. Exact directory paths are
+expanded recursively, so `--files='lwc/accountCard'` is also supported.
+
+This mode currently uses the configured `src` directory as a single package directory. It
+does not read package directories or `sourceBehaviorOptions` from `sfdx-project.json`, and
+it does not provide Salesforce source tracking.
 
 #### permissionSets
 
