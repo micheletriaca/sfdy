@@ -51,6 +51,18 @@ const retrievedFieldZip = async () => {
   return buffer(zip.outputStream)
 }
 
+const retrievedObjectZip = async () => {
+  const zip = new yazl.ZipFile()
+  zip.addBuffer(Buffer.from(`
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <label>Remote invoice</label>
+    <fields><fullName>Amount__c</fullName><label>Remote amount</label><type>Currency</type></fields>
+    <validationRules><fullName>RemoteRule</fullName><active>true</active></validationRules>
+</CustomObject>`), 'objects/Invoice__c.object')
+  zip.end()
+  return buffer(zip.outputStream)
+}
+
 ;(async () => {
   const previousBasePath = pathService.getBasePath()
   const previousSourceFolder = pathService.getSrcFolder()
@@ -71,6 +83,7 @@ const retrievedFieldZip = async () => {
     )
     const zip = await retrievedZip()
     const fieldZip = await retrievedFieldZip()
+    const objectZip = await retrievedObjectZip()
     Sfdc.newInstance = async options => {
       assert.strictEqual(options.apiVersion, '65.0')
       return {
@@ -109,7 +122,9 @@ const retrievedFieldZip = async () => {
           return { id: '09S-test' }
         },
         pollRetrieveMetadataStatus: async () => ({
-          zipFile: (requestedPackage.types[0].name[0] === 'CustomField' ? fieldZip : zip).toString('base64')
+          zipFile: (requestedPackage.types[0].name[0] === 'CustomField'
+            ? fieldZip
+            : requestedPackage.types[0].name[0] === 'CustomObject' ? objectZip : zip).toString('base64')
         })
       }
     }
@@ -156,6 +171,24 @@ const retrievedFieldZip = async () => {
       ['Status__c', 'Remote status']
     ])
     assert.strictEqual(mergedObject.CustomObject.validationRules[0].fullName[0], 'RequiredAmount')
+
+    await retrieve({
+      ...options,
+      meta: 'CustomObject/Invoice__c',
+      components: [{ type: 'CustomObject', fullName: 'Invoice__c', scope: 'root' }]
+    })
+    assert.strictEqual(requestedPackage.types[0].name[0], 'CustomObject')
+    assert.deepStrictEqual(requestedPackage.types[0].members, ['Invoice__c'])
+    const mergedRoot = await parseXml(await fs.promises.readFile(path.join(objectFolder, 'Invoice__c.object')))
+    assert.strictEqual(mergedRoot.CustomObject.label[0], 'Remote invoice')
+    assert.deepStrictEqual(mergedRoot.CustomObject.fields.map(field => [
+      field.fullName[0],
+      field.label[0]
+    ]), [
+      ['Amount__c', 'Amount'],
+      ['Status__c', 'Remote status']
+    ])
+    assert.strictEqual(mergedRoot.CustomObject.validationRules[0].fullName[0], 'RequiredAmount')
     console.log('Manifestless metadata integration tests passed')
   } finally {
     Sfdc.newInstance = originalNewInstance

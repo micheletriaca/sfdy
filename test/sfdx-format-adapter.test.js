@@ -186,6 +186,22 @@ const packageMapping = {
   const objectRoot = await normalizedXml(fullSourceMap.get('objects/Invoice__c/Invoice__c.object-meta.xml').data)
   assert.strictEqual(objectRoot.CustomObject.fields, undefined)
   assert.strictEqual(objectRoot.CustomObject.validationRules, undefined)
+  const rootSelection = adapter.getContainerRoot({ type: 'CustomObject', fullName: 'Invoice__c' })
+  assert.deepStrictEqual(rootSelection, {
+    label: 'object metadata',
+    component: { type: 'CustomObject', fullName: 'Invoice__c', scope: 'root' }
+  })
+  const selectedRoot = await adapter.toSource([customObject], {
+    components: [rootSelection.component]
+  })
+  assert.deepStrictEqual(selectedRoot.deletes, [])
+  assert.deepStrictEqual(selectedRoot.upserts.map(item => item.fileName), [
+    'objects/Invoice__c/Invoice__c.object-meta.xml'
+  ])
+  assert.deepStrictEqual(
+    await normalizedXml(selectedRoot.upserts[0].data),
+    objectRoot
+  )
 
   const recomposed = await adapter.toMetadata(fullSource.upserts)
   assert.deepStrictEqual(recomposed.components, [
@@ -261,6 +277,29 @@ const packageMapping = {
     'Status__c'
   ])
   assert.strictEqual(wildcardMergedObjectXml.CustomObject.validationRules[0].fullName[0], 'AmountRequired')
+
+  const retrievedObject = entry(
+    customObject.fileName,
+    customObject.data.toString()
+      .replace('<label>Invoice</label>', '<label>Remote invoice</label>')
+      .replace('<label>Amount</label>', '<label>Remote amount</label>')
+  )
+  const mergedRoot = await adapter.mergeMetadata([retrievedObject], {
+    components: [rootSelection.component],
+    existingEntries: [customObject]
+  })
+  const mergedRootXml = await normalizedXml(mergedRoot.upserts[0].data)
+  assert.strictEqual(mergedRootXml.CustomObject.label[0], 'Remote invoice')
+  assert.strictEqual(mergedRootXml.CustomObject.fields[0].label[0], 'Amount')
+  assert.strictEqual(mergedRootXml.CustomObject.validationRules[0].fullName[0], 'AmountRequired')
+
+  const newRoot = await adapter.mergeMetadata([retrievedObject], {
+    components: [rootSelection.component]
+  })
+  const newRootXml = await normalizedXml(newRoot.upserts[0].data)
+  assert.strictEqual(newRootXml.CustomObject.label[0], 'Remote invoice')
+  assert.strictEqual(newRootXml.CustomObject.fields, undefined)
+  assert.strictEqual(newRootXml.CustomObject.validationRules, undefined)
 
   const selectedRule = fullSourceMap.get('objects/Invoice__c/validationRules/AmountRequired.validationRule-meta.xml')
   const ruleMetadata = await adapter.toMetadata([selectedRule])

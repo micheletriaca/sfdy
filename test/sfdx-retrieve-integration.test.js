@@ -96,6 +96,19 @@ const pkg = (type, member) => ({
 
     await pluginEngine.registerPlugins([], connector, 'test@example.com', pkg('CustomObject', 'Invoice__c'))
     await unzip(
+      await zipMetadata(metadataXml([['Status__c', 'Ignored by root retrieve']])),
+      connector,
+      pkg('CustomObject', 'Invoice__c'),
+      adapter,
+      [{ type: 'CustomObject', fullName: 'Invoice__c', scope: 'root' }]
+    )
+
+    assert.match(await fs.promises.readFile(path.join(objectFolder, 'Invoice__c.object-meta.xml'), 'utf8'), /Invoice/)
+    assert.strictEqual(fs.existsSync(path.join(fieldsFolder, 'Amount__c.field-meta.xml')), true)
+    assert.match(await fs.promises.readFile(path.join(fieldsFolder, 'Status__c.field-meta.xml'), 'utf8'), /New status/)
+
+    await pluginEngine.registerPlugins([], connector, 'test@example.com', pkg('CustomObject', 'Invoice__c'))
+    await unzip(
       await zipMetadata(metadataXml([['Status__c', 'Full retrieve']])),
       connector,
       pkg('CustomObject', 'Invoice__c'),

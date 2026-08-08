@@ -260,6 +260,19 @@ const getComponentLocation = component => {
   }
 }
 
+const getContainerRoot = component => {
+  const definition = decomposedTypes.find(item => item.type === component.type)
+  if (!definition || component.fullName === '*') return
+  const metadataName = definition.type
+    .replace(/^Custom/, '')
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .toLowerCase()
+  return {
+    label: `${metadataName} metadata`,
+    component: { ...component, scope: 'root' }
+  }
+}
+
 const getPackageComponents = components => {
   const selected = new Set(components.map(componentKey))
   return uniqueComponents(components.flatMap(component => {
@@ -487,17 +500,20 @@ const childName = (child, childValue) => childValue[child.uniqueIdElement || 'fu
 const childFullName = (parentName, child, childValue) => `${parentName}.${childName(child, childValue)}`
 const isRequested = (requested, type, fullName) => !requested || requested.has(`${type}/*`) || requested.has(`${type}/${fullName}`)
 
-const decomposeMetadata = async (metadataEntry, definition, requested) => {
+const decomposeMetadata = async (metadataEntry, definition, requested, rootOnly) => {
   const parentName = path.posix.basename(metadataEntry.fileName, `.${definition.metadataSuffix}`)
   const parsed = await parseXml(metadataEntry.data)
   const sourceEntries = []
   const fullParentRequested = isRequested(requested, definition.type, parentName)
+  const rootOnlyRequested = rootOnly && rootOnly.has(`${definition.type}/${parentName}`)
 
   for (const child of definition.children) {
     const childValues = parsed[definition.type][child.xmlTag] || []
     delete parsed[definition.type][child.xmlTag]
     childValues
-      .filter(value => fullParentRequested || isRequested(requested, child.type, childFullName(parentName, child, value)))
+      .filter(value =>
+        (fullParentRequested && !rootOnlyRequested) ||
+        isRequested(requested, child.type, childFullName(parentName, child, value)))
       .forEach(value => {
         const fullName = childName(child, value)
         const childPath = definition.decomposition === 'folderPerType'
@@ -522,7 +538,7 @@ const decomposeMetadata = async (metadataEntry, definition, requested) => {
 
   return {
     upserts: sourceEntries,
-    deletes: fullParentRequested ? [`${definition.directory}/${parentName}`] : []
+    deletes: fullParentRequested && !rootOnlyRequested ? [`${definition.directory}/${parentName}`] : []
   }
 }
 
@@ -575,17 +591,28 @@ const getMetadataMergePaths = components => [...new Set(components
   )))]
 
 const mergeSelectedChildren = async (incomingEntry, existingEntry, definition, components) => {
-  if (!existingEntry) return incomingEntry
   const parentName = metadataParentName(incomingEntry, definition)
-  const parentSelected = isRequested(
-    new Set(components.map(componentKey)),
-    definition.type,
-    parentName
-  )
-  if (parentSelected) return incomingEntry
+  const parentSelection = components.find(component =>
+    component.type === definition.type &&
+    (component.fullName === '*' || component.fullName === parentName))
+  const rootOnly = parentSelection && parentSelection.scope === 'root'
+  if (parentSelection && !rootOnly) return incomingEntry
+  if (!existingEntry && !rootOnly) return incomingEntry
 
   const incoming = await parseXml(incomingEntry.data)
-  const existing = await parseXml(existingEntry.data)
+  const existing = existingEntry
+    ? await parseXml(existingEntry.data)
+    : { [definition.type]: { $: { xmlns: XML_NAMESPACE } } }
+  const merged = rootOnly ? cloneDeep(incoming) : existing
+  if (rootOnly) {
+    for (const child of definition.children) {
+      if (existing[definition.type][child.xmlTag]) {
+        merged[definition.type][child.xmlTag] = existing[definition.type][child.xmlTag]
+      } else {
+        delete merged[definition.type][child.xmlTag]
+      }
+    }
+  }
   for (const child of definition.children) {
     const selected = components.filter(component =>
       component.type === child.type &&
@@ -594,21 +621,21 @@ const mergeSelectedChildren = async (incomingEntry, existingEntry, definition, c
 
     const incomingChildren = incoming[definition.type][child.xmlTag] || []
     if (selected.some(component => component.fullName === '*')) {
-      existing[definition.type][child.xmlTag] = incomingChildren
+      merged[definition.type][child.xmlTag] = incomingChildren
       continue
     }
 
     const incomingByName = new Map(incomingChildren.map(value => [childName(child, value), value]))
     const selectedNames = new Set(selected.map(component =>
       definition.fullName ? component.fullName : component.fullName.slice(parentName.length + 1)))
-    const existingChildren = existing[definition.type][child.xmlTag] || []
+    const existingChildren = merged[definition.type][child.xmlTag] || []
     const retained = existingChildren.filter(value => !selectedNames.has(childName(child, value)))
     const replacements = [...selectedNames]
       .map(name => incomingByName.get(name))
       .filter(Boolean)
-    existing[definition.type][child.xmlTag] = [...retained, ...replacements]
+    merged[definition.type][child.xmlTag] = [...retained, ...replacements]
   }
-  return xmlEntry(incomingEntry.fileName, existing)
+  return xmlEntry(incomingEntry.fileName, merged)
 }
 
 const mergeMetadata = async (metadataEntries, options = {}) => {
@@ -696,6 +723,9 @@ const decomposeStaticResource = async ({ definition, fullName, entries }, existi
 
 const toSource = async (metadataEntries, options = {}, packageMapping) => {
   const requested = options.components && new Set(options.components.map(componentKey))
+  const rootOnly = new Set((options.components || [])
+    .filter(component => component.scope === 'root')
+    .map(componentKey))
   const result = { upserts: [], deletes: [] }
   const staticResourceGroups = groupStaticResources(metadataEntries, packageMapping, 'metadata')
   const staticResourcePaths = new Set([...staticResourceGroups.values()]
@@ -721,7 +751,7 @@ const toSource = async (metadataEntries, options = {}, packageMapping) => {
     }
     const decomposedDefinition = findDecomposedMetadataDefinition(metadataEntry.fileName)
     if (decomposedDefinition) {
-      const decomposedResult = await decomposeMetadata(metadataEntry, decomposedDefinition, requested)
+      const decomposedResult = await decomposeMetadata(metadataEntry, decomposedDefinition, requested, rootOnly)
       result.upserts.push(...decomposedResult.upserts)
       result.deletes.push(...decomposedResult.deletes)
       continue
@@ -736,6 +766,7 @@ const toSource = async (metadataEntries, options = {}, packageMapping) => {
 const createAdapter = packageMapping => ({
   getAddressableChildTypes: () => addressableChildTypes,
   getComponentLocation,
+  getContainerRoot,
   getCompanionPaths: (fileNames, availableFiles) => getCompanionPaths(fileNames, availableFiles, packageMapping),
   getDestructivePaths: (fileNames, availableFiles) => getDestructivePaths(fileNames, availableFiles, packageMapping),
   getMergePaths,

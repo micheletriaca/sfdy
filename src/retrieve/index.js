@@ -15,7 +15,17 @@ const { getOauth2Options } = require('../utils/auth-utils')
 const { getAdapter } = require('../format-adapters')
 const globby = require('globby')
 
-module.exports = async ({ loginOpts, basePath, logger: _logger, files, meta, srcFolder, sourceFormat, config = {} }) => {
+module.exports = async ({
+  loginOpts,
+  basePath,
+  logger: _logger,
+  files,
+  meta,
+  components,
+  srcFolder,
+  sourceFormat,
+  config = {}
+}) => {
   pathService.configureProject({ basePath, srcFolder, sourceFormat, config })
   if (_logger) logger.setLogger(_logger)
   let formatAdapter = getAdapter(config, sourceFormat)
@@ -71,7 +81,7 @@ module.exports = async ({ loginOpts, basePath, logger: _logger, files, meta, src
   }
   let specificFiles = getFiles(files)
   let specificMeta = (meta && meta.split(',').map(x => x.trim())) || []
-  let sourceComponents
+  let sourceComponents = components
   let retrieveLocalInventory = false
   if (specificFiles.length) {
     logger.log(chalk.yellow('--files specified. Retrieving only specific files...'))
