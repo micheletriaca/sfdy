@@ -252,6 +252,14 @@ const packageMapping = {
     'classes/Example.cls',
     'classes/Example.cls-meta.xml'
   ])
+  assert.deepStrictEqual(adapter.getDestructivePaths(
+    ['objects/Invoice__c/fields/Status__c.field-meta.xml'],
+    fullSource.upserts.map(item => item.fileName)
+  ), ['objects/Invoice__c/fields/Status__c.field-meta.xml'])
+  assert.deepStrictEqual(adapter.getDestructivePaths(
+    ['objects/Invoice__c/Invoice__c.object-meta.xml'],
+    fullSource.upserts.map(item => item.fileName)
+  ), fullSource.upserts.map(item => item.fileName))
   assert.deepStrictEqual(adapter.getMetadataContainers([
     { type: 'CustomField', fullName: 'Invoice__c.Status__c' },
     { type: 'ValidationRule', fullName: 'Invoice__c.AmountRequired' }
@@ -405,6 +413,13 @@ const packageMapping = {
   ), [
     'documents/Manuals/Guide.pdf',
     'documents/Manuals/Guide.document-meta.xml'
+  ])
+  assert.deepStrictEqual(genericAdapter.getDestructivePaths(
+    ['experiences/Store/routes/home.json'],
+    genericSource.map(item => item.fileName)
+  ), [
+    'experiences/Store.site-meta.xml',
+    'experiences/Store/routes/home.json'
   ])
 
   const genericRoundTrip = await genericAdapter.toSource(genericMetadata.entries)

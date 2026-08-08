@@ -210,6 +210,20 @@ const getCompanionPaths = (fileNames, availableFiles, packageMapping) => {
   return [...new Set([...matchingFiles, ...legacyCompanions])]
 }
 
+const getDestructivePaths = (fileNames, availableFiles, packageMapping) => {
+  const companions = getCompanionPaths(fileNames, availableFiles, packageMapping)
+  const selectedParents = resolve(fileNames, packageMapping)
+    .map(component => ({
+      component,
+      definition: decomposedTypes.find(item => item.type === component.type)
+    }))
+    .filter(item => item.definition)
+  const decomposedFiles = selectedParents.flatMap(({ component, definition }) =>
+    (availableFiles || []).filter(fileName =>
+      fileName.startsWith(`${definition.directory}/${component.fullName}/`)))
+  return [...new Set([...companions, ...decomposedFiles])]
+}
+
 const containerTypes = [...decomposedTypes, ...aggregateTypes]
 
 const getContainerParent = component => {
@@ -605,6 +619,7 @@ const toSource = async (metadataEntries, options = {}, packageMapping) => {
 
 const createAdapter = packageMapping => ({
   getCompanionPaths: (fileNames, availableFiles) => getCompanionPaths(fileNames, availableFiles, packageMapping),
+  getDestructivePaths: (fileNames, availableFiles) => getDestructivePaths(fileNames, availableFiles, packageMapping),
   getMergePaths,
   getMetadataContainers,
   getPackageComponents,

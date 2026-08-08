@@ -20,6 +20,7 @@
     "./auth": "./src/auth/index.js",
     "./constants": "./src/utils/constants.js",
     "./deploy": "./src/deploy/index.js",
+    "./format-adapters": "./src/format-adapters/index.js",
     "./package-utils": "./src/utils/package-utils.js",
     "./path-service": "./src/services/path-service.js",
     "./retrieve": "./src/retrieve/index.js",
