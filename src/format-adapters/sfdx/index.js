@@ -260,6 +260,21 @@ const getComponentLocation = component => {
   }
 }
 
+const getFolderLocation = component => {
+  const folder = folderTypes.find(item =>
+    item.type === component.type || item.packageType === component.type)
+  if (!folder) return
+  const isFolder = folder.type === component.type
+  const parts = component.fullName.replace(/\/$/, '').split('/')
+  return {
+    rootType: folder.packageType,
+    folderType: folder.type,
+    folderPath: (isFolder ? parts : parts.slice(0, -1)).join('/'),
+    label: parts[parts.length - 1],
+    isFolder
+  }
+}
+
 const getContainerRoot = component => {
   const definition = decomposedTypes.find(item => item.type === component.type)
   if (!definition || component.fullName === '*') return
@@ -277,7 +292,12 @@ const getPackageComponents = components => {
   const selected = new Set(components.map(componentKey))
   return uniqueComponents(components.flatMap(component => {
     const folder = folderTypes.find(item => item.type === component.type)
-    if (folder) return { type: folder.packageType, fullName: component.fullName }
+    if (folder) {
+      return {
+        type: folder.packageType,
+        fullName: component.fullName + (folder.disambiguateMember && !component.fullName.endsWith('/') ? '/' : '')
+      }
+    }
     const parent = getContainerParent(component)
     if (!parent) return component
     if (selected.has(componentKey(parent.component))) return []
@@ -769,6 +789,7 @@ const createAdapter = packageMapping => ({
   getAddressableChildTypes: () => addressableChildTypes,
   getComponentLocation,
   getContainerRoot,
+  getFolderLocation,
   getCompanionPaths: (fileNames, availableFiles) => getCompanionPaths(fileNames, availableFiles, packageMapping),
   getDestructivePaths: (fileNames, availableFiles) => getDestructivePaths(fileNames, availableFiles, packageMapping),
   getMergePaths,
@@ -776,6 +797,10 @@ const createAdapter = packageMapping => ({
   getMetadataContainers,
   getPackageComponents,
   isMetadataContainerPath: fileName => !!metadataContainerDefinition(fileName),
+  isMetadataFolderPath: fileName => {
+    const component = resolvePath(fileName, packageMapping, 'metadata')
+    return !!component && folderTypes.some(folder => folder.type === component.type)
+  },
   isMetadataPath: fileName => !!resolvePath(fileName, packageMapping),
   mergeMetadata,
   resolve: fileNames => resolve(fileNames, packageMapping),

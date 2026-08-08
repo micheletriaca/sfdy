@@ -19,8 +19,8 @@ const simpleTypes = [
 // Folder metadata are part of source format, but describeMetadata only exposes
 // their contained type (Report, Dashboard, Document, EmailTemplate).
 const folderTypes = [
-  { type: 'ReportFolder', packageType: 'Report', directory: 'reports', suffix: 'reportFolder' },
-  { type: 'DashboardFolder', packageType: 'Dashboard', directory: 'dashboards', suffix: 'dashboardFolder' },
+  { type: 'ReportFolder', packageType: 'Report', directory: 'reports', suffix: 'reportFolder', disambiguateMember: true },
+  { type: 'DashboardFolder', packageType: 'Dashboard', directory: 'dashboards', suffix: 'dashboardFolder', disambiguateMember: true },
   { type: 'DocumentFolder', packageType: 'Document', directory: 'documents', suffix: 'documentFolder' },
   { type: 'EmailFolder', packageType: 'EmailTemplate', directory: 'email', suffix: 'emailFolder' }
 ].map(definition => ({

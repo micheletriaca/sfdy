@@ -519,11 +519,33 @@ const packageMapping = {
     { type: 'DocumentFolder', fullName: 'Manuals' },
     { type: 'EmailFolder', fullName: 'Templates' }
   ]), [
-    { type: 'Report', fullName: 'Sales' },
-    { type: 'Dashboard', fullName: 'Ops' },
+    { type: 'Report', fullName: 'Sales/' },
+    { type: 'Dashboard', fullName: 'Ops/' },
     { type: 'Document', fullName: 'Manuals' },
     { type: 'EmailTemplate', fullName: 'Templates' }
   ])
+  assert.deepStrictEqual(genericAdapter.getFolderLocation({
+    type: 'ReportFolder',
+    fullName: 'Sales/Quarterly'
+  }), {
+    rootType: 'Report',
+    folderType: 'ReportFolder',
+    folderPath: 'Sales/Quarterly',
+    label: 'Quarterly',
+    isFolder: true
+  })
+  assert.deepStrictEqual(genericAdapter.getFolderLocation({
+    type: 'Report',
+    fullName: 'Sales/Quarterly/Pipeline'
+  }), {
+    rootType: 'Report',
+    folderType: 'ReportFolder',
+    folderPath: 'Sales/Quarterly',
+    label: 'Pipeline',
+    isFolder: false
+  })
+  assert.strictEqual(genericAdapter.isMetadataFolderPath('reports/Sales-meta.xml'), true)
+  assert.strictEqual(genericAdapter.isMetadataFolderPath('reports/Sales/Pipeline.report'), false)
 
   const genericRoundTrip = await genericAdapter.toSource(genericMetadata.entries)
   assert.deepStrictEqual(genericRoundTrip.upserts.map(item => item.fileName), genericSource.map(item => item.fileName))

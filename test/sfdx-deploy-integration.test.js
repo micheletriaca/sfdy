@@ -197,7 +197,7 @@ const fieldXml = `<?xml version="1.0" encoding="UTF-8"?>
       reportFolderEntries.find(item => item.fileName === 'package.xml').data
     )
     assert.strictEqual(reportFolderManifest.Package.types[0].name[0], 'Report')
-    assert.deepStrictEqual(reportFolderManifest.Package.types[0].members, ['Sales'])
+    assert.deepStrictEqual(reportFolderManifest.Package.types[0].members, ['Sales/'])
     console.log('SFDX deploy integration tests passed')
   } finally {
     Sfdc.newInstance = originalNewInstance

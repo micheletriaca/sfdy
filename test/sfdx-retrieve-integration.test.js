@@ -38,6 +38,13 @@ const zipBundle = async () => {
   return buffer(zip.outputStream)
 }
 
+const zipReportFolder = async () => {
+  const zip = new yazl.ZipFile()
+  zip.addBuffer(Buffer.from('<ReportFolder/>'), 'reports/Sales/Quarterly-meta.xml')
+  zip.end()
+  return buffer(zip.outputStream)
+}
+
 const connector = {
   sessionId: `sfdx-test-${Date.now()}`,
   describeMetadata: async () => ({
@@ -53,6 +60,12 @@ const connector = {
       metaFile: 'false',
       suffix: 'labels',
       xmlName: 'CustomLabels'
+    }, {
+      directoryName: 'reports',
+      inFolder: 'true',
+      metaFile: 'false',
+      suffix: 'report',
+      xmlName: 'Report'
     }, {
       directoryName: 'lwc',
       inFolder: 'false',
@@ -150,6 +163,19 @@ const pkg = (type, member) => ({
     assert.strictEqual(fs.existsSync(path.join(basePath, 'src', 'lwc', 'tile', 'tile.js')), true)
     assert.strictEqual(fs.existsSync(path.join(basePath, 'src', 'lwc', 'tile', 'tile.html')), true)
     assert.strictEqual(fs.existsSync(path.join(basePath, 'src', 'lwc', 'tile', 'tile.js-meta.xml')), true)
+
+    await pluginEngine.registerPlugins([], connector, 'test@example.com', pkg('Report', 'Sales/Quarterly/'))
+    await unzip(
+      await zipReportFolder(),
+      connector,
+      pkg('Report', 'Sales/Quarterly/'),
+      adapter,
+      [{ type: 'ReportFolder', fullName: 'Sales/Quarterly' }]
+    )
+    assert.strictEqual(
+      fs.existsSync(path.join(basePath, 'src', 'reports', 'Sales', 'Quarterly.reportFolder-meta.xml')),
+      true
+    )
     console.log('SFDX retrieve integration tests passed')
   } finally {
     pathService.setBasePath(previousBasePath)
