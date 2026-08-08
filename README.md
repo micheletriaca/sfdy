@@ -40,7 +40,7 @@ npm install -g sfdy
 then go to the root folder of a Salesforce project, and type
 
 ```bash
-sfdy init
+sfdy init --api-version 65.0
 ```
 
 this command creates a `.sfdy.json` file within the root folder of your current workspace with the configuration of the 'standard' patches (more on this [later](#apply-standard-patches-and-renderers-to-metadata))
@@ -48,9 +48,9 @@ this command creates a `.sfdy.json` file within the root folder of your current 
 ## Features
 
 1. [Authenticate to Salesforce](#authenticate-to-salesforce)
-1. [Retrieve full metadata (based on package.xml)](#retrieve-full-metadata)
+1. [Retrieve full metadata](#retrieve-full-metadata)
 1. [Retrieve partial metadata (glob pattern or metadata-based)](#retrieve-partial-metadata)
-1. [Deploy full metadata (based on package.xml)](#deploy-full-metadata)
+1. [Deploy full metadata](#deploy-full-metadata)
 1. [Deploy partial metadata (glob pattern or diff between 2 git branches)](#deploy-partial-metadata)
 1. [Perform a quick deploy](#perform-a-quick-deploy)
 1. [Deploy a destructive changeset (glob pattern or metadata-based)](#deploy-a-destructive-changeset)
@@ -149,7 +149,8 @@ From the root folder of your salesforce project, type:
 sfdy retrieve -u USERNAME -p PASSWORD -s
 ```
 
-This command will retrieve all metadata specified in package.xml and will apply any enabled patch.
+This command retrieves every component already represented in the local metadata tree and
+applies any enabled patch. Use `--meta` to retrieve a component that is not present locally.
 
 The `-s` flag should be used when connecting to a sandbox.
 
@@ -183,7 +184,8 @@ This command will retrieve the Account object and all the flexipages present on 
 sfdy deploy -u USERNAME -p PASSWORD -s
 ```
 
-This command will apply any enabled pre-deploy patch and will deploy all metadata specified in package.xml.
+This command applies any enabled pre-deploy patch and deploys every metadata component in
+the local source tree.
 
 The `-s` flag should be used when connecting to a sandbox.
 
@@ -314,7 +316,14 @@ The configuration file is a JSON object:
 
 `sourceFormat` accepts `metadata` (the default) or `sfdx`. The command-line option
 `--source-format <format>` overrides the value in `.sfdy.json` for one deploy or retrieve.
-`apiVersion` is optional when `sfdx-project.json` provides `sourceApiVersion`.
+`apiVersion` replaces the version formerly read from `package.xml`. It is optional when
+`sfdx-project.json` provides `sourceApiVersion`; an existing `package.xml` is still accepted
+as a backwards-compatible version fallback.
+
+`package.xml` is not required in either metadata or source-format projects. Deploy and
+retrieve manifests are generated from the selected files, or from the complete local
+inventory when no selection is provided. An existing manifest no longer defines that
+inventory.
 
 With `sfdx`, the default package directory from `sfdx-project.json` is used when available;
 for a standard project this resolves to `force-app/main/default`. Without that project file,
@@ -337,12 +346,10 @@ sfdy retrieve --source-format sfdx --files='objects/Account/fields/Status__c.fie
 Selecting a file inside a bundle selects the complete bundle. Exact directory paths are
 expanded recursively, so `--files='lwc/accountCard'` is also supported.
 
-`package.xml` is not required in source-format projects. Deploy and selective retrieve
-manifests are generated from the selected files. A retrieve without `--files` or `--meta`
-retrieves every component already represented in the local source tree; use `--meta` to add
-a component that is not present locally. An existing `package.xml` does not define the SFDX
-inventory. Multiple package directories, `sourceBehaviorOptions`, and Salesforce source
-tracking are not currently supported.
+A retrieve without `--files` or `--meta` retrieves every component already represented in
+the local source tree; use `--meta` to add a component that is not present locally. Multiple
+package directories, `sourceBehaviorOptions`, and Salesforce source tracking are not
+currently supported.
 
 #### permissionSets
 

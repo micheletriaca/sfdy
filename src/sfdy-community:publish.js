@@ -5,8 +5,9 @@ const chalk = require('chalk')
 const { printLogo } = require('./utils/branding-utils')
 const Sfdc = require('./utils/sfdc-utils')
 const { DEFAULT_CLIENT_ID } = require('./utils/constants')
-const { getPackageXml } = require('./utils/package-utils')
 const logger = require('./services/log-service')
+const configService = require('./services/config-service')
+const pathService = require('./services/path-service')
 const { addAuthenticationOptions, configureAuthentication, getOauth2Options } = require('./utils/auth-utils')
 require('./error-handling')()
 
@@ -24,7 +25,9 @@ const options = configureAuthentication(program.opts())
     process.exit(1)
   }
   logger.log(chalk.yellow('(1/2) Logging in salesforce...'))
-  const apiVersion = (await getPackageXml()).version[0]
+  pathService.configureProject({ config: configService.getConfig() })
+  const apiVersion = pathService.getApiVersion()
+  if (!apiVersion) throw new Error('Missing API version. Set apiVersion in .sfdy.json')
   const sfdcConnector = await Sfdc.newInstance({
     username: options.username,
     password: options.password,

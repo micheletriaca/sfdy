@@ -34,20 +34,28 @@ const config = configService.getConfig()
   printLogo()
 
   logger.log(chalk.yellow('(1/2) Logging in salesforce...'))
-  const packageXml = await getPackageXml()
+  pathService.configureProject({ config })
+  const apiVersion = pathService.getApiVersion()
+  if (!apiVersion) throw new Error('Missing API version. Set apiVersion in .sfdy.json')
   const sfdcConnector = await Sfdc.newInstance({
     username: options.username,
     password: options.password,
     oauth2: getOauth2Options(options, DEFAULT_CLIENT_ID),
     serverUrl: options.serverUrl,
     isSandbox: !!options.sandbox,
-    apiVersion: packageXml.version[0]
+    apiVersion
   })
   logger.log(chalk.green('Logged in!'))
   logger.log(chalk.yellow('(2/2) Applying patches...'))
 
   const basePath = getSrcFolder(true)
   const allFiles = readAllFilesInFolder(basePath)
+  const packageXml = await getPackageXml({
+    specificFiles: allFiles.map(file => file.fileName),
+    sfdcConnector,
+    skipParseGlobPatterns: true,
+    apiVersion
+  })
   const renderers = config.renderers || []
   const plugins = [
     ...(!options.skipUntransform ? renderers.map(x => require(path.resolve(pathService.getBasePath(), x)).untransform) : []),

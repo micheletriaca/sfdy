@@ -16,9 +16,9 @@ const configureProject = ({
   srcFolder = configuredSourceFolder || config.sourceFolder || 'src'
   apiVersion = config.apiVersion
 
-  if (normalizeFormat(sourceFormat || config.sourceFormat) !== 'sfdx') return
+  const sourceProject = normalizeFormat(sourceFormat || config.sourceFormat) === 'sfdx'
   const projectPath = path.resolve(basePath, 'sfdx-project.json')
-  if (fs.existsSync(projectPath)) {
+  if (sourceProject && fs.existsSync(projectPath)) {
     const project = JSON.parse(fs.readFileSync(projectPath, 'utf8'))
     apiVersion = apiVersion || project.sourceApiVersion
     if (!(configuredSourceFolder || config.sourceFolder)) {

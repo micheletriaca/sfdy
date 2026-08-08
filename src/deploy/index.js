@@ -47,9 +47,7 @@ module.exports = async ({
   console.time('running time')
   printLogo()
   logger.log(chalk.yellow('(1/4) Logging in salesforce...'))
-  const apiVersion = formatAdapter
-    ? pathService.getApiVersion()
-    : (await getPackageXml()).version[0]
+  const apiVersion = pathService.getApiVersion()
   if (!apiVersion) {
     throw new Error('Missing API version. Set apiVersion in .sfdy.json or sourceApiVersion in sfdx-project.json')
   }
@@ -212,10 +210,23 @@ const performFullDeploy = async ({
     })
     await pluginEngine.registerPlugins(plugins, sfdcConnector, sfdcConnector.username, initialPackage, config)
   } else {
-    await pluginEngine.registerPlugins(plugins, sfdcConnector, sfdcConnector.username, await getPackageXml({ specificFiles, sfdcConnector }), config)
-    specificFiles = pluginEngine.applyRemappers(specificFiles)
-    const filesToRead = await getListOfSrcFiles(packageMapping, specificFilesMode ? specificFiles : ['**/*'])
-    targetFiles = readFiles(pathService.getSrcFolder(true), filesToRead, [...filesToExclude])
+    if (specificFilesMode) {
+      const initialPackage = await getPackageXml({ specificFiles, sfdcConnector, apiVersion })
+      await pluginEngine.registerPlugins(plugins, sfdcConnector, sfdcConnector.username, initialPackage, config)
+      specificFiles = pluginEngine.applyRemappers(specificFiles)
+      const filesToRead = await getListOfSrcFiles(packageMapping, specificFiles)
+      targetFiles = readFiles(pathService.getSrcFolder(true), filesToRead, [...filesToExclude])
+    } else {
+      const filesToRead = await getListOfSrcFiles(packageMapping, ['**/*'])
+      targetFiles = readFiles(pathService.getSrcFolder(true), filesToRead, [...filesToExclude])
+      const initialPackage = await getPackageXml({
+        specificFiles: targetFiles.map(file => file.fileName),
+        sfdcConnector,
+        skipParseGlobPatterns: true,
+        apiVersion
+      })
+      await pluginEngine.registerPlugins(plugins, sfdcConnector, sfdcConnector.username, initialPackage, config)
+    }
   }
 
   if (!(specificFilesMode || destructivePackage) && destructive) {
@@ -244,7 +255,7 @@ const performFullDeploy = async ({
       logger.log(chalk.grey(fileList.join('\n')))
       const pkgJson = formatAdapter
         ? await getPackageXml({ specificMeta: sourceComponents.map(x => `${x.type}/${x.fullName}`), sfdcConnector, apiVersion })
-        : await getPackageXml({ specificFiles: fileList, sfdcConnector, skipParseGlobPatterns: true })
+        : await getPackageXml({ specificFiles: fileList, sfdcConnector, skipParseGlobPatterns: true, apiVersion })
       zip.addBuffer(Buffer.from(buildXml({ Package: pkgJson }) + '\n', 'utf-8'), 'destructiveChanges.xml')
     } else if (destructivePackage && typeof destructivePackage === 'string') {
       logger.log(chalk.yellow(`Metadata specified in ${destructivePackage} will be deleted`))
@@ -257,14 +268,14 @@ const performFullDeploy = async ({
       .filter(pluginEngine.applyFilters())
       .map(x => x.fileName)
       .forEach(f => {
-        if (specificFiles.length) fileList.push(f)
+        fileList.push(f)
         zip.addBuffer(fileMap[f].data, f)
       })
     const pkgJson = formatAdapter
       ? await getPackageXml({ specificMeta: sourceComponents.map(x => `${x.type}/${x.fullName}`), sfdcConnector, apiVersion })
-      : await getPackageXml({ specificFiles: fileList, sfdcConnector, skipParseGlobPatterns: true })
+      : await getPackageXml({ specificFiles: fileList, sfdcConnector, skipParseGlobPatterns: true, apiVersion })
     zip.addBuffer(Buffer.from(buildXml({ Package: pkgJson }) + '\n', 'utf-8'), 'package.xml')
-    if (fileList.length) {
+    if (specificFilesMode && fileList.length) {
       logger.log(chalk.yellow('The following files will be deployed:'))
       logger.log(chalk.grey(fileList.join('\n')))
     }

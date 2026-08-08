@@ -16,9 +16,7 @@ const getFolderName = (fileName) => fileName.substring(0, fileName.lastIndexOf('
 const { getAdapter } = require('../format-adapters')
 const globby = require('globby')
 
-const getApiVersion = async (loginOpts, formatAdapter) => loginOpts.apiVersion || (
-  formatAdapter ? pathService.getApiVersion() : (await getPackageXml()).version[0]
-)
+const getApiVersion = async loginOpts => loginOpts.apiVersion || pathService.getApiVersion()
 
 const cleanFormattedFiles = async files => {
   const sourceFolder = pathService.getSrcFolder(true)
@@ -49,7 +47,7 @@ module.exports = {
     if (_logger) logger.setLogger(_logger)
 
     let formatAdapter = getAdapter(config, sourceFormat)
-    const apiVersion = await getApiVersion(loginOpts, formatAdapter)
+    const apiVersion = await getApiVersion(loginOpts)
     if (!apiVersion) throw new Error('Missing API version for source-format transformation')
     const sfdcConnector = await Sfdc.newInstance({
       sessionId: loginOpts.sessionId,
@@ -71,7 +69,12 @@ module.exports = {
 
     const pkg = formatAdapter
       ? await getPackageXml({ specificMeta: [], apiVersion })
-      : await getPackageXml()
+      : await getPackageXml({
+        specificFiles: files.map(file => file.fileName),
+        sfdcConnector,
+        skipParseGlobPatterns: true,
+        apiVersion
+      })
     await pluginEngine.registerPlugins(plugins, sfdcConnector, sfdcConnector.username, pkg, config)
     await pluginEngine.applyTransformations(files)
     await pluginEngine.applyCleans()
@@ -103,7 +106,7 @@ module.exports = {
     if (_logger) logger.setLogger(_logger)
 
     let formatAdapter = getAdapter(config, sourceFormat)
-    const apiVersion = await getApiVersion(loginOpts, formatAdapter)
+    const apiVersion = await getApiVersion(loginOpts)
     if (!apiVersion) throw new Error('Missing API version for source-format transformation')
     const sfdcConnector = await Sfdc.newInstance({
       sessionId: loginOpts.sessionId,
@@ -137,7 +140,11 @@ module.exports = {
         apiVersion
       })
     } else {
-      await pluginEngine.registerPlugins(plugins, sfdcConnector, sfdcConnector.username, await getPackageXml({ specificFiles, sfdcConnector }), config)
+      await pluginEngine.registerPlugins(plugins, sfdcConnector, sfdcConnector.username, await getPackageXml({
+        specificFiles,
+        sfdcConnector,
+        apiVersion
+      }), config)
       specificFiles = pluginEngine.applyRemappers(specificFiles)
       const packageMapping = await getPackageMapping(sfdcConnector)
       const filesToRead = await getListOfSrcFiles(packageMapping, specificFiles)

@@ -93,13 +93,22 @@ module.exports = {
   getPackageXml: async (opts = {}) => {
     const hasSpecificFiles = opts.specificFiles && opts.specificFiles.length
     const hasSpecificMeta = opts.specificMeta && opts.specificMeta.length
-    const hasGeneratedPackage = Array.isArray(opts.specificMeta) && opts.apiVersion
+    const hasGeneratedMetaPackage = Array.isArray(opts.specificMeta) && opts.apiVersion
+    const hasGeneratedFilePackage = Array.isArray(opts.specificFiles) && opts.apiVersion
     const hasSpecificPackage = opts.specificPackage
     if (hasSpecificFiles && opts.sfdcConnector) {
       const packageMapping = await module.exports.getPackageMapping(opts.sfdcConnector)
-      return module.exports.buildPackageXmlFromFiles(opts.specificFiles, packageMapping, opts.skipParseGlobPatterns)
-    } else if (hasSpecificMeta || hasGeneratedPackage) {
+      return module.exports.buildPackageXmlFromFiles(
+        opts.specificFiles,
+        packageMapping,
+        opts.skipParseGlobPatterns,
+        opts.apiVersion
+      )
+    } else if (hasSpecificMeta || hasGeneratedMetaPackage) {
       return module.exports.buildPackageXmlFromMeta(opts.specificMeta, opts.apiVersion)
+    } else if (hasGeneratedFilePackage && opts.sfdcConnector) {
+      const packageMapping = await module.exports.getPackageMapping(opts.sfdcConnector)
+      return module.exports.buildPackageXmlFromFiles([], packageMapping, true, opts.apiVersion)
     }
     if (hasSpecificPackage) {
       return (await parseXml(fs.readFileSync(path.resolve(pathService.getBasePath(), opts.specificPackage)))).Package
@@ -118,9 +127,11 @@ module.exports = {
     packageJson.Package.types = Object.entries(types).map(([k, v]) => ({ name: [k], members: v }))
     return packageJson.Package
   },
-  buildPackageXmlFromFiles: async (files, packageMapping, skipParseGlobPatterns = false) => {
+  buildPackageXmlFromFiles: async (files, packageMapping, skipParseGlobPatterns = false, apiVersion) => {
     if (!skipParseGlobPatterns) files = await module.exports.getListOfSrcFiles(packageMapping, files)
-    const packageJson = await parseXml(fs.readFileSync(pathService.getPackagePath()))
+    const packageJson = apiVersion
+      ? { Package: { version: [apiVersion] } }
+      : await parseXml(fs.readFileSync(pathService.getPackagePath()))
     const metaMap = _(files)
       .filter(x => !x.endsWith('/**'))
       .filter(x => /((reports)|(dashboards)|(documents)|(email))\/[^/]+-meta.xml/.test(x) || !x.endsWith('-meta.xml'))

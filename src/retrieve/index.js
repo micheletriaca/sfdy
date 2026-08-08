@@ -22,7 +22,7 @@ module.exports = async ({ loginOpts, basePath, logger: _logger, files, meta, src
   console.time('running time')
   printLogo()
   logger.log(chalk.yellow('(1/3) Logging in salesforce...'))
-  const apiVersion = formatAdapter ? pathService.getApiVersion() : (await getPackageXml()).version[0]
+  const apiVersion = pathService.getApiVersion()
   if (!apiVersion) {
     throw new Error('Missing API version. Set apiVersion in .sfdy.json or sourceApiVersion in sfdx-project.json')
   }
@@ -35,7 +35,8 @@ module.exports = async ({ loginOpts, basePath, logger: _logger, files, meta, src
     apiVersion
   })
   logger.log(chalk.green(`Logged in as ${sfdcConnector.username}!`))
-  if (formatAdapter) formatAdapter = getAdapter(config, sourceFormat, await getPackageMapping(sfdcConnector))
+  const packageMapping = await getPackageMapping(sfdcConnector)
+  if (formatAdapter) formatAdapter = getAdapter(config, sourceFormat, packageMapping)
   const localSourceFiles = formatAdapter
     ? await globby(['**/*'], { cwd: pathService.getSrcFolder(true) })
     : []
@@ -50,7 +51,7 @@ module.exports = async ({ loginOpts, basePath, logger: _logger, files, meta, src
       specificMeta: localPackageComponents.map(x => `${x.type}/${x.fullName}`),
       apiVersion
     })
-    : await getPackageXml()
+    : await getPackageXml({ specificFiles: ['**/*'], sfdcConnector, apiVersion })
   logger.log(chalk.yellow('(2/3) Retrieving metadata...'))
   const getFiles = (files = []) => {
     let hasPar = false
@@ -71,6 +72,7 @@ module.exports = async ({ loginOpts, basePath, logger: _logger, files, meta, src
   let specificFiles = getFiles(files)
   let specificMeta = (meta && meta.split(',').map(x => x.trim())) || []
   let sourceComponents
+  let retrieveLocalInventory = false
   if (specificFiles.length) {
     logger.log(chalk.yellow('--files specified. Retrieving only specific files...'))
     if (formatAdapter) {
@@ -79,7 +81,6 @@ module.exports = async ({ loginOpts, basePath, logger: _logger, files, meta, src
       specificMeta = formatAdapter.getPackageComponents(sourceComponents).map(x => `${x.type}/${x.fullName}`)
     } else {
       specificFiles = pluginEngine.applyRemappers(specificFiles)
-      const packageMapping = await getPackageMapping(sfdcConnector)
       specificFiles = await getListOfSrcFiles(packageMapping, specificFiles, true)
     }
     if (specificFiles.length === 0 || (formatAdapter && specificMeta.length === 0)) {
@@ -92,19 +93,24 @@ module.exports = async ({ loginOpts, basePath, logger: _logger, files, meta, src
     logger.log(chalk.yellow('--meta specified. Retrieving only specific metadata types...'))
     logger.log(chalk.yellow('The following metadata will be retrieved:'))
     logger.log(chalk.grey(specificMeta.join('\n')))
-  } else if (formatAdapter) {
-    if (!localPackageComponents.length) {
-      throw new Error('No local source components found. Use --meta to retrieve components into an empty project')
+  } else {
+    if (!(storedPackage.types || []).length) {
+      throw new Error('No local metadata components found. Use --meta to retrieve components into an empty project')
     }
-    sourceComponents = localSourceComponents
-    specificMeta = localPackageComponents.map(x => `${x.type}/${x.fullName}`)
+    retrieveLocalInventory = true
+    if (formatAdapter) {
+      sourceComponents = localSourceComponents
+      specificMeta = localPackageComponents.map(x => `${x.type}/${x.fullName}`)
+    }
   }
-  const pkgJson = await getPackageXml({
-    specificFiles: formatAdapter ? [] : specificFiles,
-    specificMeta,
-    sfdcConnector,
-    apiVersion
-  })
+  const pkgJson = retrieveLocalInventory
+    ? storedPackage
+    : await getPackageXml({
+      specificFiles: formatAdapter ? [] : specificFiles,
+      specificMeta,
+      sfdcConnector,
+      apiVersion
+    })
   if (specificFiles.length) logger.log(chalk.yellow('delta package generated'))
 
   await pluginEngine.registerPlugins(
