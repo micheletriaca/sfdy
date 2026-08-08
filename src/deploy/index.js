@@ -44,7 +44,7 @@ module.exports = async ({
   if (basePath) pathService.setBasePath(basePath)
   if (srcFolder) pathService.setSrcFolder(srcFolder)
   if (_logger) logger.setLogger(_logger)
-  const formatAdapter = getAdapter(config, sourceFormat)
+  let formatAdapter = getAdapter(config, sourceFormat)
   console.time('running time')
   printLogo()
   logger.log(chalk.yellow('(1/4) Logging in salesforce...'))
@@ -58,6 +58,7 @@ module.exports = async ({
     apiVersion
   })
   logger.log(chalk.green(`Logged in as ${sfdcConnector.username}!`))
+  if (formatAdapter) formatAdapter = getAdapter(config, sourceFormat, await getPackageMapping(sfdcConnector))
 
   let deployJob
   if (quickDeploy) {
@@ -187,7 +188,10 @@ const performFullDeploy = async ({
   if (formatAdapter) {
     const patterns = specificFilesMode ? specificFiles : ['**/*']
     const selectedFiles = await globby(patterns, { cwd: pathService.getSrcFolder(true) })
-    const companionFiles = formatAdapter.getCompanionPaths(selectedFiles)
+    const availableFiles = specificFilesMode
+      ? await globby(['**/*'], { cwd: pathService.getSrcFolder(true) })
+      : selectedFiles
+    const companionFiles = formatAdapter.getCompanionPaths(selectedFiles, availableFiles)
     const ignoredFiles = new Set(['package.xml', 'lwc/.eslintrc.json', 'lwc/jsconfig.json'])
     const filesToRead = [...new Set([...selectedFiles, ...companionFiles])]
       .filter(fileName => !ignoredFiles.has(fileName))

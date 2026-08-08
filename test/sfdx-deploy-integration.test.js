@@ -57,7 +57,17 @@ const fieldXml = `<?xml version="1.0" encoding="UTF-8"?>
     await fs.promises.writeFile(path.join(sourceFolder, 'objects', 'Invoice__c', 'fields', 'Status__c.field-meta.xml'), fieldXml)
 
     Sfdc.newInstance = async () => ({
+      sessionId: `sfdx-deploy-test-${Date.now()}`,
       username: 'test@example.com',
+      describeMetadata: async () => ({
+        metadataObjects: [{
+          directoryName: 'objects',
+          inFolder: 'false',
+          metaFile: 'false',
+          suffix: 'object',
+          xmlName: 'CustomObject'
+        }]
+      }),
       deployMetadata: async stream => {
         deployedZip = await buffer(stream)
         return { id: '0Af-test' }

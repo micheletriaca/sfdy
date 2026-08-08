@@ -18,7 +18,7 @@ const globby = require('globby')
 module.exports = async ({ loginOpts, basePath, logger: _logger, files, meta, sourceFormat, config }) => {
   if (basePath) pathService.setBasePath(basePath)
   if (_logger) logger.setLogger(_logger)
-  const formatAdapter = getAdapter(config, sourceFormat)
+  let formatAdapter = getAdapter(config, sourceFormat)
   console.time('running time')
   printLogo()
   logger.log(chalk.yellow('(1/3) Logging in salesforce...'))
@@ -31,6 +31,7 @@ module.exports = async ({ loginOpts, basePath, logger: _logger, files, meta, sou
     apiVersion: (await getPackageXml()).version[0]
   })
   logger.log(chalk.green(`Logged in as ${sfdcConnector.username}!`))
+  if (formatAdapter) formatAdapter = getAdapter(config, sourceFormat, await getPackageMapping(sfdcConnector))
   logger.log(chalk.yellow('(2/3) Retrieving metadata...'))
   const getFiles = (files = []) => {
     let hasPar = false

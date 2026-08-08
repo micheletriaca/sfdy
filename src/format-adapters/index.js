@@ -10,11 +10,13 @@ const getFormat = (config = {}, override) => {
   return aliases[format] || format
 }
 
-const getAdapter = (config, override) => {
+const getAdapter = (config, override, packageMapping) => {
   const format = getFormat(config, override)
   if (format === DEFAULT_FORMAT) return null
   if (!adapters[format]) throw new Error(`Unsupported source format: ${format}`)
-  return adapters[format]
+  return packageMapping && adapters[format].create
+    ? adapters[format].create(packageMapping)
+    : adapters[format]
 }
 
 module.exports = {

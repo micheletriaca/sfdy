@@ -46,6 +46,54 @@ const customObject = entry('objects/Invoice__c.object', `
 
 const normalizedXml = async value => JSON.parse(JSON.stringify(await parseXml(value)))
 
+const packageMapping = {
+  permissionsets: {
+    directoryName: 'permissionsets',
+    inFolder: 'false',
+    metaFile: 'false',
+    suffix: 'permissionset',
+    xmlName: 'PermissionSet'
+  },
+  lwc: {
+    directoryName: 'lwc',
+    inFolder: 'false',
+    metaFile: 'false',
+    xmlName: 'LightningComponentBundle'
+  },
+  experiences: {
+    directoryName: 'experiences',
+    inFolder: 'false',
+    metaFile: 'false',
+    xmlName: 'ExperienceBundle'
+  },
+  reports: [{
+    directoryName: 'reports',
+    inFolder: 'true',
+    metaFile: 'false',
+    suffix: 'report',
+    xmlName: 'Report'
+  }, {
+    directoryName: 'reports',
+    inFolder: 'false',
+    metaFile: 'false',
+    suffix: 'reportFolder',
+    xmlName: 'ReportFolder'
+  }],
+  documents: [{
+    directoryName: 'documents',
+    inFolder: 'true',
+    metaFile: 'true',
+    suffix: 'document',
+    xmlName: 'Document'
+  }, {
+    directoryName: 'documents',
+    inFolder: 'false',
+    metaFile: 'false',
+    suffix: 'documentFolder',
+    xmlName: 'DocumentFolder'
+  }]
+}
+
 ;(async () => {
   assert.strictEqual(getFormat(), 'metadata')
   assert.strictEqual(getFormat({ sourceFormat: 'sfdx' }), 'sfdx')
@@ -188,10 +236,51 @@ const normalizedXml = async value => JSON.parse(JSON.stringify(await parseXml(va
     'objects/Invoice__c/fields/Status__c.field-meta.xml'
   ])
 
-  await assert.rejects(
-    adapter.toMetadata([entry('unknown/Thing.unknown-meta.xml', '<Unknown/>')]),
-    /Unsupported SFDX source path/
-  )
+  const genericAdapter = adapter.create(packageMapping)
+  const genericSource = [
+    entry('permissionsets/Admin.permissionset-meta.xml', '<PermissionSet/>'),
+    entry('lwc/tile/tile.js', 'export default class {}'),
+    entry('lwc/tile/tile.html', '<template/>'),
+    entry('lwc/tile/tile.js-meta.xml', '<LightningComponentBundle/>'),
+    entry('experiences/Store/routes/home.json', '{}'),
+    entry('reports/Sales.reportFolder-meta.xml', '<ReportFolder/>'),
+    entry('reports/Sales/Pipeline.report-meta.xml', '<Report/>'),
+    entry('documents/Manuals/Guide.pdf', 'pdf'),
+    entry('documents/Manuals/Guide.document-meta.xml', '<Document/>'),
+    entry('unknown/Thing.unknown-meta.xml', '<Unknown/>')
+  ]
+  const genericMetadata = await genericAdapter.toMetadata(genericSource)
+  assert.deepStrictEqual(genericMetadata.components, [
+    { type: 'PermissionSet', fullName: 'Admin' },
+    { type: 'LightningComponentBundle', fullName: 'tile' },
+    { type: 'ExperienceBundle', fullName: 'Store' },
+    { type: 'ReportFolder', fullName: 'Sales' },
+    { type: 'Report', fullName: 'Sales/Pipeline' },
+    { type: 'Document', fullName: 'Manuals/Guide' }
+  ])
+  assert.deepStrictEqual(genericMetadata.entries.map(item => item.fileName), [
+    'permissionsets/Admin.permissionset',
+    'lwc/tile/tile.js',
+    'lwc/tile/tile.html',
+    'lwc/tile/tile.js-meta.xml',
+    'experiences/Store/routes/home.json',
+    'reports/Sales-meta.xml',
+    'reports/Sales/Pipeline.report',
+    'documents/Manuals/Guide.pdf',
+    'documents/Manuals/Guide.pdf-meta.xml',
+    'unknown/Thing.unknown-meta.xml'
+  ])
+  assert.deepStrictEqual(genericAdapter.getCompanionPaths(
+    ['lwc/tile/tile.js'],
+    genericSource.map(item => item.fileName)
+  ), [
+    'lwc/tile/tile.js',
+    'lwc/tile/tile.html',
+    'lwc/tile/tile.js-meta.xml'
+  ])
+
+  const genericRoundTrip = await genericAdapter.toSource(genericMetadata.entries)
+  assert.deepStrictEqual(genericRoundTrip.upserts.map(item => item.fileName), genericSource.map(item => item.fileName))
 
   console.log('SFDX format adapter tests passed')
 })().catch(error => {
