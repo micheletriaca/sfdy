@@ -16,6 +16,19 @@ const simpleTypes = [
   }
 ]
 
+// Folder metadata are part of source format, but describeMetadata only exposes
+// their contained type (Report, Dashboard, Document, EmailTemplate).
+const folderTypes = [
+  { type: 'ReportFolder', directory: 'reports', suffix: 'reportFolder' },
+  { type: 'DashboardFolder', directory: 'dashboards', suffix: 'dashboardFolder' },
+  { type: 'DocumentFolder', directory: 'documents', suffix: 'documentFolder' },
+  { type: 'EmailFolder', directory: 'email', suffix: 'emailFolder' }
+].map(definition => ({
+  ...definition,
+  inFolder: false,
+  metaFile: false
+}))
+
 const object = {
   type: 'CustomObject',
   directory: 'objects',
@@ -130,6 +143,7 @@ const customLabels = {
 module.exports = {
   XML_NAMESPACE,
   simpleTypes,
+  folderTypes,
   object,
   decomposedTypes: [object, objectTranslation, bot],
   aggregateTypes: [customLabels]

@@ -5,7 +5,7 @@ const yauzl = require('yauzl')
 const mime = require('mime')
 const { buffer } = require('stream/consumers')
 const { parseXml, buildXml } = require('../../utils/xml-utils')
-const { XML_NAMESPACE, simpleTypes, decomposedTypes, aggregateTypes } = require('./definitions')
+const { XML_NAMESPACE, simpleTypes, folderTypes, decomposedTypes, aggregateTypes } = require('./definitions')
 
 // The adapter is intentionally I/O-free. Callers apply `deletes` first and then
 // persist `upserts`, so a failed conversion cannot leave a half-written project.
@@ -24,16 +24,25 @@ const fallbackDefinitions = simpleTypes.map(definition => ({
   metaFile: !!definition.companionSuffix
 }))
 
-const mappingDefinitions = packageMapping => packageMapping
-  ? Object.values(packageMapping).flatMap(asArray).map(definition => ({
-    type: definition.xmlName,
-    directory: definition.directoryName,
-    suffix: definition.suffix,
-    metaFile: isTrue(definition.metaFile),
-    inFolder: isTrue(definition.inFolder),
-    subDirectoryName: definition.subDirectoryName
-  }))
-  : fallbackDefinitions
+const normalizeMappingDefinition = definition => ({
+  type: definition.xmlName,
+  directory: definition.directoryName,
+  suffix: definition.suffix || (definition.xmlName === 'Document' ? 'document' : undefined),
+  metaFile: isTrue(definition.metaFile),
+  inFolder: isTrue(definition.inFolder),
+  subDirectoryName: definition.subDirectoryName
+})
+
+const mappingDefinitions = packageMapping => {
+  const discovered = packageMapping
+    ? Object.values(packageMapping).flatMap(asArray).map(normalizeMappingDefinition)
+    : fallbackDefinitions
+  const discoveredTypes = new Set(discovered.map(definition => definition.type))
+  return [
+    ...discovered,
+    ...folderTypes.filter(definition => !discoveredTypes.has(definition.type))
+  ]
+}
 
 const pathSuffix = fileName => {
   const match = path.posix.basename(fileName).match(/\.([^.]+?)(?:-meta\.xml)?$/)
@@ -80,6 +89,9 @@ const genericFullName = (fileName, definition, format) => {
     relative = stripEnding(relative, `.${definition.suffix}-meta.xml`)
     relative = stripEnding(relative, `.${definition.suffix}`)
     return relative.replace(`/${definition.subDirectoryName}`, '.')
+  }
+  if (definition.type === 'ExperienceBundle') {
+    return stripEnding(relative, '.site-meta.xml').split('/')[0]
   }
   if (!definition.suffix) {
     const parts = relative.split('/')

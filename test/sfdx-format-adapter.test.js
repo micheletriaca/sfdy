@@ -92,32 +92,33 @@ const packageMapping = {
     suffix: 'labels',
     xmlName: 'CustomLabels'
   },
-  reports: [{
+  reports: {
     directoryName: 'reports',
     inFolder: 'true',
     metaFile: 'false',
     suffix: 'report',
     xmlName: 'Report'
-  }, {
-    directoryName: 'reports',
-    inFolder: 'false',
+  },
+  dashboards: {
+    directoryName: 'dashboards',
+    inFolder: 'true',
     metaFile: 'false',
-    suffix: 'reportFolder',
-    xmlName: 'ReportFolder'
-  }],
-  documents: [{
+    suffix: 'dashboard',
+    xmlName: 'Dashboard'
+  },
+  documents: {
     directoryName: 'documents',
     inFolder: 'true',
     metaFile: 'true',
-    suffix: 'document',
     xmlName: 'Document'
-  }, {
-    directoryName: 'documents',
-    inFolder: 'false',
-    metaFile: 'false',
-    suffix: 'documentFolder',
-    xmlName: 'DocumentFolder'
-  }],
+  },
+  email: {
+    directoryName: 'email',
+    inFolder: 'true',
+    metaFile: 'true',
+    suffix: 'email',
+    xmlName: 'EmailTemplate'
+  },
   territory2Models: [{
     directoryName: 'territory2Models',
     inFolder: 'false',
@@ -330,11 +331,19 @@ const packageMapping = {
     entry('lwc/tile/tile.js', 'export default class {}'),
     entry('lwc/tile/tile.html', '<template/>'),
     entry('lwc/tile/tile.js-meta.xml', '<LightningComponentBundle/>'),
+    entry('experiences/Store.site-meta.xml', '<ExperienceBundle/>'),
     entry('experiences/Store/routes/home.json', '{}'),
     entry('reports/Sales.reportFolder-meta.xml', '<ReportFolder/>'),
+    entry('reports/Sales/Quarterly.reportFolder-meta.xml', '<ReportFolder/>'),
     entry('reports/Sales/Pipeline.report-meta.xml', '<Report/>'),
+    entry('dashboards/Ops.dashboardFolder-meta.xml', '<DashboardFolder/>'),
+    entry('dashboards/Ops/Health.dashboard-meta.xml', '<Dashboard/>'),
+    entry('documents/Manuals.documentFolder-meta.xml', '<DocumentFolder/>'),
     entry('documents/Manuals/Guide.pdf', 'pdf'),
     entry('documents/Manuals/Guide.document-meta.xml', '<Document/>'),
+    entry('documents/Manuals/Terms.txt', 'terms'),
+    entry('documents/Manuals/Terms.document-meta.xml', '<Document/>'),
+    entry('email/Templates.emailFolder-meta.xml', '<EmailFolder/>'),
     entry('territory2Models/EMEA/territories/Italy.territory2-meta.xml', '<Territory2/>'),
     entry('unknown/Thing.unknown-meta.xml', '<Unknown/>')
   ]
@@ -344,8 +353,14 @@ const packageMapping = {
     { type: 'LightningComponentBundle', fullName: 'tile' },
     { type: 'ExperienceBundle', fullName: 'Store' },
     { type: 'ReportFolder', fullName: 'Sales' },
+    { type: 'ReportFolder', fullName: 'Sales/Quarterly' },
     { type: 'Report', fullName: 'Sales/Pipeline' },
+    { type: 'DashboardFolder', fullName: 'Ops' },
+    { type: 'Dashboard', fullName: 'Ops/Health' },
+    { type: 'DocumentFolder', fullName: 'Manuals' },
     { type: 'Document', fullName: 'Manuals/Guide' },
+    { type: 'Document', fullName: 'Manuals/Terms' },
+    { type: 'EmailFolder', fullName: 'Templates' },
     { type: 'Territory2', fullName: 'EMEA.Italy' }
   ])
   assert.deepStrictEqual(genericMetadata.entries.map(item => item.fileName), [
@@ -353,11 +368,19 @@ const packageMapping = {
     'lwc/tile/tile.js',
     'lwc/tile/tile.html',
     'lwc/tile/tile.js-meta.xml',
+    'experiences/Store.site-meta.xml',
     'experiences/Store/routes/home.json',
     'reports/Sales-meta.xml',
+    'reports/Sales/Quarterly-meta.xml',
     'reports/Sales/Pipeline.report',
+    'dashboards/Ops-meta.xml',
+    'dashboards/Ops/Health.dashboard',
+    'documents/Manuals-meta.xml',
     'documents/Manuals/Guide.pdf',
     'documents/Manuals/Guide.pdf-meta.xml',
+    'documents/Manuals/Terms.txt',
+    'documents/Manuals/Terms.txt-meta.xml',
+    'email/Templates-meta.xml',
     'territory2Models/EMEA/territories/Italy.territory2',
     'unknown/Thing.unknown-meta.xml'
   ])
@@ -368,6 +391,20 @@ const packageMapping = {
     'lwc/tile/tile.js',
     'lwc/tile/tile.html',
     'lwc/tile/tile.js-meta.xml'
+  ])
+  assert.deepStrictEqual(genericAdapter.getCompanionPaths(
+    ['experiences/Store/routes/home.json'],
+    genericSource.map(item => item.fileName)
+  ), [
+    'experiences/Store.site-meta.xml',
+    'experiences/Store/routes/home.json'
+  ])
+  assert.deepStrictEqual(genericAdapter.getCompanionPaths(
+    ['documents/Manuals/Guide.pdf'],
+    genericSource.map(item => item.fileName)
+  ), [
+    'documents/Manuals/Guide.pdf',
+    'documents/Manuals/Guide.document-meta.xml'
   ])
 
   const genericRoundTrip = await genericAdapter.toSource(genericMetadata.entries)
