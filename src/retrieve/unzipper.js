@@ -10,6 +10,7 @@ const pathService = require('../services/path-service')
 const pluginEngine = require('../plugin-engine')
 const { getPackageMapping, getMeta } = require('../utils/package-utils')
 const globby = require('globby')
+const { getComponentModel } = require('../format-adapters')
 
 const getFolderName = (fileName) => fileName.substring(0, fileName.lastIndexOf('/'))
 const cleanFiles = async files => {
@@ -27,9 +28,10 @@ const cleanFiles = async files => {
 module.exports = async (zipBuffer, sfdcConnector, pkgJson, formatAdapter, sourceComponents) => {
   logger.time('unzipper')
   const packageMapping = await getPackageMapping(sfdcConnector)
+  const componentModel = getComponentModel(packageMapping)
   const requestedComponents = pkgJson.types.flatMap(t => t.members.map(m => ({ type: t.name[0], fullName: m })))
   const selectedComponents = sourceComponents || requestedComponents
-  const metadataContainers = formatAdapter ? formatAdapter.getMetadataContainers(selectedComponents) : []
+  const metadataContainers = componentModel.getMetadataContainers(selectedComponents)
   const packageTypesToKeep = new Set([...requestedComponents, ...metadataContainers].map(x => `${x.type}/${x.fullName}`))
   return new Promise((resolve, reject) => {
     yauzl.fromBuffer(zipBuffer, { lazyEntries: false }, (err, zipFile) => {
@@ -73,24 +75,32 @@ module.exports = async (zipBuffer, sfdcConnector, pkgJson, formatAdapter, source
             await pluginEngine.applyTransformations(entries)
             await pluginEngine.applyCleans()
             const filteredEntries = entries.filter(pluginEngine.applyFilters())
-            const existingFiles = formatAdapter
-              ? await globby(['**/*'], { cwd: pathService.getSrcFolder(true) })
-              : []
-            const existingEntries = formatAdapter
-              ? await Promise.all(formatAdapter.getMergePaths(selectedComponents)
-                .filter(fileName => existingFiles.includes(fileName))
-                .map(async fileName => ({
-                  fileName,
-                  data: await fs.promises.readFile(path.resolve(pathService.getSrcFolder(true), fileName))
-                })))
-              : []
+            const existingFiles = await globby(['**/*'], { cwd: pathService.getSrcFolder(true) })
+            const configuredMergePaths = formatAdapter
+              ? formatAdapter.getMergePaths(selectedComponents)
+              : componentModel.getMetadataMergePaths(selectedComponents)
+            const retrievedContainerPaths = formatAdapter
+              ? []
+              : filteredEntries
+                .map(metadataEntry => metadataEntry.fileName)
+                .filter(componentModel.isMetadataContainerPath)
+            const mergePaths = [...new Set([...configuredMergePaths, ...retrievedContainerPaths])]
+            const existingEntries = await Promise.all(mergePaths
+              .filter(fileName => existingFiles.includes(fileName))
+              .map(async fileName => ({
+                fileName,
+                data: await fs.promises.readFile(path.resolve(pathService.getSrcFolder(true), fileName))
+              })))
             const formatted = formatAdapter
               ? await formatAdapter.toSource(filteredEntries, {
                 components: selectedComponents,
                 existingEntries,
                 existingFiles
               })
-              : { upserts: filteredEntries, deletes: [] }
+              : await componentModel.mergeMetadata(filteredEntries, {
+                components: selectedComponents,
+                existingEntries
+              })
             await cleanFiles(formatted.deletes)
             await Promise.all(formatted.upserts
               .map(async y => {

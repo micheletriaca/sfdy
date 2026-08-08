@@ -222,6 +222,45 @@ const packageMapping = {
   ])
   const partialObject = await normalizedXml(partialMetadata.entries[0].data)
   assert.deepStrictEqual(partialObject.CustomObject.fields.map(field => field.fullName[0]), ['Status__c'])
+  assert.deepStrictEqual(adapter.getComponentLocation(partialMetadata.components[0]), {
+    parent: { type: 'CustomObject', fullName: 'Invoice__c' },
+    group: 'fields',
+    label: 'Status__c',
+    addressable: true
+  })
+  assert.deepStrictEqual(await adapter.resolveMetadata([customObject]), recomposed.components)
+  assert.strictEqual(adapter.isMetadataContainerPath(customObject.fileName), true)
+  assert.deepStrictEqual(adapter.getMetadataMergePaths(partialMetadata.components), [
+    'objects/Invoice__c.object'
+  ])
+
+  const retrievedField = entry(
+    partialMetadata.entries[0].fileName,
+    partialMetadata.entries[0].data.toString().replace('<label>Status</label>', '<label>Retrieved</label>')
+  )
+  const mergedObject = await adapter.mergeMetadata([retrievedField], {
+    components: partialMetadata.components,
+    existingEntries: [customObject]
+  })
+  const mergedObjectXml = await normalizedXml(mergedObject.upserts[0].data)
+  assert.deepStrictEqual(mergedObjectXml.CustomObject.fields.map(field => [
+    field.fullName[0],
+    field.label[0]
+  ]), [
+    ['Amount__c', 'Amount'],
+    ['Status__c', 'Retrieved']
+  ])
+  assert.strictEqual(mergedObjectXml.CustomObject.validationRules[0].fullName[0], 'AmountRequired')
+
+  const wildcardMergedObject = await adapter.mergeMetadata([retrievedField], {
+    components: [{ type: 'CustomField', fullName: '*' }],
+    existingEntries: [customObject]
+  })
+  const wildcardMergedObjectXml = await normalizedXml(wildcardMergedObject.upserts[0].data)
+  assert.deepStrictEqual(wildcardMergedObjectXml.CustomObject.fields.map(field => field.fullName[0]), [
+    'Status__c'
+  ])
+  assert.strictEqual(wildcardMergedObjectXml.CustomObject.validationRules[0].fullName[0], 'AmountRequired')
 
   const selectedRule = fullSourceMap.get('objects/Invoice__c/validationRules/AmountRequired.validationRule-meta.xml')
   const ruleMetadata = await adapter.toMetadata([selectedRule])
@@ -265,6 +304,20 @@ const packageMapping = {
     { type: 'ValidationRule', fullName: 'Invoice__c.AmountRequired' }
   ]), [
     { type: 'CustomObject', fullName: 'Invoice__c' }
+  ])
+  assert.deepStrictEqual(adapter.getAddressableChildTypes(), [
+    'BusinessProcess',
+    'CompactLayout',
+    'FieldSet',
+    'CustomField',
+    'Index',
+    'ListView',
+    'RecordType',
+    'SharingReason',
+    'ValidationRule',
+    'WebLink',
+    'BotVersion',
+    'CustomLabel'
   ])
   assert.deepStrictEqual(adapter.getPackageComponents([
     { type: 'CustomObject', fullName: 'Invoice__c' },
@@ -498,6 +551,17 @@ const packageMapping = {
   ]), [
     { type: 'CustomLabels', fullName: 'CustomLabels' }
   ])
+  assert.deepStrictEqual(await genericAdapter.resolveMetadata([retrievedLabels]), [
+    { type: 'CustomLabels', fullName: 'CustomLabels' },
+    { type: 'CustomLabel', fullName: 'Updated' },
+    { type: 'CustomLabel', fullName: 'Added' }
+  ])
+  assert.deepStrictEqual(genericAdapter.getComponentLocation({ type: 'CustomLabel', fullName: 'Updated' }), {
+    parent: { type: 'CustomLabels', fullName: 'CustomLabels' },
+    group: 'labels',
+    label: 'Updated',
+    addressable: true
+  })
   assert.deepStrictEqual(genericAdapter.getMergePaths([
     { type: 'CustomLabel', fullName: 'Updated' }
   ]), ['labels/CustomLabels.labels-meta.xml'])

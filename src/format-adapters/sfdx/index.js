@@ -225,6 +225,9 @@ const getDestructivePaths = (fileNames, availableFiles, packageMapping) => {
 }
 
 const containerTypes = [...decomposedTypes, ...aggregateTypes]
+const addressableChildTypes = [...new Set(containerTypes.flatMap(definition => definition.children)
+  .filter(child => child.addressable !== false)
+  .map(child => child.type))]
 
 const getContainerParent = component => {
   const definition = containerTypes.find(item => item.children.some(child => child.type === component.type))
@@ -242,6 +245,20 @@ const getMetadataContainers = components => uniqueComponents(components
   .map(getContainerParent)
   .filter(Boolean)
   .map(item => item.component))
+
+const getComponentLocation = component => {
+  const parent = getContainerParent(component)
+  if (!parent) return
+  const child = parent.definition.children.find(item => item.type === component.type)
+  return {
+    parent: parent.component,
+    group: child.directory || child.xmlTag,
+    label: parent.definition.fullName
+      ? component.fullName
+      : component.fullName.slice(parent.component.fullName.length + 1),
+    addressable: child.addressable !== false
+  }
+}
 
 const getPackageComponents = components => {
   const selected = new Set(components.map(componentKey))
@@ -515,6 +532,105 @@ const findDecomposedMetadataDefinition = fileName => decomposedTypes.find(defini
 const findAggregateMetadataDefinition = fileName => aggregateTypes.find(definition =>
   fileName === `${definition.directory}/CustomLabels.${definition.metadataSuffix}`)
 
+const metadataParentName = (metadataEntry, definition) => definition.fullName ||
+  path.posix.basename(metadataEntry.fileName, `.${definition.metadataSuffix}`)
+
+const metadataContainerDefinition = fileName =>
+  findDecomposedMetadataDefinition(fileName) || findAggregateMetadataDefinition(fileName)
+
+const resolveMetadata = async (metadataEntries, packageMapping) => {
+  const components = []
+  for (const metadataEntry of metadataEntries) {
+    const definition = metadataContainerDefinition(metadataEntry.fileName)
+    if (!definition) {
+      const component = resolvePath(metadataEntry.fileName, packageMapping, 'metadata')
+      if (component) components.push(component)
+      continue
+    }
+
+    const parentName = metadataParentName(metadataEntry, definition)
+    components.push({ type: definition.type, fullName: parentName })
+    const parsed = await parseXml(metadataEntry.data)
+    for (const child of definition.children) {
+      for (const value of parsed[definition.type][child.xmlTag] || []) {
+        components.push({
+          type: child.type,
+          fullName: definition.fullName
+            ? childName(child, value)
+            : childFullName(parentName, child, value)
+        })
+      }
+    }
+  }
+  return uniqueComponents(components)
+}
+
+const getMetadataMergePaths = components => [...new Set(components
+  .map(getContainerParent)
+  .filter(Boolean)
+  .map(({ definition, component }) => componentPath(
+    definition,
+    component.fullName,
+    definition.metadataSuffix
+  )))]
+
+const mergeSelectedChildren = async (incomingEntry, existingEntry, definition, components) => {
+  if (!existingEntry) return incomingEntry
+  const parentName = metadataParentName(incomingEntry, definition)
+  const parentSelected = isRequested(
+    new Set(components.map(componentKey)),
+    definition.type,
+    parentName
+  )
+  if (parentSelected) return incomingEntry
+
+  const incoming = await parseXml(incomingEntry.data)
+  const existing = await parseXml(existingEntry.data)
+  for (const child of definition.children) {
+    const selected = components.filter(component =>
+      component.type === child.type &&
+      (component.fullName === '*' || definition.fullName || component.fullName.startsWith(`${parentName}.`)))
+    if (!selected.length) continue
+
+    const incomingChildren = incoming[definition.type][child.xmlTag] || []
+    if (selected.some(component => component.fullName === '*')) {
+      existing[definition.type][child.xmlTag] = incomingChildren
+      continue
+    }
+
+    const incomingByName = new Map(incomingChildren.map(value => [childName(child, value), value]))
+    const selectedNames = new Set(selected.map(component =>
+      definition.fullName ? component.fullName : component.fullName.slice(parentName.length + 1)))
+    const existingChildren = existing[definition.type][child.xmlTag] || []
+    const retained = existingChildren.filter(value => !selectedNames.has(childName(child, value)))
+    const replacements = [...selectedNames]
+      .map(name => incomingByName.get(name))
+      .filter(Boolean)
+    existing[definition.type][child.xmlTag] = [...retained, ...replacements]
+  }
+  return xmlEntry(incomingEntry.fileName, existing)
+}
+
+const mergeMetadata = async (metadataEntries, options = {}) => {
+  const components = options.components || []
+  if (!components.length) return { upserts: metadataEntries, deletes: [] }
+  const existingByPath = new Map((options.existingEntries || [])
+    .map(existingEntry => [existingEntry.fileName, existingEntry]))
+  const upserts = []
+  for (const metadataEntry of metadataEntries) {
+    const definition = metadataContainerDefinition(metadataEntry.fileName)
+    upserts.push(definition
+      ? await mergeSelectedChildren(
+        metadataEntry,
+        existingByPath.get(metadataEntry.fileName),
+        definition,
+        components
+      )
+      : metadataEntry)
+  }
+  return { upserts, deletes: [] }
+}
+
 const mergeAggregateMetadata = async (metadataEntry, definition, existingEntry) => {
   const incoming = await parseXml(metadataEntry.data)
   if (!existingEntry) {
@@ -618,13 +734,19 @@ const toSource = async (metadataEntries, options = {}, packageMapping) => {
 }
 
 const createAdapter = packageMapping => ({
+  getAddressableChildTypes: () => addressableChildTypes,
+  getComponentLocation,
   getCompanionPaths: (fileNames, availableFiles) => getCompanionPaths(fileNames, availableFiles, packageMapping),
   getDestructivePaths: (fileNames, availableFiles) => getDestructivePaths(fileNames, availableFiles, packageMapping),
   getMergePaths,
+  getMetadataMergePaths,
   getMetadataContainers,
   getPackageComponents,
+  isMetadataContainerPath: fileName => !!metadataContainerDefinition(fileName),
   isMetadataPath: fileName => !!resolvePath(fileName, packageMapping),
+  mergeMetadata,
   resolve: fileNames => resolve(fileNames, packageMapping),
+  resolveMetadata: metadataEntries => resolveMetadata(metadataEntries, packageMapping),
   toMetadata: sourceEntries => toMetadata(sourceEntries, packageMapping),
   toSource: (metadataEntries, options) => toSource(metadataEntries, options, packageMapping)
 })

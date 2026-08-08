@@ -19,8 +19,11 @@ const getAdapter = (config, override, packageMapping) => {
     : adapters[format]
 }
 
+const getComponentModel = packageMapping => sfdx.create(packageMapping)
+
 module.exports = {
   DEFAULT_FORMAT,
   getAdapter,
+  getComponentModel,
   getFormat
 }
