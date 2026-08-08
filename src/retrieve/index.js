@@ -2,7 +2,7 @@ const chalk = require('chalk')
 const logger = require('../services/log-service')
 const unzipAndPatch = require('./unzipper')
 const Sfdc = require('../utils/sfdc-utils')
-const { getListOfSrcFiles, getPackageXml, getPackageMapping } = require('../utils/package-utils')
+const { expandDirectoryPatterns, getListOfSrcFiles, getPackageXml, getPackageMapping } = require('../utils/package-utils')
 const { printLogo } = require('../utils/branding-utils')
 const pluginEngine = require('../plugin-engine')
 const standardPlugins = require('../plugins')
@@ -51,17 +51,19 @@ module.exports = async ({ loginOpts, basePath, logger: _logger, files, meta, sou
   }
   let specificFiles = getFiles(files)
   let specificMeta = (meta && meta.split(',').map(x => x.trim())) || []
+  let sourceComponents
   if (specificFiles.length) {
     logger.log(chalk.yellow('--files specified. Retrieving only specific files...'))
     if (formatAdapter) {
-      specificFiles = await globby(specificFiles, { cwd: pathService.getSrcFolder(true) })
-      specificMeta = formatAdapter.resolve(specificFiles).map(x => `${x.type}/${x.fullName}`)
+      specificFiles = await globby(expandDirectoryPatterns(specificFiles), { cwd: pathService.getSrcFolder(true) })
+      sourceComponents = formatAdapter.resolve(specificFiles)
+      specificMeta = formatAdapter.getPackageComponents(sourceComponents).map(x => `${x.type}/${x.fullName}`)
     } else {
       specificFiles = pluginEngine.applyRemappers(specificFiles)
       const packageMapping = await getPackageMapping(sfdcConnector)
       specificFiles = await getListOfSrcFiles(packageMapping, specificFiles, true)
     }
-    if (specificFiles.length === 0) {
+    if (specificFiles.length === 0 || (formatAdapter && specificMeta.length === 0)) {
       logger.log(chalk.yellow('No files to retrieve. Retrieve skipped'))
       return
     }
@@ -97,7 +99,7 @@ module.exports = async ({ loginOpts, basePath, logger: _logger, files, meta, sou
   logger.log(chalk.green('Retrieve completed!'))
   logger.log(chalk.yellow('(3/3) Unzipping & applying patches...'))
   const zipBuffer = Buffer.from(retrieveResult.zipFile, 'base64')
-  await unzipAndPatch(zipBuffer, sfdcConnector, pkgJson, formatAdapter)
+  await unzipAndPatch(zipBuffer, sfdcConnector, pkgJson, formatAdapter, sourceComponents)
   logger.log(chalk.green('Unzipped!'))
   console.timeEnd('running time')
 }

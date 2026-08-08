@@ -62,6 +62,17 @@ module.exports = {
       return filesFromGlobPatterns.filter(x => !ignoreDiffs.has(x))
     }
   },
+
+  expandDirectoryPatterns: (patterns, cwd = pathService.getSrcFolder(true)) => patterns.map(pattern => {
+    const negated = pattern.startsWith('!')
+    const sourcePattern = negated ? pattern.slice(1) : pattern
+    const target = path.resolve(cwd, sourcePattern)
+    if (!glob.hasMagic(sourcePattern) && fs.existsSync(target) && fs.statSync(target).isDirectory()) {
+      return `${negated ? '!' : ''}${sourcePattern}/**/*`
+    }
+    return pattern
+  }),
+
   getPackageMapping: async sfdcConnector => {
     const cacheKey = crypto.createHash('md5').update(sfdcConnector.sessionId).digest('hex')
     const cachePath = path.resolve(os.tmpdir(), 'sfdy_v1.7.9_' + cacheKey)

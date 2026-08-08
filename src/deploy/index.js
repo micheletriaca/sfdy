@@ -5,7 +5,7 @@ const pluginEngine = require('../plugin-engine')
 const stdRenderers = require('../renderers')
 const Sfdc = require('../utils/sfdc-utils')
 const { buildXml } = require('../utils/xml-utils')
-const { getListOfSrcFiles, getPackageXml, getPackageMapping } = require('../utils/package-utils')
+const { expandDirectoryPatterns, getListOfSrcFiles, getPackageXml, getPackageMapping } = require('../utils/package-utils')
 const _ = require('lodash')
 const buildJunitTestReport = require('../deploy/junit-test-report-builder')
 const pathService = require('../services/path-service')
@@ -186,7 +186,7 @@ const performFullDeploy = async ({
   ]
 
   if (formatAdapter) {
-    const patterns = specificFilesMode ? specificFiles : ['**/*']
+    const patterns = expandDirectoryPatterns(specificFilesMode ? specificFiles : ['**/*'])
     const selectedFiles = await globby(patterns, { cwd: pathService.getSrcFolder(true) })
     const availableFiles = specificFilesMode
       ? await globby(['**/*'], { cwd: pathService.getSrcFolder(true) })
@@ -195,6 +195,7 @@ const performFullDeploy = async ({
     const ignoredFiles = new Set(['package.xml', 'lwc/.eslintrc.json', 'lwc/jsconfig.json'])
     const filesToRead = [...new Set([...selectedFiles, ...companionFiles])]
       .filter(fileName => !ignoredFiles.has(fileName))
+      .filter(fileName => formatAdapter.isMetadataPath(fileName))
       .filter(fileName => fs.existsSync(path.join(pathService.getSrcFolder(true), fileName)))
     targetFiles = readFiles(pathService.getSrcFolder(true), filesToRead, [...filesToExclude])
     const converted = await formatAdapter.toMetadata(targetFiles)

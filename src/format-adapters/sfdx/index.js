@@ -590,6 +590,7 @@ const createAdapter = packageMapping => ({
   getMergePaths,
   getMetadataContainers,
   getPackageComponents,
+  isMetadataPath: fileName => !!resolvePath(fileName, packageMapping),
   resolve: fileNames => resolve(fileNames, packageMapping),
   toMetadata: sourceEntries => toMetadata(sourceEntries, packageMapping),
   toSource: (metadataEntries, options) => toSource(metadataEntries, options, packageMapping)

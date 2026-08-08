@@ -29,6 +29,15 @@ const zipLabels = async data => {
   return buffer(zip.outputStream)
 }
 
+const zipBundle = async () => {
+  const zip = new yazl.ZipFile()
+  zip.addBuffer(Buffer.from('export default class Tile {}'), 'lwc/tile/tile.js')
+  zip.addBuffer(Buffer.from('<template></template>'), 'lwc/tile/tile.html')
+  zip.addBuffer(Buffer.from('<LightningComponentBundle/>'), 'lwc/tile/tile.js-meta.xml')
+  zip.end()
+  return buffer(zip.outputStream)
+}
+
 const connector = {
   sessionId: `sfdx-test-${Date.now()}`,
   describeMetadata: async () => ({
@@ -44,6 +53,11 @@ const connector = {
       metaFile: 'false',
       suffix: 'labels',
       xmlName: 'CustomLabels'
+    }, {
+      directoryName: 'lwc',
+      inFolder: 'false',
+      metaFile: 'false',
+      xmlName: 'LightningComponentBundle'
     }]
   })
 }
@@ -112,6 +126,17 @@ const pkg = (type, member) => ({
     const labels = await fs.promises.readFile(labelsPath, 'utf8')
     assert.match(labels, /<value>New<\/value>/)
     assert.match(labels, /<fullName>Preserved<\/fullName>/)
+
+    await pluginEngine.registerPlugins([], connector, 'test@example.com', pkg('LightningComponentBundle', 'tile'))
+    await unzip(
+      await zipBundle(),
+      connector,
+      pkg('LightningComponentBundle', 'tile'),
+      adapter
+    )
+    assert.strictEqual(fs.existsSync(path.join(basePath, 'src', 'lwc', 'tile', 'tile.js')), true)
+    assert.strictEqual(fs.existsSync(path.join(basePath, 'src', 'lwc', 'tile', 'tile.html')), true)
+    assert.strictEqual(fs.existsSync(path.join(basePath, 'src', 'lwc', 'tile', 'tile.js-meta.xml')), true)
     console.log('SFDX retrieve integration tests passed')
   } finally {
     pathService.setBasePath(previousBasePath)

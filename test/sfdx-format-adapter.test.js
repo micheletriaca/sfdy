@@ -302,6 +302,13 @@ const packageMapping = {
     { type: 'CustomObjectTranslation', fullName: 'Invoice__c-it' },
     { type: 'Bot', fullName: 'Help' }
   ])
+  const partialTranslation = await adapter.toSource([recomposedDecomposed.entries[0]], {
+    components: [{ type: 'CustomFieldTranslation', fullName: 'Invoice__c-it.Status__c' }]
+  })
+  assert.deepStrictEqual(partialTranslation.deletes, [])
+  assert.deepStrictEqual(partialTranslation.upserts.map(item => item.fileName), [
+    'objectTranslations/Invoice__c-it/Status__c.fieldTranslation-meta.xml'
+  ])
 
   const genericAdapter = adapter.create(packageMapping)
   const genericSource = [
