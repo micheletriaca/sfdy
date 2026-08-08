@@ -5,7 +5,7 @@ const yauzl = require('yauzl')
 const mime = require('mime')
 const { buffer } = require('stream/consumers')
 const { parseXml, buildXml } = require('../../utils/xml-utils')
-const { XML_NAMESPACE, simpleTypes, decomposedTypes } = require('./definitions')
+const { XML_NAMESPACE, simpleTypes, decomposedTypes, aggregateTypes } = require('./definitions')
 
 // The adapter is intentionally I/O-free. Callers apply `deletes` first and then
 // persist `upserts`, so a failed conversion cannot leave a half-written project.
@@ -192,33 +192,40 @@ const getCompanionPaths = (fileNames, availableFiles, packageMapping) => {
   return [...new Set([...matchingFiles, ...legacyCompanions])]
 }
 
-const getDecomposedParent = component => {
-  const definition = decomposedTypes.find(item => item.children.some(child => child.type === component.type))
+const containerTypes = [...decomposedTypes, ...aggregateTypes]
+
+const getContainerParent = component => {
+  const definition = containerTypes.find(item => item.children.some(child => child.type === component.type))
   if (!definition) return
   return {
     definition,
     component: {
       type: definition.type,
-      fullName: component.fullName.split('.')[0]
+      fullName: definition.fullName || component.fullName.split('.')[0]
     }
   }
 }
 
 const getMetadataContainers = components => uniqueComponents(components
-  .map(getDecomposedParent)
+  .map(getContainerParent)
   .filter(Boolean)
   .map(item => item.component))
 
 const getPackageComponents = components => {
   const selected = new Set(components.map(componentKey))
   return uniqueComponents(components.flatMap(component => {
-    const parent = getDecomposedParent(component)
+    const parent = getContainerParent(component)
     if (!parent) return component
     if (selected.has(componentKey(parent.component))) return []
     const child = parent.definition.children.find(item => item.type === component.type)
     return child.addressable === false ? parent.component : component
   }))
 }
+
+const getMergePaths = components => components.some(component =>
+  component.type === 'CustomLabel' && component.fullName !== '*')
+  ? ['labels/CustomLabels.labels-meta.xml']
+  : []
 
 const findSimpleDefinition = fileName => simpleTypes.find(definition => {
   const prefix = `${definition.directory}/`
@@ -473,6 +480,28 @@ const decomposeMetadata = async (metadataEntry, definition, requested) => {
 const findDecomposedMetadataDefinition = fileName => decomposedTypes.find(definition =>
   fileName.startsWith(`${definition.directory}/`) && fileName.endsWith(`.${definition.metadataSuffix}`))
 
+const findAggregateMetadataDefinition = fileName => aggregateTypes.find(definition =>
+  fileName === `${definition.directory}/CustomLabels.${definition.metadataSuffix}`)
+
+const mergeAggregateMetadata = async (metadataEntry, definition, existingEntry) => {
+  const incoming = await parseXml(metadataEntry.data)
+  if (!existingEntry) {
+    return xmlEntry(`${definition.directory}/CustomLabels.${definition.sourceSuffix}`, incoming)
+  }
+
+  const existing = await parseXml(existingEntry.data)
+  const child = definition.children[0]
+  const incomingChildren = incoming[definition.type][child.xmlTag] || []
+  const incomingByName = new Map(incomingChildren.map(value => [value[child.uniqueIdElement][0], value]))
+  const existingChildren = existing[definition.type][child.xmlTag] || []
+  const existingNames = new Set(existingChildren.map(value => value[child.uniqueIdElement][0]))
+  existing[definition.type][child.xmlTag] = existingChildren.map(value =>
+    incomingByName.get(value[child.uniqueIdElement][0]) || value)
+  existing[definition.type][child.xmlTag].push(...incomingChildren.filter(value =>
+    !existingNames.has(value[child.uniqueIdElement][0])))
+  return xmlEntry(`${definition.directory}/CustomLabels.${definition.sourceSuffix}`, existing)
+}
+
 const staticResourceContentType = async descriptor => {
   const parsed = await parseXml(descriptor.data)
   const root = Object.values(parsed)[0]
@@ -533,6 +562,15 @@ const toSource = async (metadataEntries, options = {}, packageMapping) => {
 
   for (const metadataEntry of metadataEntries) {
     if (staticResourcePaths.has(metadataEntry.fileName)) continue
+    const aggregateDefinition = findAggregateMetadataDefinition(metadataEntry.fileName)
+    const partialAggregate = aggregateDefinition && options.components && options.components.some(component =>
+      component.type === aggregateDefinition.children[0].type && component.fullName !== '*')
+    if (partialAggregate) {
+      const sourcePath = `${aggregateDefinition.directory}/CustomLabels.${aggregateDefinition.sourceSuffix}`
+      const existingEntry = (options.existingEntries || []).find(item => item.fileName === sourcePath)
+      result.upserts.push(await mergeAggregateMetadata(metadataEntry, aggregateDefinition, existingEntry))
+      continue
+    }
     const decomposedDefinition = findDecomposedMetadataDefinition(metadataEntry.fileName)
     if (decomposedDefinition) {
       const decomposedResult = await decomposeMetadata(metadataEntry, decomposedDefinition, requested)
@@ -549,6 +587,7 @@ const toSource = async (metadataEntries, options = {}, packageMapping) => {
 
 const createAdapter = packageMapping => ({
   getCompanionPaths: (fileNames, availableFiles) => getCompanionPaths(fileNames, availableFiles, packageMapping),
+  getMergePaths,
   getMetadataContainers,
   getPackageComponents,
   resolve: fileNames => resolve(fileNames, packageMapping),

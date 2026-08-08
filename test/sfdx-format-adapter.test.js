@@ -85,6 +85,13 @@ const packageMapping = {
     suffix: 'resource',
     xmlName: 'StaticResource'
   },
+  labels: {
+    directoryName: 'labels',
+    inFolder: 'false',
+    metaFile: 'false',
+    suffix: 'labels',
+    xmlName: 'CustomLabels'
+  },
   reports: [{
     directoryName: 'reports',
     inFolder: 'true',
@@ -386,6 +393,38 @@ const packageMapping = {
     'staticresources/Logo.svg',
     'staticresources/Logo.resource-meta.xml'
   ])
+
+  const localLabels = entry('labels/CustomLabels.labels-meta.xml', `
+<CustomLabels xmlns="http://soap.sforce.com/2006/04/metadata">
+    <labels><fullName>Updated</fullName><language>en_US</language><value>Old</value></labels>
+    <labels><fullName>Preserved</fullName><language>en_US</language><value>Keep me</value></labels>
+</CustomLabels>`.trim())
+  const retrievedLabels = entry('labels/CustomLabels.labels', `
+<CustomLabels xmlns="http://soap.sforce.com/2006/04/metadata">
+    <labels><fullName>Updated</fullName><language>en_US</language><value>New</value></labels>
+    <labels><fullName>Added</fullName><language>en_US</language><value>Add me</value></labels>
+</CustomLabels>`.trim())
+  const mergedLabels = await genericAdapter.toSource([retrievedLabels], {
+    components: [
+      { type: 'CustomLabel', fullName: 'Updated' },
+      { type: 'CustomLabel', fullName: 'Added' }
+    ],
+    existingEntries: [localLabels]
+  })
+  const mergedLabelsXml = await normalizedXml(mergedLabels.upserts[0].data)
+  assert.deepStrictEqual(mergedLabelsXml.CustomLabels.labels.map(label => [label.fullName[0], label.value[0]]), [
+    ['Updated', 'New'],
+    ['Preserved', 'Keep me'],
+    ['Added', 'Add me']
+  ])
+  assert.deepStrictEqual(genericAdapter.getMetadataContainers([
+    { type: 'CustomLabel', fullName: 'Updated' }
+  ]), [
+    { type: 'CustomLabels', fullName: 'CustomLabels' }
+  ])
+  assert.deepStrictEqual(genericAdapter.getMergePaths([
+    { type: 'CustomLabel', fullName: 'Updated' }
+  ]), ['labels/CustomLabels.labels-meta.xml'])
 
   console.log('SFDX format adapter tests passed')
 })().catch(error => {

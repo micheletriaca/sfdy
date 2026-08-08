@@ -75,8 +75,20 @@ module.exports = async (zipBuffer, sfdcConnector, pkgJson, formatAdapter) => {
             const existingFiles = formatAdapter
               ? await globby(['**/*'], { cwd: pathService.getSrcFolder(true) })
               : []
+            const existingEntries = formatAdapter
+              ? await Promise.all(formatAdapter.getMergePaths(requestedComponents)
+                .filter(fileName => existingFiles.includes(fileName))
+                .map(async fileName => ({
+                  fileName,
+                  data: await fs.promises.readFile(path.resolve(pathService.getSrcFolder(true), fileName))
+                })))
+              : []
             const formatted = formatAdapter
-              ? await formatAdapter.toSource(filteredEntries, { components: requestedComponents, existingFiles })
+              ? await formatAdapter.toSource(filteredEntries, {
+                components: requestedComponents,
+                existingEntries,
+                existingFiles
+              })
               : { upserts: filteredEntries, deletes: [] }
             await cleanFiles(formatted.deletes)
             await Promise.all(formatted.upserts

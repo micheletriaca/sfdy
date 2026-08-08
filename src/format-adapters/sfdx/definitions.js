@@ -114,9 +114,23 @@ const bot = {
   }]
 }
 
+const customLabels = {
+  type: 'CustomLabels',
+  fullName: 'CustomLabels',
+  directory: 'labels',
+  metadataSuffix: 'labels',
+  sourceSuffix: 'labels-meta.xml',
+  children: [{
+    type: 'CustomLabel',
+    xmlTag: 'labels',
+    uniqueIdElement: 'fullName'
+  }]
+}
+
 module.exports = {
   XML_NAMESPACE,
   simpleTypes,
   object,
-  decomposedTypes: [object, objectTranslation, bot]
+  decomposedTypes: [object, objectTranslation, bot],
+  aggregateTypes: [customLabels]
 }

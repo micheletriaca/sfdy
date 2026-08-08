@@ -22,6 +22,13 @@ const zipMetadata = async data => {
   return buffer(zip.outputStream)
 }
 
+const zipLabels = async data => {
+  const zip = new yazl.ZipFile()
+  zip.addBuffer(data, 'labels/CustomLabels.labels')
+  zip.end()
+  return buffer(zip.outputStream)
+}
+
 const connector = {
   sessionId: `sfdx-test-${Date.now()}`,
   describeMetadata: async () => ({
@@ -31,6 +38,12 @@ const connector = {
       metaFile: 'false',
       suffix: 'object',
       xmlName: 'CustomObject'
+    }, {
+      directoryName: 'labels',
+      inFolder: 'false',
+      metaFile: 'false',
+      suffix: 'labels',
+      xmlName: 'CustomLabels'
     }]
   })
 }
@@ -77,6 +90,28 @@ const pkg = (type, member) => ({
 
     assert.strictEqual(fs.existsSync(path.join(fieldsFolder, 'Amount__c.field-meta.xml')), false)
     assert.match(await fs.promises.readFile(path.join(fieldsFolder, 'Status__c.field-meta.xml'), 'utf8'), /Full retrieve/)
+
+    const labelsFolder = path.join(basePath, 'src', 'labels')
+    const labelsPath = path.join(labelsFolder, 'CustomLabels.labels-meta.xml')
+    await fs.promises.mkdir(labelsFolder, { recursive: true })
+    await fs.promises.writeFile(labelsPath, `
+<CustomLabels xmlns="http://soap.sforce.com/2006/04/metadata">
+    <labels><fullName>Updated</fullName><value>Old</value></labels>
+    <labels><fullName>Preserved</fullName><value>Keep</value></labels>
+</CustomLabels>`)
+    await pluginEngine.registerPlugins([], connector, 'test@example.com', pkg('CustomLabel', 'Updated'))
+    await unzip(
+      await zipLabels(Buffer.from(`
+<CustomLabels xmlns="http://soap.sforce.com/2006/04/metadata">
+    <labels><fullName>Updated</fullName><value>New</value></labels>
+</CustomLabels>`)),
+      connector,
+      pkg('CustomLabel', 'Updated'),
+      adapter
+    )
+    const labels = await fs.promises.readFile(labelsPath, 'utf8')
+    assert.match(labels, /<value>New<\/value>/)
+    assert.match(labels, /<fullName>Preserved<\/fullName>/)
     console.log('SFDX retrieve integration tests passed')
   } finally {
     pathService.setBasePath(previousBasePath)
