@@ -180,7 +180,7 @@ const performFullDeploy = async ({
   let sourceComponents = []
 
   const plugins = [
-    ...(stdRenderers.map(x => x.untransform)),
+    ...(formatAdapter ? [] : stdRenderers.map(x => x.untransform)),
     ...(renderers.map(x => nativeRequire(path.resolve(pathService.getBasePath(), x)).untransform)),
     ...(destructive ? [] : preDeployPlugins)
   ]

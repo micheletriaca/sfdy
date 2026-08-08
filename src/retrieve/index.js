@@ -85,7 +85,7 @@ module.exports = async ({ loginOpts, basePath, logger: _logger, files, meta, sou
     [
       ...standardPlugins,
       ...(config.postRetrievePlugins || []),
-      ...standardRenderers,
+      ...(formatAdapter ? [] : standardRenderers),
       ...((config.renderers || []).map(x => nativeRequire(path.resolve(pathService.getBasePath(), x)).transform))
     ],
     sfdcConnector,

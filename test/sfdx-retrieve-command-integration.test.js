@@ -26,6 +26,23 @@ const zipTranslation = async () => {
   return buffer(zip.outputStream)
 }
 
+const zipStaticResource = async () => {
+  const resource = new yazl.ZipFile()
+  resource.addBuffer(Buffer.from('console.log("app")'), 'main.js')
+  resource.end()
+  const resourceData = await buffer(resource.outputStream)
+
+  const zip = new yazl.ZipFile()
+  zip.addBuffer(resourceData, 'staticresources/App.resource')
+  zip.addBuffer(Buffer.from(`
+<StaticResource xmlns="http://soap.sforce.com/2006/04/metadata">
+    <cacheControl>Public</cacheControl>
+    <contentType>application/zip</contentType>
+</StaticResource>`), 'staticresources/App.resource-meta.xml')
+  zip.end()
+  return buffer(zip.outputStream)
+}
+
 ;(async () => {
   const previousBasePath = pathService.getBasePath()
   const previousSourceFolder = pathService.getSrcFolder()
@@ -33,6 +50,7 @@ const zipTranslation = async () => {
   const basePath = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'sfdy-sfdx-retrieve-command-'))
   const translationFolder = path.join(basePath, 'src', 'objectTranslations', 'Invoice__c-it')
   let requestedPackage
+  let retrievedZip = await zipTranslation()
 
   try {
     await fs.promises.mkdir(translationFolder, { recursive: true })
@@ -46,7 +64,6 @@ const zipTranslation = async () => {
       '<CustomFieldTranslation><name>Amount__c</name><label>Importo</label></CustomFieldTranslation>'
     )
 
-    const zip = await zipTranslation()
     Sfdc.newInstance = async () => ({
       sessionId: `sfdx-retrieve-command-${Date.now()}`,
       username: 'test@example.com',
@@ -57,13 +74,19 @@ const zipTranslation = async () => {
           metaFile: 'false',
           suffix: 'objectTranslation',
           xmlName: 'CustomObjectTranslation'
+        }, {
+          directoryName: 'staticresources',
+          inFolder: 'false',
+          metaFile: 'true',
+          suffix: 'resource',
+          xmlName: 'StaticResource'
         }]
       }),
       retrieveMetadata: async pkg => {
         requestedPackage = pkg
         return { id: '09S-test' }
       },
-      pollRetrieveMetadataStatus: async () => ({ zipFile: zip.toString('base64') })
+      pollRetrieveMetadataStatus: async () => ({ zipFile: retrievedZip.toString('base64') })
     })
 
     await retrieve({
@@ -81,6 +104,29 @@ const zipTranslation = async () => {
       /Nuovo stato/
     )
     assert.strictEqual(fs.existsSync(path.join(translationFolder, 'Amount__c.fieldTranslation-meta.xml')), true)
+
+    retrievedZip = await zipStaticResource()
+    await retrieve({
+      basePath,
+      config: {
+        sourceFormat: 'sfdx',
+        postRetrievePlugins: [],
+        staticResources: { useBundleRenderer: ['*'] }
+      },
+      meta: 'StaticResource/App',
+      loginOpts: { username: 'test@example.com', password: 'secret' },
+      logger: () => {}
+    })
+    assert.strictEqual(requestedPackage.types[0].name[0], 'StaticResource')
+    assert.deepStrictEqual(requestedPackage.types[0].members, ['App'])
+    assert.strictEqual(
+      await fs.promises.readFile(path.join(basePath, 'src', 'staticresources', 'App', 'main.js'), 'utf8'),
+      'console.log("app")'
+    )
+    assert.strictEqual(
+      fs.existsSync(path.join(basePath, 'src', 'staticresources', 'App.resource-meta.xml')),
+      true
+    )
     console.log('SFDX retrieve command integration tests passed')
   } finally {
     Sfdc.newInstance = originalNewInstance

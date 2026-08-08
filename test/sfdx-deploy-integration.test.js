@@ -55,12 +55,19 @@ const fieldXml = `<?xml version="1.0" encoding="UTF-8"?>
     await fs.promises.mkdir(path.join(sourceFolder, 'objects', 'Invoice__c', 'fields'), { recursive: true })
     await fs.promises.mkdir(path.join(sourceFolder, 'permissionsets'), { recursive: true })
     await fs.promises.mkdir(path.join(sourceFolder, 'lwc', 'tile'), { recursive: true })
+    await fs.promises.mkdir(path.join(sourceFolder, 'staticresources', 'App'), { recursive: true })
     await fs.promises.writeFile(path.join(sourceFolder, 'package.xml'), packageXml)
     await fs.promises.writeFile(path.join(sourceFolder, 'objects', 'Invoice__c', 'fields', 'Status__c.field-meta.xml'), fieldXml)
     await fs.promises.writeFile(path.join(sourceFolder, 'permissionsets', 'Admin.permissionset-meta.xml'), '<PermissionSet/>')
     await fs.promises.writeFile(path.join(sourceFolder, 'lwc', 'tile', 'tile.js'), 'export default class Tile {}')
     await fs.promises.writeFile(path.join(sourceFolder, 'lwc', 'tile', 'tile.html'), '<template></template>')
     await fs.promises.writeFile(path.join(sourceFolder, 'lwc', 'tile', 'tile.js-meta.xml'), '<LightningComponentBundle/>')
+    await fs.promises.writeFile(path.join(sourceFolder, 'staticresources', 'App', 'main.js'), 'console.log("app")')
+    await fs.promises.writeFile(path.join(sourceFolder, 'staticresources', 'App.resource-meta.xml'), `
+<StaticResource xmlns="http://soap.sforce.com/2006/04/metadata">
+    <cacheControl>Public</cacheControl>
+    <contentType>application/zip</contentType>
+</StaticResource>`)
 
     Sfdc.newInstance = async () => ({
       sessionId: `sfdx-deploy-test-${Date.now()}`,
@@ -83,6 +90,12 @@ const fieldXml = `<?xml version="1.0" encoding="UTF-8"?>
           inFolder: 'false',
           metaFile: 'false',
           xmlName: 'LightningComponentBundle'
+        }, {
+          directoryName: 'staticresources',
+          inFolder: 'false',
+          metaFile: 'true',
+          suffix: 'resource',
+          xmlName: 'StaticResource'
         }]
       }),
       deployMetadata: async stream => {
@@ -98,7 +111,10 @@ const fieldXml = `<?xml version="1.0" encoding="UTF-8"?>
 
     const runDeploy = (files, preDeployPlugins = []) => deploy({
       basePath,
-      config: { sourceFormat: 'sfdx' },
+      config: {
+        sourceFormat: 'sfdx',
+        staticResources: { useBundleRenderer: ['*'] }
+      },
       files,
       loginOpts: { username: 'test@example.com', password: 'secret' },
       logger: () => {},
@@ -150,6 +166,17 @@ const fieldXml = `<?xml version="1.0" encoding="UTF-8"?>
     await runDeploy('lwc/tile')
     const directoryEntries = await unzip(deployedZip)
     assert.deepStrictEqual(directoryEntries.map(item => item.fileName).sort(), bundleEntries.map(item => item.fileName).sort())
+
+    await runDeploy('staticresources/App/main.js')
+    const staticEntries = await unzip(deployedZip)
+    assert.deepStrictEqual(staticEntries.map(item => item.fileName).sort(), [
+      'package.xml',
+      'staticresources/App.resource',
+      'staticresources/App.resource-meta.xml'
+    ])
+    const staticManifest = await parseXml(staticEntries.find(item => item.fileName === 'package.xml').data)
+    assert.strictEqual(staticManifest.Package.types[0].name[0], 'StaticResource')
+    assert.deepStrictEqual(staticManifest.Package.types[0].members, ['App'])
     console.log('SFDX deploy integration tests passed')
   } finally {
     Sfdc.newInstance = originalNewInstance
