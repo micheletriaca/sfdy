@@ -1,5 +1,9 @@
 const path = require('path')
 const cloneDeep = require('lodash').cloneDeep
+const yazl = require('yazl')
+const yauzl = require('yauzl')
+const mime = require('mime')
+const { buffer } = require('stream/consumers')
 const { parseXml, buildXml } = require('../../utils/xml-utils')
 const { XML_NAMESPACE, simpleTypes, decomposedTypes } = require('./definitions')
 
@@ -64,6 +68,13 @@ const stripEnding = (value, ending) => value.endsWith(ending) ? value.slice(0, -
 
 const genericFullName = (fileName, definition, format) => {
   let relative = fileName.slice(definition.directory.length + 1)
+  if (definition.type === 'StaticResource') {
+    if (relative.includes('/')) return relative.split('/')[0]
+    relative = stripEnding(relative, `.${definition.suffix}-meta.xml`)
+    relative = stripEnding(relative, `.${definition.suffix}`)
+    const extension = path.posix.extname(relative)
+    return extension ? stripEnding(relative, extension) : relative
+  }
   if (!definition.suffix) {
     const parts = relative.split('/')
     return definition.type === 'DigitalExperienceBundle'
@@ -234,6 +245,72 @@ const findDocumentContent = (fileName, entries) => {
   return entries.find(item => item.fileName.startsWith(`${prefix}.`) && !item.fileName.endsWith('-meta.xml'))
 }
 
+const zipEntries = entries => new Promise((resolve, reject) => {
+  const zip = new yazl.ZipFile()
+  entries.forEach(item => zip.addBuffer(item.data, item.fileName))
+  zip.outputStream.on('error', reject)
+  buffer(zip.outputStream).then(resolve, reject)
+  zip.end()
+})
+
+const unzipEntries = data => new Promise((resolve, reject) => {
+  yauzl.fromBuffer(data, { lazyEntries: false }, (error, zipFile) => {
+    if (error) return reject(error)
+    const reads = []
+    zipFile.on('entry', zipEntry => {
+      if (zipEntry.fileName.endsWith('/')) return
+      const normalized = path.posix.normalize(zipEntry.fileName)
+      if (normalized.startsWith('../') || normalized.startsWith('/') || normalized !== zipEntry.fileName) {
+        reads.push(Promise.reject(new Error(`Unsafe path in static resource archive: ${zipEntry.fileName}`)))
+        return
+      }
+      reads.push(new Promise((resolve, reject) => {
+        zipFile.openReadStream(zipEntry, async (streamError, stream) => {
+          if (streamError) return reject(streamError)
+          try {
+            resolve(entry(zipEntry.fileName, await buffer(stream)))
+          } catch (readError) {
+            reject(readError)
+          }
+        })
+      }))
+    })
+    zipFile.on('error', reject)
+    zipFile.on('end', () => Promise.all(reads).then(resolve, reject))
+  })
+})
+
+const groupStaticResources = (entries, packageMapping, format = 'source') => {
+  const groups = new Map()
+  entries.forEach(sourceEntry => {
+    const definition = findDefinition(sourceEntry.fileName, packageMapping, format)
+    if (!definition || definition.type !== 'StaticResource') return
+    const fullName = genericFullName(sourceEntry.fileName, definition, format)
+    if (!groups.has(fullName)) groups.set(fullName, { definition, fullName, entries: [] })
+    groups.get(fullName).entries.push(sourceEntry)
+  })
+  return groups
+}
+
+const composeStaticResource = async ({ definition, fullName, entries }) => {
+  const descriptor = entries.find(item => item.fileName.endsWith(`.${definition.suffix}-meta.xml`))
+  const content = entries.filter(item => item !== descriptor)
+  if (!descriptor) throw new Error(`Missing descriptor for SFDX static resource: ${fullName}`)
+  if (!content.length) throw new Error(`Missing content for SFDX static resource: ${fullName}`)
+
+  const expandedPrefix = `${definition.directory}/${fullName}/`
+  const expanded = content.every(item => item.fileName.startsWith(expandedPrefix))
+  if (!expanded && content.length !== 1) throw new Error(`Ambiguous content for SFDX static resource: ${fullName}`)
+  const contentData = expanded
+    ? await zipEntries(content.map(item => entry(item.fileName.slice(expandedPrefix.length), item.data)))
+    : content[0].data
+
+  return [
+    entry(`${definition.directory}/${fullName}.${definition.suffix}`, contentData),
+    entry(`${definition.directory}/${fullName}.${definition.suffix}-meta.xml`, descriptor.data)
+  ]
+}
+
 const toMetadataGeneric = (sourceEntry, sourceEntries, packageMapping) => {
   const definition = findDefinition(sourceEntry.fileName, packageMapping)
   if (!definition) return entry(sourceEntry.fileName, sourceEntry.data)
@@ -292,15 +369,20 @@ const composeDecomposed = async ({ definition, parentName, entries: sourceEntrie
 const toMetadata = async (sourceEntries, packageMapping) => {
   const components = resolve(sourceEntries.map(item => item.fileName), packageMapping)
   const decomposedGroups = groupDecomposedEntries(sourceEntries)
+  const staticResourceGroups = groupStaticResources(sourceEntries, packageMapping)
   const decomposedSourcePaths = new Set([...decomposedGroups.values()]
     .flatMap(group => group.entries)
     .map(item => item.sourceEntry.fileName))
+  const staticResourcePaths = new Set([...staticResourceGroups.values()]
+    .flatMap(group => group.entries)
+    .map(item => item.fileName))
   const converted = sourceEntries
-    .filter(item => !decomposedSourcePaths.has(item.fileName))
+    .filter(item => !decomposedSourcePaths.has(item.fileName) && !staticResourcePaths.has(item.fileName))
     .map(item => toMetadataSimple(item) || toMetadataGeneric(item, sourceEntries, packageMapping))
     .filter(Boolean)
 
   for (const group of decomposedGroups.values()) converted.push(await composeDecomposed(group))
+  for (const group of staticResourceGroups.values()) converted.push(...await composeStaticResource(group))
   return { components, entries: converted }
 }
 
@@ -391,11 +473,66 @@ const decomposeMetadata = async (metadataEntry, definition, requested) => {
 const findDecomposedMetadataDefinition = fileName => decomposedTypes.find(definition =>
   fileName.startsWith(`${definition.directory}/`) && fileName.endsWith(`.${definition.metadataSuffix}`))
 
+const staticResourceContentType = async descriptor => {
+  const parsed = await parseXml(descriptor.data)
+  const root = Object.values(parsed)[0]
+  return root.contentType && root.contentType[0] ? root.contentType[0] : 'application/octet-stream'
+}
+
+const decomposeStaticResource = async ({ definition, fullName, entries }, existingFiles) => {
+  const descriptor = entries.find(item => item.fileName.endsWith(`.${definition.suffix}-meta.xml`))
+  const content = entries.find(item => item.fileName.endsWith(`.${definition.suffix}`))
+  if (!descriptor || !content) throw new Error(`Incomplete Metadata API static resource: ${fullName}`)
+
+  const existingContent = existingFiles.filter(fileName => {
+    const component = resolveGenericPath(fileName, {
+      [definition.directory]: {
+        directoryName: definition.directory,
+        inFolder: 'false',
+        metaFile: 'true',
+        suffix: definition.suffix,
+        xmlName: definition.type
+      }
+    })
+    return component && component.fullName === fullName && !fileName.endsWith(`.${definition.suffix}-meta.xml`)
+  })
+  const expandedPrefix = `${definition.directory}/${fullName}/`
+  const existingExpanded = existingContent.some(fileName => fileName.startsWith(expandedPrefix))
+  const contentType = await staticResourceContentType(descriptor)
+  const isArchive = ['application/zip', 'application/x-zip-compressed', 'application/jar'].includes(contentType)
+  const upserts = [entry(`${definition.directory}/${fullName}.${definition.suffix}-meta.xml`, descriptor.data)]
+
+  if (isArchive && (existingExpanded || !existingContent.length)) {
+    const archiveEntries = await unzipEntries(content.data)
+    upserts.push(...archiveEntries.map(item => entry(`${expandedPrefix}${item.fileName}`, item.data)))
+  } else {
+    const existingFile = existingContent.find(fileName => !fileName.startsWith(expandedPrefix))
+    const extension = mime.getExtension(contentType) || definition.suffix
+    upserts.unshift(entry(existingFile || `${definition.directory}/${fullName}.${extension}`, content.data))
+  }
+
+  const deletes = existingExpanded
+    ? [`${definition.directory}/${fullName}`]
+    : existingContent.filter(fileName => !upserts.some(item => item.fileName === fileName))
+  return { upserts, deletes }
+}
+
 const toSource = async (metadataEntries, options = {}, packageMapping) => {
   const requested = options.components && new Set(options.components.map(componentKey))
   const result = { upserts: [], deletes: [] }
+  const staticResourceGroups = groupStaticResources(metadataEntries, packageMapping, 'metadata')
+  const staticResourcePaths = new Set([...staticResourceGroups.values()]
+    .flatMap(group => group.entries)
+    .map(item => item.fileName))
+
+  for (const group of staticResourceGroups.values()) {
+    const staticResult = await decomposeStaticResource(group, options.existingFiles || [])
+    result.upserts.push(...staticResult.upserts)
+    result.deletes.push(...staticResult.deletes)
+  }
 
   for (const metadataEntry of metadataEntries) {
+    if (staticResourcePaths.has(metadataEntry.fileName)) continue
     const decomposedDefinition = findDecomposedMetadataDefinition(metadataEntry.fileName)
     if (decomposedDefinition) {
       const decomposedResult = await decomposeMetadata(metadataEntry, decomposedDefinition, requested)

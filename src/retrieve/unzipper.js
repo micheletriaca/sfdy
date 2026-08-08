@@ -9,6 +9,7 @@ const path = require('path')
 const pathService = require('../services/path-service')
 const pluginEngine = require('../plugin-engine')
 const { getPackageMapping, getMeta } = require('../utils/package-utils')
+const globby = require('globby')
 
 const getFolderName = (fileName) => fileName.substring(0, fileName.lastIndexOf('/'))
 const cleanFiles = async files => {
@@ -71,8 +72,11 @@ module.exports = async (zipBuffer, sfdcConnector, pkgJson, formatAdapter) => {
             await pluginEngine.applyTransformations(entries)
             await pluginEngine.applyCleans()
             const filteredEntries = entries.filter(pluginEngine.applyFilters())
+            const existingFiles = formatAdapter
+              ? await globby(['**/*'], { cwd: pathService.getSrcFolder(true) })
+              : []
             const formatted = formatAdapter
-              ? await formatAdapter.toSource(filteredEntries, { components: requestedComponents })
+              ? await formatAdapter.toSource(filteredEntries, { components: requestedComponents, existingFiles })
               : { upserts: filteredEntries, deletes: [] }
             await cleanFiles(formatted.deletes)
             await Promise.all(formatted.upserts

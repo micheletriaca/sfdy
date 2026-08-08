@@ -78,6 +78,13 @@ const packageMapping = {
     metaFile: 'false',
     xmlName: 'ExperienceBundle'
   },
+  staticresources: {
+    directoryName: 'staticresources',
+    inFolder: 'false',
+    metaFile: 'true',
+    suffix: 'resource',
+    xmlName: 'StaticResource'
+  },
   reports: [{
     directoryName: 'reports',
     inFolder: 'true',
@@ -334,6 +341,51 @@ const packageMapping = {
 
   const genericRoundTrip = await genericAdapter.toSource(genericMetadata.entries)
   assert.deepStrictEqual(genericRoundTrip.upserts.map(item => item.fileName), genericSource.map(item => item.fileName))
+
+  const expandedStaticResource = [
+    entry('staticresources/App/main.js', Buffer.from('main')),
+    entry('staticresources/App/styles/app.css', Buffer.from('css')),
+    entry('staticresources/App.resource-meta.xml', `
+<StaticResource xmlns="http://soap.sforce.com/2006/04/metadata">
+    <cacheControl>Public</cacheControl>
+    <contentType>application/zip</contentType>
+</StaticResource>`.trim())
+  ]
+  const staticMetadata = await genericAdapter.toMetadata(expandedStaticResource)
+  assert.deepStrictEqual(staticMetadata.components, [{ type: 'StaticResource', fullName: 'App' }])
+  assert.deepStrictEqual(staticMetadata.entries.map(item => item.fileName), [
+    'staticresources/App.resource',
+    'staticresources/App.resource-meta.xml'
+  ])
+  const expandedRoundTrip = await genericAdapter.toSource(staticMetadata.entries)
+  assert.deepStrictEqual(new Map(expandedRoundTrip.upserts.map(item => [item.fileName, item.data.toString()])), new Map([
+    ['staticresources/App.resource-meta.xml', expandedStaticResource[2].data.toString()],
+    ['staticresources/App/main.js', 'main'],
+    ['staticresources/App/styles/app.css', 'css']
+  ]))
+
+  const archivedRoundTrip = await genericAdapter.toSource(staticMetadata.entries, {
+    existingFiles: ['staticresources/App.zip', 'staticresources/App.resource-meta.xml']
+  })
+  assert.deepStrictEqual(archivedRoundTrip.upserts.map(item => item.fileName), [
+    'staticresources/App.zip',
+    'staticresources/App.resource-meta.xml'
+  ])
+
+  const fileStaticResource = [
+    entry('staticresources/Logo.svg', Buffer.from('<svg/>')),
+    entry('staticresources/Logo.resource-meta.xml', `
+<StaticResource xmlns="http://soap.sforce.com/2006/04/metadata">
+    <cacheControl>Public</cacheControl>
+    <contentType>image/svg+xml</contentType>
+</StaticResource>`.trim())
+  ]
+  const fileStaticMetadata = await genericAdapter.toMetadata(fileStaticResource)
+  const fileStaticRoundTrip = await genericAdapter.toSource(fileStaticMetadata.entries)
+  assert.deepStrictEqual(fileStaticRoundTrip.upserts.map(item => item.fileName), [
+    'staticresources/Logo.svg',
+    'staticresources/Logo.resource-meta.xml'
+  ])
 
   console.log('SFDX format adapter tests passed')
 })().catch(error => {
