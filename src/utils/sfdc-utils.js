@@ -155,14 +155,17 @@ class SfdcConn {
   }
 
   async metadata (method, args, { wsdl = 'metadata', rawBody = false, rawResponse = false } = {}) {
-    const res = await fetch(this.instanceUrl + wsdlMap[wsdl].urlPath + this.apiVersion, {
+    const body = rawBody ? args : this.buildMetadataBody(method, args, wsdl)
+    const request = {
       method: 'post',
-      body: rawBody ? args : this.buildMetadataBody(method, args, wsdl),
+      body,
       headers: {
         'Content-Type': 'text/xml',
         SOAPAction: '""'
       }
-    })
+    }
+    if (body && typeof body.pipe === 'function') request.duplex = 'half'
+    const res = await fetch(this.instanceUrl + wsdlMap[wsdl].urlPath + this.apiVersion, request)
     if (rawResponse) {
       if (res.ok) return res
       else {
