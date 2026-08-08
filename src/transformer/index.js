@@ -1,7 +1,7 @@
 const pluginEngine = require('../plugin-engine')
 const stdRenderers = require('../renderers')
 const Sfdc = require('../utils/sfdc-utils')
-const { getListOfSrcFiles, getPackageXml, getPackageMapping } = require('../utils/package-utils')
+const { expandDirectoryPatterns, getListOfSrcFiles, getPackageXml, getPackageMapping } = require('../utils/package-utils')
 const _ = require('lodash')
 // const standardPlugins = require('../plugins')
 const pathService = require('../services/path-service')
@@ -13,6 +13,24 @@ const memoize = require('lodash').memoize
 const util = require('util')
 const fs = require('fs')
 const getFolderName = (fileName) => fileName.substring(0, fileName.lastIndexOf('/'))
+const { getAdapter } = require('../format-adapters')
+const globby = require('globby')
+
+const getApiVersion = async (loginOpts, formatAdapter) => loginOpts.apiVersion || (
+  formatAdapter ? pathService.getApiVersion() : (await getPackageXml()).version[0]
+)
+
+const cleanFormattedFiles = async files => {
+  const sourceFolder = pathService.getSrcFolder(true)
+  await Promise.all(files.map(fileName => {
+    const target = path.resolve(sourceFolder, fileName)
+    const relativeTarget = path.relative(sourceFolder, target)
+    if (relativeTarget.startsWith('..') || path.isAbsolute(relativeTarget)) {
+      throw new Error(`Refusing to clean a path outside the source folder: ${fileName}`)
+    }
+    return fs.promises.rm(target, { recursive: true, force: true })
+  }))
+}
 
 module.exports = {
   transform: async ({
@@ -21,16 +39,18 @@ module.exports = {
     logger: _logger,
     files,
     srcFolder,
-    config
+    sourceFormat,
+    config = {}
   }) => {
     const makeDir = folder => fs.promises.mkdir(folder, { recursive: true })
     const mMakeDir = memoize(makeDir)
     const wf = util.promisify(fs.writeFile)
-    if (basePath) pathService.setBasePath(basePath)
-    if (srcFolder) pathService.setSrcFolder(srcFolder)
+    pathService.configureProject({ basePath, srcFolder, sourceFormat, config })
     if (_logger) logger.setLogger(_logger)
 
-    const pkgXml = await getPackageXml()
+    let formatAdapter = getAdapter(config, sourceFormat)
+    const apiVersion = await getApiVersion(loginOpts, formatAdapter)
+    if (!apiVersion) throw new Error('Missing API version for source-format transformation')
     const sfdcConnector = await Sfdc.newInstance({
       sessionId: loginOpts.sessionId,
       instanceHostname: loginOpts.instanceHostname,
@@ -38,24 +58,35 @@ module.exports = {
       password: loginOpts.password,
       isSandbox: !!loginOpts.sandbox,
       serverUrl: loginOpts.serverUrl,
-      apiVersion: loginOpts.apiVersion || pkgXml.version[0]
+      apiVersion
     })
+    if (formatAdapter) formatAdapter = getAdapter(config, sourceFormat, await getPackageMapping(sfdcConnector))
 
     const plugins = [
       //      ...standardPlugins,
       //      ...(config.postRetrievePlugins || []),
-      ...stdRenderers.map(x => x.transform),
+      ...(formatAdapter ? [] : stdRenderers.map(x => x.transform)),
       ...((config.renderers || []).map(x => nativeRequire(path.resolve(pathService.getBasePath(), x)).transform))
     ]
 
-    await pluginEngine.registerPlugins(plugins, sfdcConnector, sfdcConnector.username, await getPackageXml(), config)
+    const pkg = formatAdapter
+      ? await getPackageXml({ specificMeta: [], apiVersion })
+      : await getPackageXml()
+    await pluginEngine.registerPlugins(plugins, sfdcConnector, sfdcConnector.username, pkg, config)
     await pluginEngine.applyTransformations(files)
     await pluginEngine.applyCleans()
-    await Promise.all(files
-      .filter(pluginEngine.applyFilters())
+    const filteredFiles = files.filter(pluginEngine.applyFilters())
+    const existingFiles = formatAdapter
+      ? await globby(['**/*'], { cwd: pathService.getSrcFolder(true) })
+      : []
+    const formatted = formatAdapter
+      ? await formatAdapter.toSource(filteredFiles, { existingFiles })
+      : { upserts: filteredFiles, deletes: [] }
+    await cleanFormattedFiles(formatted.deletes)
+    await Promise.all(formatted.upserts
       .map(async y => {
-        await mMakeDir(path.resolve(pathService.getBasePath(), 'src', getFolderName(y.fileName)))
-        await wf(path.resolve(pathService.getBasePath(), 'src', y.fileName), y.data)
+        await mMakeDir(path.resolve(pathService.getSrcFolder(true), getFolderName(y.fileName)))
+        await wf(path.resolve(pathService.getSrcFolder(true), y.fileName), y.data)
       }))
   },
   untransform: async ({
@@ -65,12 +96,15 @@ module.exports = {
     files,
     renderers = [],
     srcFolder,
-    config
+    sourceFormat,
+    config = {}
   }) => {
-    if (basePath) pathService.setBasePath(basePath)
-    if (srcFolder) pathService.setSrcFolder(srcFolder)
+    pathService.configureProject({ basePath, srcFolder, sourceFormat, config })
     if (_logger) logger.setLogger(_logger)
 
+    let formatAdapter = getAdapter(config, sourceFormat)
+    const apiVersion = await getApiVersion(loginOpts, formatAdapter)
+    if (!apiVersion) throw new Error('Missing API version for source-format transformation')
     const sfdcConnector = await Sfdc.newInstance({
       sessionId: loginOpts.sessionId,
       instanceHostname: loginOpts.instanceHostname,
@@ -78,23 +112,38 @@ module.exports = {
       password: loginOpts.password,
       isSandbox: !!loginOpts.sandbox,
       serverUrl: loginOpts.serverUrl,
-      apiVersion: loginOpts.apiVersion || (await getPackageXml()).version[0]
+      apiVersion
     })
+    if (formatAdapter) formatAdapter = getAdapter(config, sourceFormat, await getPackageMapping(sfdcConnector))
 
     const getFiles = () => files.split(',').map(x => x.trim()) || []
     let specificFiles = [...new Set([...getFiles()])]
 
     const plugins = [
-      ...(stdRenderers.map(x => x.untransform)),
+      ...(formatAdapter ? [] : stdRenderers.map(x => x.untransform)),
       ...(renderers.map(x => nativeRequire(path.resolve(pathService.getBasePath(), x)).untransform))
     ]
-    await pluginEngine.registerPlugins(plugins, sfdcConnector, sfdcConnector.username, await getPackageXml({ specificFiles, sfdcConnector }), config)
-
-    specificFiles = pluginEngine.applyRemappers(specificFiles)
-
-    const packageMapping = await getPackageMapping(sfdcConnector)
-    const filesToRead = await getListOfSrcFiles(packageMapping, specificFiles)
-    const targetFiles = readFiles(pathService.getSrcFolder(true), filesToRead)
+    let targetFiles
+    let pkg
+    if (formatAdapter) {
+      const selectedFiles = await globby(expandDirectoryPatterns(specificFiles), { cwd: pathService.getSrcFolder(true) })
+      const availableFiles = await globby(['**/*'], { cwd: pathService.getSrcFolder(true) })
+      const sourceFiles = formatAdapter.getCompanionPaths(selectedFiles, availableFiles)
+      const converted = await formatAdapter.toMetadata(readFiles(pathService.getSrcFolder(true), sourceFiles))
+      targetFiles = converted.entries
+      const components = formatAdapter.getPackageComponents(converted.components)
+      pkg = await getPackageXml({
+        specificMeta: components.map(x => `${x.type}/${x.fullName}`),
+        apiVersion
+      })
+    } else {
+      await pluginEngine.registerPlugins(plugins, sfdcConnector, sfdcConnector.username, await getPackageXml({ specificFiles, sfdcConnector }), config)
+      specificFiles = pluginEngine.applyRemappers(specificFiles)
+      const packageMapping = await getPackageMapping(sfdcConnector)
+      const filesToRead = await getListOfSrcFiles(packageMapping, specificFiles)
+      targetFiles = readFiles(pathService.getSrcFolder(true), filesToRead)
+    }
+    if (formatAdapter) await pluginEngine.registerPlugins(plugins, sfdcConnector, sfdcConnector.username, pkg, config)
     await pluginEngine.applyTransformations(targetFiles)
 
     const fileMap = _.keyBy(targetFiles, 'fileName')
