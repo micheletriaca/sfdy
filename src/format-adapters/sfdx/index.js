@@ -54,6 +54,35 @@ const resolve = fileNames => uniqueComponents(fileNames
   .map(resolvePath)
   .filter(Boolean))
 
+const getCompanionPaths = fileNames => uniqueComponents(fileNames
+  .map(resolveSimplePath)
+  .filter(Boolean))
+  .flatMap(component => {
+    const definition = simpleTypes.find(item => item.type === component.type)
+    if (!definition || !definition.companionSuffix) return []
+    return [
+      componentPath(definition, component.fullName, definition.sourceSuffix),
+      componentPath(definition, component.fullName, definition.companionSuffix)
+    ]
+  })
+
+const getMetadataContainers = components => uniqueComponents(components
+  .filter(component => object.children.some(child => child.type === component.type))
+  .map(component => ({
+    type: object.type,
+    fullName: component.fullName.split('.')[0]
+  })))
+
+const getPackageComponents = components => {
+  const objectNames = new Set(components
+    .filter(component => component.type === object.type)
+    .map(component => component.fullName))
+  return components.filter(component => {
+    const isObjectChild = object.children.some(child => child.type === component.type)
+    return !isObjectChild || !objectNames.has(component.fullName.split('.')[0])
+  })
+}
+
 const findSimpleDefinition = fileName => simpleTypes.find(definition => {
   const prefix = `${definition.directory}/`
   return fileName.startsWith(prefix) && (
@@ -144,18 +173,19 @@ const toSourceSimple = metadataEntry => {
 }
 
 const childFullName = (objectName, childValue) => `${objectName}.${childValue.fullName[0]}`
+const isRequested = (requested, type, fullName) => !requested || requested.has(`${type}/*`) || requested.has(`${type}/${fullName}`)
 
 const decomposeObject = async (metadataEntry, requested) => {
   const objectName = path.posix.basename(metadataEntry.fileName, `.${object.metadataSuffix}`)
   const parsed = await parseXml(metadataEntry.data)
   const sourceEntries = []
-  const fullObjectRequested = !requested || requested.has(`${object.type}/${objectName}`)
+  const fullObjectRequested = isRequested(requested, object.type, objectName)
 
   for (const child of object.children) {
     const childValues = parsed.CustomObject[child.xmlTag] || []
     delete parsed.CustomObject[child.xmlTag]
     childValues
-      .filter(value => fullObjectRequested || requested.has(`${child.type}/${childFullName(objectName, value)}`))
+      .filter(value => fullObjectRequested || isRequested(requested, child.type, childFullName(objectName, value)))
       .forEach(value => {
         const fullName = value.fullName[0]
         const fileName = `${object.directory}/${objectName}/${child.directory}/${fullName}.${child.suffix}`
@@ -202,6 +232,9 @@ const toSource = async (metadataEntries, options = {}) => {
 }
 
 module.exports = {
+  getCompanionPaths,
+  getMetadataContainers,
+  getPackageComponents,
   resolve,
   toMetadata,
   toSource

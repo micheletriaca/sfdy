@@ -281,6 +281,7 @@ The configuration file is a JSON object:
 
 ```json
 {
+  "sourceFormat": "metadata",
   "permissionSets": {
     "stripUselessFls": true
   },
@@ -309,6 +310,11 @@ The configuration file is a JSON object:
   "stripManagedPackageFields": ["et4ae5"]
 }
 ```
+
+`sourceFormat` accepts `metadata` (the default) or `sfdx`. The command-line option
+`--source-format <format>` overrides the value in `.sfdy.json` for one deploy or retrieve.
+The initial SFDX adapter supports `Layout`, `ApexClass`, and decomposed `CustomObject`
+children such as fields, record types, validation rules, list views, and field sets.
 
 #### permissionSets
 

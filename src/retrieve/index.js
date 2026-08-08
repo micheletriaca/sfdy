@@ -12,10 +12,13 @@ const nativeRequire = require('../utils/native-require')
 const path = require('path')
 const { DEFAULT_CLIENT_ID } = require('../utils/constants')
 const { getOauth2Options } = require('../utils/auth-utils')
+const { getAdapter } = require('../format-adapters')
+const globby = require('globby')
 
-module.exports = async ({ loginOpts, basePath, logger: _logger, files, meta, config }) => {
+module.exports = async ({ loginOpts, basePath, logger: _logger, files, meta, sourceFormat, config }) => {
   if (basePath) pathService.setBasePath(basePath)
   if (_logger) logger.setLogger(_logger)
+  const formatAdapter = getAdapter(config, sourceFormat)
   console.time('running time')
   printLogo()
   logger.log(chalk.yellow('(1/3) Logging in salesforce...'))
@@ -28,7 +31,6 @@ module.exports = async ({ loginOpts, basePath, logger: _logger, files, meta, con
     apiVersion: (await getPackageXml()).version[0]
   })
   logger.log(chalk.green(`Logged in as ${sfdcConnector.username}!`))
-
   logger.log(chalk.yellow('(2/3) Retrieving metadata...'))
   const getFiles = (files = []) => {
     let hasPar = false
@@ -47,12 +49,17 @@ module.exports = async ({ loginOpts, basePath, logger: _logger, files, meta, con
     return res.map(x => x.trim())
   }
   let specificFiles = getFiles(files)
-  const specificMeta = (meta && meta.split(',').map(x => x.trim())) || []
+  let specificMeta = (meta && meta.split(',').map(x => x.trim())) || []
   if (specificFiles.length) {
     logger.log(chalk.yellow('--files specified. Retrieving only specific files...'))
-    specificFiles = pluginEngine.applyRemappers(specificFiles)
-    const packageMapping = await getPackageMapping(sfdcConnector)
-    specificFiles = await getListOfSrcFiles(packageMapping, specificFiles, true)
+    if (formatAdapter) {
+      specificFiles = await globby(specificFiles, { cwd: pathService.getSrcFolder(true) })
+      specificMeta = formatAdapter.resolve(specificFiles).map(x => `${x.type}/${x.fullName}`)
+    } else {
+      specificFiles = pluginEngine.applyRemappers(specificFiles)
+      const packageMapping = await getPackageMapping(sfdcConnector)
+      specificFiles = await getListOfSrcFiles(packageMapping, specificFiles, true)
+    }
     if (specificFiles.length === 0) {
       logger.log(chalk.yellow('No files to retrieve. Retrieve skipped'))
       return
@@ -65,7 +72,7 @@ module.exports = async ({ loginOpts, basePath, logger: _logger, files, meta, con
     logger.log(chalk.grey(specificMeta.join('\n')))
   }
   const pkgJson = await getPackageXml({
-    specificFiles,
+    specificFiles: formatAdapter ? [] : specificFiles,
     specificMeta,
     sfdcConnector
   })
@@ -89,7 +96,7 @@ module.exports = async ({ loginOpts, basePath, logger: _logger, files, meta, con
   logger.log(chalk.green('Retrieve completed!'))
   logger.log(chalk.yellow('(3/3) Unzipping & applying patches...'))
   const zipBuffer = Buffer.from(retrieveResult.zipFile, 'base64')
-  await unzipAndPatch(zipBuffer, sfdcConnector, pkgJson)
+  await unzipAndPatch(zipBuffer, sfdcConnector, pkgJson, formatAdapter)
   logger.log(chalk.green('Unzipped!'))
   console.timeEnd('running time')
 }

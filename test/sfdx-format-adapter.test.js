@@ -1,6 +1,7 @@
 const assert = require('assert')
 const { parseXml } = require('../src/utils/xml-utils')
 const adapter = require('../src/format-adapters/sfdx')
+const { getAdapter, getFormat } = require('../src/format-adapters')
 
 const xml = value => Buffer.from(`<?xml version="1.0" encoding="UTF-8"?>\n${value}\n`)
 const entry = (fileName, data) => ({ fileName, data: Buffer.isBuffer(data) ? data : xml(data) })
@@ -21,6 +22,9 @@ const apexMeta = entry('classes/Example.cls-meta.xml', `
 const customObject = entry('objects/Invoice__c.object', `
 <CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
     <label>Invoice</label>
+    <businessProcesses><fullName>Retail</fullName></businessProcesses>
+    <compactLayouts><fullName>Highlights</fullName></compactLayouts>
+    <fieldSets><fullName>Details</fullName></fieldSets>
     <fields>
         <fullName>Amount__c</fullName>
         <label>Amount</label>
@@ -31,12 +35,24 @@ const customObject = entry('objects/Invoice__c.object', `
         <label>Status</label>
         <type>Text</type>
     </fields>
+    <indexes><fullName>ExternalId</fullName></indexes>
+    <listViews><fullName>All</fullName></listViews>
+    <recordTypes><fullName>Business</fullName></recordTypes>
+    <sharingReasons><fullName>Manual</fullName></sharingReasons>
+    <validationRules><fullName>AmountRequired</fullName></validationRules>
+    <webLinks><fullName>Portal</fullName></webLinks>
     <pluralLabel>Invoices</pluralLabel>
 </CustomObject>`.trim())
 
 const normalizedXml = async value => JSON.parse(JSON.stringify(await parseXml(value)))
 
 ;(async () => {
+  assert.strictEqual(getFormat(), 'metadata')
+  assert.strictEqual(getFormat({ sourceFormat: 'sfdx' }), 'sfdx')
+  assert.strictEqual(getFormat({ sourceFormat: 'sfdx' }, 'mdapi'), 'metadata')
+  assert.strictEqual(getAdapter({ sourceFormat: 'SFDX' }), adapter)
+  assert.throws(() => getAdapter({ sourceFormat: 'unknown' }), /Unsupported source format/)
+
   const simpleSource = await adapter.toSource([layout, apexBody, apexMeta])
   assert.deepStrictEqual(simpleSource.deletes, [])
   assert.deepStrictEqual(simpleSource.upserts.map(item => item.fileName), [
@@ -65,18 +81,37 @@ const normalizedXml = async value => JSON.parse(JSON.stringify(await parseXml(va
   assert.deepStrictEqual(fullSource.deletes, ['objects/Invoice__c'])
   assert.deepStrictEqual(fullSource.upserts.map(item => item.fileName), [
     'objects/Invoice__c/Invoice__c.object-meta.xml',
+    'objects/Invoice__c/businessProcesses/Retail.businessProcess-meta.xml',
+    'objects/Invoice__c/compactLayouts/Highlights.compactLayout-meta.xml',
+    'objects/Invoice__c/fieldSets/Details.fieldSet-meta.xml',
     'objects/Invoice__c/fields/Amount__c.field-meta.xml',
-    'objects/Invoice__c/fields/Status__c.field-meta.xml'
+    'objects/Invoice__c/fields/Status__c.field-meta.xml',
+    'objects/Invoice__c/indexes/ExternalId.index-meta.xml',
+    'objects/Invoice__c/listViews/All.listView-meta.xml',
+    'objects/Invoice__c/recordTypes/Business.recordType-meta.xml',
+    'objects/Invoice__c/sharingReasons/Manual.sharingReason-meta.xml',
+    'objects/Invoice__c/validationRules/AmountRequired.validationRule-meta.xml',
+    'objects/Invoice__c/webLinks/Portal.webLink-meta.xml'
   ])
   const fullSourceMap = byName(fullSource.upserts)
   const objectRoot = await normalizedXml(fullSourceMap.get('objects/Invoice__c/Invoice__c.object-meta.xml').data)
   assert.strictEqual(objectRoot.CustomObject.fields, undefined)
+  assert.strictEqual(objectRoot.CustomObject.validationRules, undefined)
 
   const recomposed = await adapter.toMetadata(fullSource.upserts)
   assert.deepStrictEqual(recomposed.components, [
     { type: 'CustomObject', fullName: 'Invoice__c' },
+    { type: 'BusinessProcess', fullName: 'Invoice__c.Retail' },
+    { type: 'CompactLayout', fullName: 'Invoice__c.Highlights' },
+    { type: 'FieldSet', fullName: 'Invoice__c.Details' },
     { type: 'CustomField', fullName: 'Invoice__c.Amount__c' },
-    { type: 'CustomField', fullName: 'Invoice__c.Status__c' }
+    { type: 'CustomField', fullName: 'Invoice__c.Status__c' },
+    { type: 'Index', fullName: 'Invoice__c.ExternalId' },
+    { type: 'ListView', fullName: 'Invoice__c.All' },
+    { type: 'RecordType', fullName: 'Invoice__c.Business' },
+    { type: 'SharingReason', fullName: 'Invoice__c.Manual' },
+    { type: 'ValidationRule', fullName: 'Invoice__c.AmountRequired' },
+    { type: 'WebLink', fullName: 'Invoice__c.Portal' }
   ])
   assert.deepStrictEqual(
     await normalizedXml(recomposed.entries[0].data),
@@ -99,17 +134,58 @@ const normalizedXml = async value => JSON.parse(JSON.stringify(await parseXml(va
   const partialObject = await normalizedXml(partialMetadata.entries[0].data)
   assert.deepStrictEqual(partialObject.CustomObject.fields.map(field => field.fullName[0]), ['Status__c'])
 
+  const selectedRule = fullSourceMap.get('objects/Invoice__c/validationRules/AmountRequired.validationRule-meta.xml')
+  const ruleMetadata = await adapter.toMetadata([selectedRule])
+  assert.deepStrictEqual(ruleMetadata.components, [
+    { type: 'ValidationRule', fullName: 'Invoice__c.AmountRequired' }
+  ])
+  const ruleSource = await adapter.toSource(ruleMetadata.entries, { components: ruleMetadata.components })
+  assert.deepStrictEqual(ruleSource.deletes, [])
+  assert.deepStrictEqual(ruleSource.upserts.map(item => item.fileName), [
+    'objects/Invoice__c/validationRules/AmountRequired.validationRule-meta.xml'
+  ])
+
   assert.deepStrictEqual(adapter.resolve([
     'layouts/Account-Account Layout.layout-meta.xml',
     'classes/Example.cls',
     'classes/Example.cls-meta.xml',
     'objects/Invoice__c/Invoice__c.object-meta.xml',
-    'objects/Invoice__c/fields/Status__c.field-meta.xml'
+    'objects/Invoice__c/fields/Status__c.field-meta.xml',
+    'objects/Invoice__c/validationRules/AmountRequired.validationRule-meta.xml'
   ]), [
     { type: 'Layout', fullName: 'Account-Account Layout' },
     { type: 'ApexClass', fullName: 'Example' },
     { type: 'CustomObject', fullName: 'Invoice__c' },
-    { type: 'CustomField', fullName: 'Invoice__c.Status__c' }
+    { type: 'CustomField', fullName: 'Invoice__c.Status__c' },
+    { type: 'ValidationRule', fullName: 'Invoice__c.AmountRequired' }
+  ])
+  assert.deepStrictEqual(adapter.getCompanionPaths(['classes/Example.cls']), [
+    'classes/Example.cls',
+    'classes/Example.cls-meta.xml'
+  ])
+  assert.deepStrictEqual(adapter.getMetadataContainers([
+    { type: 'CustomField', fullName: 'Invoice__c.Status__c' },
+    { type: 'ValidationRule', fullName: 'Invoice__c.AmountRequired' }
+  ]), [
+    { type: 'CustomObject', fullName: 'Invoice__c' }
+  ])
+  assert.deepStrictEqual(adapter.getPackageComponents([
+    { type: 'CustomObject', fullName: 'Invoice__c' },
+    { type: 'CustomField', fullName: 'Invoice__c.Status__c' },
+    { type: 'ValidationRule', fullName: 'Invoice__c.AmountRequired' },
+    { type: 'CustomField', fullName: 'Other__c.Status__c' }
+  ]), [
+    { type: 'CustomObject', fullName: 'Invoice__c' },
+    { type: 'CustomField', fullName: 'Other__c.Status__c' }
+  ])
+
+  const wildcardSource = await adapter.toSource([customObject], {
+    components: [{ type: 'CustomField', fullName: '*' }]
+  })
+  assert.deepStrictEqual(wildcardSource.deletes, [])
+  assert.deepStrictEqual(wildcardSource.upserts.map(item => item.fileName), [
+    'objects/Invoice__c/fields/Amount__c.field-meta.xml',
+    'objects/Invoice__c/fields/Status__c.field-meta.xml'
   ])
 
   await assert.rejects(

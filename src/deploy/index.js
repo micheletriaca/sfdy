@@ -16,6 +16,9 @@ const path = require('path')
 const nativeRequire = require('../utils/native-require')
 const { DEFAULT_CLIENT_ID } = require('../utils/constants')
 const { getOauth2Options } = require('../utils/auth-utils')
+const { getAdapter } = require('../format-adapters')
+const globby = require('globby')
+const fs = require('fs')
 
 module.exports = async ({
   loginOpts,
@@ -34,12 +37,14 @@ module.exports = async ({
   testLevel,
   testReport,
   srcFolder,
+  sourceFormat,
   config,
   excludeFiles = []
 }) => {
   if (basePath) pathService.setBasePath(basePath)
   if (srcFolder) pathService.setSrcFolder(srcFolder)
   if (_logger) logger.setLogger(_logger)
+  const formatAdapter = getAdapter(config, sourceFormat)
   console.time('running time')
   printLogo()
   logger.log(chalk.yellow('(1/4) Logging in salesforce...'))
@@ -75,7 +80,8 @@ module.exports = async ({
       specifiedTests,
       checkOnly,
       ignoreWarnings,
-      testLevel
+      testLevel,
+      formatAdapter
     })
   }
   logger.log(chalk.yellow(`Deployment Id: ${deployJob.id}`))
@@ -127,7 +133,8 @@ const performFullDeploy = async ({
   specifiedTests,
   checkOnly,
   ignoreWarnings,
-  testLevel
+  testLevel,
+  formatAdapter
 }) => {
   logger.log(chalk.yellow('(2/4) Building package.xml...'))
 
@@ -166,14 +173,39 @@ const performFullDeploy = async ({
   let specificFiles = [...new Set([...getDiffFiles(), ...getFiles(files)])]
   if (specificFiles.length) logger.log(chalk.yellow('--files specified. Deploying only specific files...'))
 
+  const packageMapping = formatAdapter ? null : await getPackageMapping(sfdcConnector)
+  const filesToExclude = new Set([...((config && config.excludeFiles) || []), ...(excludeFiles || [])])
+  let targetFiles
+  let sourceComponents = []
+
   const plugins = [
     ...(stdRenderers.map(x => x.untransform)),
     ...(renderers.map(x => nativeRequire(path.resolve(pathService.getBasePath(), x)).untransform)),
     ...(destructive ? [] : preDeployPlugins)
   ]
-  await pluginEngine.registerPlugins(plugins, sfdcConnector, sfdcConnector.username, await getPackageXml({ specificFiles, sfdcConnector }), config)
 
-  specificFiles = pluginEngine.applyRemappers(specificFiles)
+  if (formatAdapter) {
+    const patterns = specificFilesMode ? specificFiles : ['**/*']
+    const selectedFiles = await globby(patterns, { cwd: pathService.getSrcFolder(true) })
+    const companionFiles = formatAdapter.getCompanionPaths(selectedFiles)
+    const ignoredFiles = new Set(['package.xml', 'lwc/.eslintrc.json', 'lwc/jsconfig.json'])
+    const filesToRead = [...new Set([...selectedFiles, ...companionFiles])]
+      .filter(fileName => !ignoredFiles.has(fileName))
+      .filter(fileName => fs.existsSync(path.join(pathService.getSrcFolder(true), fileName)))
+    targetFiles = readFiles(pathService.getSrcFolder(true), filesToRead, [...filesToExclude])
+    const converted = await formatAdapter.toMetadata(targetFiles)
+    targetFiles = converted.entries
+    sourceComponents = formatAdapter.getPackageComponents(converted.components)
+    const initialPackage = specificFilesMode
+      ? await getPackageXml({ specificMeta: sourceComponents.map(x => `${x.type}/${x.fullName}`), sfdcConnector })
+      : await getPackageXml()
+    await pluginEngine.registerPlugins(plugins, sfdcConnector, sfdcConnector.username, initialPackage, config)
+  } else {
+    await pluginEngine.registerPlugins(plugins, sfdcConnector, sfdcConnector.username, await getPackageXml({ specificFiles, sfdcConnector }), config)
+    specificFiles = pluginEngine.applyRemappers(specificFiles)
+    const filesToRead = await getListOfSrcFiles(packageMapping, specificFilesMode ? specificFiles : ['**/*'])
+    targetFiles = readFiles(pathService.getSrcFolder(true), filesToRead, [...filesToExclude])
+  }
 
   if (!(specificFilesMode || destructivePackage) && destructive) {
     throw Error('Full destructive changeset is too dangerous. You must specify --files, --diff or a value for the destructive option')
@@ -182,10 +214,6 @@ const performFullDeploy = async ({
   logger.log(chalk.green('Built package.xml!'))
   logger.log(chalk.yellow('(3/4) Creating zip & applying predeploy patches...'))
 
-  const packageMapping = await getPackageMapping(sfdcConnector)
-  const filesToRead = await getListOfSrcFiles(packageMapping, specificFilesMode ? specificFiles : ['**/*'])
-  const filesToExclude = new Set([...((config && config.excludeFiles) || []), ...(excludeFiles || [])])
-  const targetFiles = readFiles(pathService.getSrcFolder(true), filesToRead, [...filesToExclude])
   await pluginEngine.applyTransformations(targetFiles)
 
   const fileMap = _.keyBy(targetFiles, 'fileName')
@@ -203,7 +231,9 @@ const performFullDeploy = async ({
       logger.log(chalk.yellow('The following files will be deleted:'))
       const fileList = targetFiles.filter(pluginEngine.applyFilters()).map(x => x.fileName)
       logger.log(chalk.grey(fileList.join('\n')))
-      const pkgJson = await getPackageXml({ specificFiles: fileList, sfdcConnector, skipParseGlobPatterns: true })
+      const pkgJson = formatAdapter
+        ? await getPackageXml({ specificMeta: sourceComponents.map(x => `${x.type}/${x.fullName}`), sfdcConnector })
+        : await getPackageXml({ specificFiles: fileList, sfdcConnector, skipParseGlobPatterns: true })
       zip.addBuffer(Buffer.from(buildXml({ Package: pkgJson }) + '\n', 'utf-8'), 'destructiveChanges.xml')
     } else if (destructivePackage && typeof destructivePackage === 'string') {
       logger.log(chalk.yellow(`Metadata specified in ${destructivePackage} will be deleted`))
@@ -219,7 +249,9 @@ const performFullDeploy = async ({
         if (specificFiles.length) fileList.push(f)
         zip.addBuffer(fileMap[f].data, f)
       })
-    const pkgJson = await getPackageXml({ specificFiles: fileList, sfdcConnector, skipParseGlobPatterns: true })
+    const pkgJson = formatAdapter
+      ? await getPackageXml({ specificMeta: sourceComponents.map(x => `${x.type}/${x.fullName}`), sfdcConnector })
+      : await getPackageXml({ specificFiles: fileList, sfdcConnector, skipParseGlobPatterns: true })
     zip.addBuffer(Buffer.from(buildXml({ Package: pkgJson }) + '\n', 'utf-8'), 'package.xml')
     if (fileList.length) {
       logger.log(chalk.yellow('The following files will be deployed:'))

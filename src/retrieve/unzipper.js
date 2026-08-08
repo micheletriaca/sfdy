@@ -11,17 +11,30 @@ const pluginEngine = require('../plugin-engine')
 const { getPackageMapping, getMeta } = require('../utils/package-utils')
 
 const getFolderName = (fileName) => fileName.substring(0, fileName.lastIndexOf('/'))
+const cleanFiles = async files => {
+  const sourceFolder = pathService.getSrcFolder(true)
+  await Promise.all(files.map(fileName => {
+    const target = path.resolve(sourceFolder, fileName)
+    const relativeTarget = path.relative(sourceFolder, target)
+    if (relativeTarget.startsWith('..') || path.isAbsolute(relativeTarget)) {
+      throw new Error(`Refusing to clean a path outside the source folder: ${fileName}`)
+    }
+    return fs.promises.rm(target, { recursive: true, force: true })
+  }))
+}
 
-module.exports = async (zipBuffer, sfdcConnector, pkgJson) => {
+module.exports = async (zipBuffer, sfdcConnector, pkgJson, formatAdapter) => {
   logger.time('unzipper')
   const packageMapping = await getPackageMapping(sfdcConnector)
-  const packageTypesToKeep = new Set(pkgJson.types.flatMap(t => t.members.map(m => t.name[0] + '/' + m)))
-  return new Promise(resolve => {
+  const requestedComponents = pkgJson.types.flatMap(t => t.members.map(m => ({ type: t.name[0], fullName: m })))
+  const metadataContainers = formatAdapter ? formatAdapter.getMetadataContainers(requestedComponents) : []
+  const packageTypesToKeep = new Set([...requestedComponents, ...metadataContainers].map(x => `${x.type}/${x.fullName}`))
+  return new Promise((resolve, reject) => {
     yauzl.fromBuffer(zipBuffer, { lazyEntries: false }, (err, zipFile) => {
       const wf = util.promisify(fs.writeFile)
       const makeDir = folder => fs.promises.mkdir(folder, { recursive: true })
       const mMakeDir = memoize(makeDir)
-      if (err) return console.error(err)
+      if (err) return reject(err)
       const openStream = util.promisify(zipFile.openReadStream.bind(zipFile))
       const flow = _('entry', zipFile)
       zipFile.on('end', () => { flow.end() })
@@ -53,17 +66,25 @@ module.exports = async (zipBuffer, sfdcConnector, pkgJson) => {
         .map(x => _(x))
         .parallel(20)
         .toArray(async entries => {
-          logger.timeLog('unzipper')
-          await pluginEngine.applyTransformations(entries)
-          await pluginEngine.applyCleans()
-          await Promise.all(entries
-            .filter(pluginEngine.applyFilters())
-            .map(async y => {
-              await mMakeDir(path.resolve(pathService.getBasePath(), 'src', getFolderName(y.fileName)))
-              await wf(path.resolve(pathService.getBasePath(), 'src', y.fileName), y.data)
-            }))
-          logger.timeEnd('unzipper')
-          resolve()
+          try {
+            logger.timeLog('unzipper')
+            await pluginEngine.applyTransformations(entries)
+            await pluginEngine.applyCleans()
+            const filteredEntries = entries.filter(pluginEngine.applyFilters())
+            const formatted = formatAdapter
+              ? await formatAdapter.toSource(filteredEntries, { components: requestedComponents })
+              : { upserts: filteredEntries, deletes: [] }
+            await cleanFiles(formatted.deletes)
+            await Promise.all(formatted.upserts
+              .map(async y => {
+                await mMakeDir(path.resolve(pathService.getSrcFolder(true), getFolderName(y.fileName)))
+                await wf(path.resolve(pathService.getSrcFolder(true), y.fileName), y.data)
+              }))
+            logger.timeEnd('unzipper')
+            resolve()
+          } catch (error) {
+            reject(error)
+          }
         })
     })
   })

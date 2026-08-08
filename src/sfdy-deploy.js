@@ -17,6 +17,7 @@ addAuthenticationOptions(program)
   .option('--quick-deploy <quickDeployId>', 'Quick deploy')
   .option('--specified-tests <specifiedTests>', 'Comma separated list of tests to execute if testlevel=RunSpecifiedTests')
   .option('--folder <folder>', 'Set alternative src folder')
+  .option('--source-format <format>', 'Project source format: metadata or sfdx')
   .parse(process.argv)
 
 const config = configService.getConfig()
@@ -47,5 +48,6 @@ deploy({
   testLevel: options.testLevel,
   testReport: options.testReport,
   srcFolder: options.folder,
+  sourceFormat: options.sourceFormat,
   config
 }).then(deployResult => process.exit(deployResult.status !== 'Succeeded' ? 1 : 0))

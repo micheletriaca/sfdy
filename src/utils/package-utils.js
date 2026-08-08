@@ -83,13 +83,11 @@ module.exports = {
     const hasSpecificFiles = opts.specificFiles && opts.specificFiles.length
     const hasSpecificMeta = opts.specificMeta && opts.specificMeta.length
     const hasSpecificPackage = opts.specificPackage
-    if ((hasSpecificFiles || hasSpecificMeta) && opts.sfdcConnector) {
+    if (hasSpecificFiles && opts.sfdcConnector) {
       const packageMapping = await module.exports.getPackageMapping(opts.sfdcConnector)
-      if (hasSpecificFiles) {
-        return module.exports.buildPackageXmlFromFiles(opts.specificFiles, packageMapping, opts.skipParseGlobPatterns)
-      } else {
-        return module.exports.buildPackageXmlFromMeta(opts.specificMeta)
-      }
+      return module.exports.buildPackageXmlFromFiles(opts.specificFiles, packageMapping, opts.skipParseGlobPatterns)
+    } else if (hasSpecificMeta) {
+      return module.exports.buildPackageXmlFromMeta(opts.specificMeta)
     }
     if (hasSpecificPackage) {
       return (await parseXml(fs.readFileSync(path.resolve(pathService.getBasePath(), opts.specificPackage)))).Package
