@@ -117,6 +117,20 @@ const packageMapping = {
     metaFile: 'false',
     suffix: 'documentFolder',
     xmlName: 'DocumentFolder'
+  }],
+  territory2Models: [{
+    directoryName: 'territory2Models',
+    inFolder: 'false',
+    metaFile: 'false',
+    subDirectoryName: 'territories/',
+    suffix: 'territory2',
+    xmlName: 'Territory2'
+  }, {
+    directoryName: 'territory2Models',
+    inFolder: 'false',
+    metaFile: 'false',
+    suffix: 'territory2Model',
+    xmlName: 'Territory2Model'
   }]
 }
 
@@ -321,6 +335,7 @@ const packageMapping = {
     entry('reports/Sales/Pipeline.report-meta.xml', '<Report/>'),
     entry('documents/Manuals/Guide.pdf', 'pdf'),
     entry('documents/Manuals/Guide.document-meta.xml', '<Document/>'),
+    entry('territory2Models/EMEA/territories/Italy.territory2-meta.xml', '<Territory2/>'),
     entry('unknown/Thing.unknown-meta.xml', '<Unknown/>')
   ]
   const genericMetadata = await genericAdapter.toMetadata(genericSource)
@@ -330,7 +345,8 @@ const packageMapping = {
     { type: 'ExperienceBundle', fullName: 'Store' },
     { type: 'ReportFolder', fullName: 'Sales' },
     { type: 'Report', fullName: 'Sales/Pipeline' },
-    { type: 'Document', fullName: 'Manuals/Guide' }
+    { type: 'Document', fullName: 'Manuals/Guide' },
+    { type: 'Territory2', fullName: 'EMEA.Italy' }
   ])
   assert.deepStrictEqual(genericMetadata.entries.map(item => item.fileName), [
     'permissionsets/Admin.permissionset',
@@ -342,6 +358,7 @@ const packageMapping = {
     'reports/Sales/Pipeline.report',
     'documents/Manuals/Guide.pdf',
     'documents/Manuals/Guide.pdf-meta.xml',
+    'territory2Models/EMEA/territories/Italy.territory2',
     'unknown/Thing.unknown-meta.xml'
   ])
   assert.deepStrictEqual(genericAdapter.getCompanionPaths(

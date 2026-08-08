@@ -30,7 +30,8 @@ const mappingDefinitions = packageMapping => packageMapping
     directory: definition.directoryName,
     suffix: definition.suffix,
     metaFile: isTrue(definition.metaFile),
-    inFolder: isTrue(definition.inFolder)
+    inFolder: isTrue(definition.inFolder),
+    subDirectoryName: definition.subDirectoryName
   }))
   : fallbackDefinitions
 
@@ -74,6 +75,11 @@ const genericFullName = (fileName, definition, format) => {
     relative = stripEnding(relative, `.${definition.suffix}`)
     const extension = path.posix.extname(relative)
     return extension ? stripEnding(relative, extension) : relative
+  }
+  if (definition.subDirectoryName) {
+    relative = stripEnding(relative, `.${definition.suffix}-meta.xml`)
+    relative = stripEnding(relative, `.${definition.suffix}`)
+    return relative.replace(`/${definition.subDirectoryName}`, '.')
   }
   if (!definition.suffix) {
     const parts = relative.split('/')
