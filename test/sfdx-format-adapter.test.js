@@ -44,6 +44,18 @@ const customObject = entry('objects/Invoice__c.object', `
     <pluralLabel>Invoices</pluralLabel>
 </CustomObject>`.trim())
 
+const objectTranslation = entry('objectTranslations/Invoice__c-it.objectTranslation', `
+<CustomObjectTranslation xmlns="http://soap.sforce.com/2006/04/metadata">
+    <caseValues><article>Il</article><caseType>Nominative</caseType><plural>false</plural><value>Fattura</value></caseValues>
+    <fields><name>Status__c</name><label>Stato</label></fields>
+</CustomObjectTranslation>`.trim())
+
+const bot = entry('bots/Help.bot', `
+<Bot xmlns="http://soap.sforce.com/2006/04/metadata">
+    <label>Help</label>
+    <botVersions><fullName>v1</fullName><status>Active</status></botVersions>
+</Bot>`.trim())
+
 const normalizedXml = async value => JSON.parse(JSON.stringify(await parseXml(value)))
 
 const packageMapping = {
@@ -234,6 +246,47 @@ const packageMapping = {
   assert.deepStrictEqual(wildcardSource.upserts.map(item => item.fileName), [
     'objects/Invoice__c/fields/Amount__c.field-meta.xml',
     'objects/Invoice__c/fields/Status__c.field-meta.xml'
+  ])
+
+  const decomposedSource = await adapter.toSource([objectTranslation, bot])
+  assert.deepStrictEqual(decomposedSource.deletes, [
+    'objectTranslations/Invoice__c-it',
+    'bots/Help'
+  ])
+  assert.deepStrictEqual(decomposedSource.upserts.map(item => item.fileName), [
+    'objectTranslations/Invoice__c-it/Invoice__c-it.objectTranslation-meta.xml',
+    'objectTranslations/Invoice__c-it/Status__c.fieldTranslation-meta.xml',
+    'bots/Help/Help.bot-meta.xml',
+    'bots/Help/v1.botVersion-meta.xml'
+  ])
+  const recomposedDecomposed = await adapter.toMetadata(decomposedSource.upserts)
+  assert.deepStrictEqual(recomposedDecomposed.components, [
+    { type: 'CustomObjectTranslation', fullName: 'Invoice__c-it' },
+    { type: 'CustomFieldTranslation', fullName: 'Invoice__c-it.Status__c' },
+    { type: 'Bot', fullName: 'Help' },
+    { type: 'BotVersion', fullName: 'Help.v1' }
+  ])
+  assert.deepStrictEqual(
+    await normalizedXml(recomposedDecomposed.entries[0].data),
+    await normalizedXml(objectTranslation.data)
+  )
+  assert.deepStrictEqual(
+    await normalizedXml(recomposedDecomposed.entries[1].data),
+    await normalizedXml(bot.data)
+  )
+  assert.deepStrictEqual(adapter.getPackageComponents([
+    { type: 'CustomFieldTranslation', fullName: 'Invoice__c-it.Status__c' },
+    { type: 'BotVersion', fullName: 'Help.v1' }
+  ]), [
+    { type: 'CustomObjectTranslation', fullName: 'Invoice__c-it' },
+    { type: 'BotVersion', fullName: 'Help.v1' }
+  ])
+  assert.deepStrictEqual(adapter.getMetadataContainers([
+    { type: 'CustomFieldTranslation', fullName: 'Invoice__c-it.Status__c' },
+    { type: 'BotVersion', fullName: 'Help.v1' }
+  ]), [
+    { type: 'CustomObjectTranslation', fullName: 'Invoice__c-it' },
+    { type: 'Bot', fullName: 'Help' }
   ])
 
   const genericAdapter = adapter.create(packageMapping)

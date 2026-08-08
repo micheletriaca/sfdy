@@ -1,7 +1,7 @@
 const path = require('path')
 const cloneDeep = require('lodash').cloneDeep
 const { parseXml, buildXml } = require('../../utils/xml-utils')
-const { XML_NAMESPACE, simpleTypes, object } = require('./definitions')
+const { XML_NAMESPACE, simpleTypes, decomposedTypes } = require('./definitions')
 
 // The adapter is intentionally I/O-free. Callers apply `deletes` first and then
 // persist `upserts`, so a failed conversion cannot leave a half-written project.
@@ -108,24 +108,41 @@ const resolveSimplePath = fileName => {
   }
 }
 
-const resolveObjectPath = fileName => {
+const resolveDecomposedInfo = fileName => {
   const parts = fileName.split('/')
-  if (parts[0] !== object.directory || parts.length < 3) return
-
-  const objectName = parts[1]
-  if (parts.length === 3 && parts[2] === `${objectName}.${object.sourceSuffix}`) {
-    return { type: object.type, fullName: objectName }
-  }
-
-  for (const child of object.children) {
-    const ending = `.${child.suffix}`
-    if (parts.length === 4 && parts[2] === child.directory && parts[3].endsWith(ending)) {
+  for (const definition of decomposedTypes) {
+    if (parts[0] !== definition.directory || parts.length < 3) continue
+    const parentName = parts[1]
+    if (parts.length === 3 && parts[2] === `${parentName}.${definition.sourceSuffix}`) {
       return {
-        type: child.type,
-        fullName: `${objectName}.${parts[3].slice(0, -ending.length)}`
+        definition,
+        component: { type: definition.type, fullName: parentName }
+      }
+    }
+
+    for (const child of definition.children) {
+      const ending = `.${child.suffix}`
+      const childFile = definition.decomposition === 'folderPerType' ? parts[3] : parts[2]
+      const pathMatches = definition.decomposition === 'folderPerType'
+        ? parts.length === 4 && parts[2] === child.directory
+        : parts.length === 3
+      if (pathMatches && childFile.endsWith(ending)) {
+        return {
+          definition,
+          child,
+          component: {
+            type: child.type,
+            fullName: `${parentName}.${childFile.slice(0, -ending.length)}`
+          }
+        }
       }
     }
   }
+}
+
+const resolveDecomposedPath = fileName => {
+  const info = resolveDecomposedInfo(fileName)
+  return info && info.component
 }
 
 const resolveGenericPath = (fileName, packageMapping, format = 'source') => {
@@ -138,7 +155,7 @@ const resolveGenericPath = (fileName, packageMapping, format = 'source') => {
 }
 
 const resolvePath = (fileName, packageMapping, format = 'source') =>
-  resolveObjectPath(fileName) || resolveSimplePath(fileName) || resolveGenericPath(fileName, packageMapping, format)
+  resolveDecomposedPath(fileName) || resolveSimplePath(fileName) || resolveGenericPath(fileName, packageMapping, format)
 
 const resolve = (fileNames, packageMapping, format = 'source') => uniqueComponents(fileNames
   .map(fileName => resolvePath(fileName, packageMapping, format))
@@ -164,21 +181,32 @@ const getCompanionPaths = (fileNames, availableFiles, packageMapping) => {
   return [...new Set([...matchingFiles, ...legacyCompanions])]
 }
 
+const getDecomposedParent = component => {
+  const definition = decomposedTypes.find(item => item.children.some(child => child.type === component.type))
+  if (!definition) return
+  return {
+    definition,
+    component: {
+      type: definition.type,
+      fullName: component.fullName.split('.')[0]
+    }
+  }
+}
+
 const getMetadataContainers = components => uniqueComponents(components
-  .filter(component => object.children.some(child => child.type === component.type))
-  .map(component => ({
-    type: object.type,
-    fullName: component.fullName.split('.')[0]
-  })))
+  .map(getDecomposedParent)
+  .filter(Boolean)
+  .map(item => item.component))
 
 const getPackageComponents = components => {
-  const objectNames = new Set(components
-    .filter(component => component.type === object.type)
-    .map(component => component.fullName))
-  return components.filter(component => {
-    const isObjectChild = object.children.some(child => child.type === component.type)
-    return !isObjectChild || !objectNames.has(component.fullName.split('.')[0])
-  })
+  const selected = new Set(components.map(componentKey))
+  return uniqueComponents(components.flatMap(component => {
+    const parent = getDecomposedParent(component)
+    if (!parent) return component
+    if (selected.has(componentKey(parent.component))) return []
+    const child = parent.definition.children.find(item => item.type === component.type)
+    return child.addressable === false ? parent.component : component
+  }))
 }
 
 const findSimpleDefinition = fileName => simpleTypes.find(definition => {
@@ -227,49 +255,52 @@ const toMetadataGeneric = (sourceEntry, sourceEntries, packageMapping) => {
   return entry(sourceEntry.fileName, sourceEntry.data)
 }
 
-const groupObjectEntries = entries => {
+const groupDecomposedEntries = entries => {
   const groups = new Map()
   entries.forEach(sourceEntry => {
-    const component = resolveObjectPath(sourceEntry.fileName)
-    if (!component) return
-    const objectName = component.fullName.split('.')[0]
-    if (!groups.has(objectName)) groups.set(objectName, [])
-    groups.get(objectName).push({ component, sourceEntry })
+    const info = resolveDecomposedInfo(sourceEntry.fileName)
+    if (!info) return
+    const parentName = info.component.fullName.split('.')[0]
+    const key = `${info.definition.type}/${parentName}`
+    if (!groups.has(key)) groups.set(key, { definition: info.definition, parentName, entries: [] })
+    groups.get(key).entries.push({ ...info, sourceEntry })
   })
   return groups
 }
 
-const composeObject = async (objectName, sourceEntries) => {
-  const main = sourceEntries.find(item => item.component.type === object.type)
+const composeDecomposed = async ({ definition, parentName, entries: sourceEntries }) => {
+  const main = sourceEntries.find(item => item.component.type === definition.type)
   const result = main
     ? await parseXml(main.sourceEntry.data)
-    : { CustomObject: { $: { xmlns: XML_NAMESPACE } } }
+    : { [definition.type]: { $: { xmlns: XML_NAMESPACE } } }
 
-  for (const child of object.children) {
+  for (const child of definition.children) {
     const children = sourceEntries.filter(item => item.component.type === child.type)
     if (!children.length) continue
-    result.CustomObject[child.xmlTag] = []
+    result[definition.type][child.xmlTag] = []
     for (const item of children) {
       const childXml = await parseXml(item.sourceEntry.data)
       const childValue = cloneDeep(Object.values(childXml)[0])
       delete childValue.$
-      result.CustomObject[child.xmlTag].push(childValue)
+      result[definition.type][child.xmlTag].push(childValue)
     }
   }
 
-  return xmlEntry(componentPath(object, objectName, object.metadataSuffix), result)
+  return xmlEntry(componentPath(definition, parentName, definition.metadataSuffix), result)
 }
 
 const toMetadata = async (sourceEntries, packageMapping) => {
   const components = resolve(sourceEntries.map(item => item.fileName), packageMapping)
-  const objectGroups = groupObjectEntries(sourceEntries)
-  const objectSourcePaths = new Set([...objectGroups.values()].flat().map(item => item.sourceEntry.fileName))
+  const decomposedGroups = groupDecomposedEntries(sourceEntries)
+  const decomposedSourcePaths = new Set([...decomposedGroups.values()]
+    .flatMap(group => group.entries)
+    .map(item => item.sourceEntry.fileName))
   const converted = sourceEntries
-    .filter(item => !objectSourcePaths.has(item.fileName))
+    .filter(item => !decomposedSourcePaths.has(item.fileName))
     .map(item => toMetadataSimple(item) || toMetadataGeneric(item, sourceEntries, packageMapping))
     .filter(Boolean)
 
-  for (const [objectName, entries] of objectGroups) converted.push(await composeObject(objectName, entries))
+  for (const group of decomposedGroups.values()) converted.push(await composeDecomposed(group))
   return { components, entries: converted }
 }
 
@@ -314,23 +345,27 @@ const toSourceGeneric = (metadataEntry, packageMapping) => {
   return entry(metadataEntry.fileName, metadataEntry.data)
 }
 
-const childFullName = (objectName, childValue) => `${objectName}.${childValue.fullName[0]}`
+const childName = (child, childValue) => childValue[child.uniqueIdElement || 'fullName'][0]
+const childFullName = (parentName, child, childValue) => `${parentName}.${childName(child, childValue)}`
 const isRequested = (requested, type, fullName) => !requested || requested.has(`${type}/*`) || requested.has(`${type}/${fullName}`)
 
-const decomposeObject = async (metadataEntry, requested) => {
-  const objectName = path.posix.basename(metadataEntry.fileName, `.${object.metadataSuffix}`)
+const decomposeMetadata = async (metadataEntry, definition, requested) => {
+  const parentName = path.posix.basename(metadataEntry.fileName, `.${definition.metadataSuffix}`)
   const parsed = await parseXml(metadataEntry.data)
   const sourceEntries = []
-  const fullObjectRequested = isRequested(requested, object.type, objectName)
+  const fullParentRequested = isRequested(requested, definition.type, parentName)
 
-  for (const child of object.children) {
-    const childValues = parsed.CustomObject[child.xmlTag] || []
-    delete parsed.CustomObject[child.xmlTag]
+  for (const child of definition.children) {
+    const childValues = parsed[definition.type][child.xmlTag] || []
+    delete parsed[definition.type][child.xmlTag]
     childValues
-      .filter(value => fullObjectRequested || isRequested(requested, child.type, childFullName(objectName, value)))
+      .filter(value => fullParentRequested || isRequested(requested, child.type, childFullName(parentName, child, value)))
       .forEach(value => {
-        const fullName = value.fullName[0]
-        const fileName = `${object.directory}/${objectName}/${child.directory}/${fullName}.${child.suffix}`
+        const fullName = childName(child, value)
+        const childPath = definition.decomposition === 'folderPerType'
+          ? `${child.directory}/${fullName}.${child.suffix}`
+          : `${fullName}.${child.suffix}`
+        const fileName = `${definition.directory}/${parentName}/${childPath}`
         sourceEntries.push(xmlEntry(fileName, {
           [child.type]: {
             $: { xmlns: XML_NAMESPACE },
@@ -340,28 +375,32 @@ const decomposeObject = async (metadataEntry, requested) => {
       })
   }
 
-  if (fullObjectRequested) {
+  if (fullParentRequested) {
     sourceEntries.unshift(xmlEntry(
-      `${object.directory}/${objectName}/${objectName}.${object.sourceSuffix}`,
+      `${definition.directory}/${parentName}/${parentName}.${definition.sourceSuffix}`,
       parsed
     ))
   }
 
   return {
     upserts: sourceEntries,
-    deletes: fullObjectRequested ? [`${object.directory}/${objectName}`] : []
+    deletes: fullParentRequested ? [`${definition.directory}/${parentName}`] : []
   }
 }
+
+const findDecomposedMetadataDefinition = fileName => decomposedTypes.find(definition =>
+  fileName.startsWith(`${definition.directory}/`) && fileName.endsWith(`.${definition.metadataSuffix}`))
 
 const toSource = async (metadataEntries, options = {}, packageMapping) => {
   const requested = options.components && new Set(options.components.map(componentKey))
   const result = { upserts: [], deletes: [] }
 
   for (const metadataEntry of metadataEntries) {
-    if (metadataEntry.fileName.startsWith(`${object.directory}/`) && metadataEntry.fileName.endsWith(`.${object.metadataSuffix}`)) {
-      const objectResult = await decomposeObject(metadataEntry, requested)
-      result.upserts.push(...objectResult.upserts)
-      result.deletes.push(...objectResult.deletes)
+    const decomposedDefinition = findDecomposedMetadataDefinition(metadataEntry.fileName)
+    if (decomposedDefinition) {
+      const decomposedResult = await decomposeMetadata(metadataEntry, decomposedDefinition, requested)
+      result.upserts.push(...decomposedResult.upserts)
+      result.deletes.push(...decomposedResult.deletes)
       continue
     }
 
