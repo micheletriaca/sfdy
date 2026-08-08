@@ -1,4 +1,3 @@
-
 const chalk = require('chalk')
 const logger = require('../services/log-service')
 const unzipAndPatch = require('./unzipper')

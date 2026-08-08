@@ -18,14 +18,8 @@ const fetch = async (url, options = {}) => {
   throw new Error(`Unexpected URL: ${url}`)
 }
 
-const fetchModulePath = require.resolve('node-fetch')
-const originalFetchModule = require.cache[fetchModulePath]
-require.cache[fetchModulePath] = {
-  id: fetchModulePath,
-  filename: fetchModulePath,
-  loaded: true,
-  exports: { default: fetch }
-}
+const originalFetch = globalThis.fetch
+globalThis.fetch = fetch
 const Sfdc = require('../src/utils/sfdc-utils')
 
 ;(async () => {
@@ -49,8 +43,7 @@ const Sfdc = require('../src/utils/sfdc-utils')
     assert.strictEqual(requests[1].headers.authorization, 'Bearer access-token')
     console.log('Client credentials flow test passed')
   } finally {
-    if (originalFetchModule) require.cache[fetchModulePath] = originalFetchModule
-    else delete require.cache[fetchModulePath]
+    globalThis.fetch = originalFetch
   }
 })().catch(error => {
   console.error(error)

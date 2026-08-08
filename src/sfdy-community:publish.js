@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-const program = require('commander')
+const { program } = require('commander')
 const chalk = require('chalk')
 const { printLogo } = require('./utils/branding-utils')
 const Sfdc = require('./utils/sfdc-utils')
@@ -14,32 +14,32 @@ addAuthenticationOptions(program)
   .option('-n, --community-name <communityName>', 'The community name')
   .parse(process.argv)
 
-configureAuthentication(program)
+const options = configureAuthentication(program.opts())
 
 ;(async () => {
   console.time('running time')
   printLogo()
-  if (!program.communityName) {
+  if (!options.communityName) {
     logger.log(chalk.red('You must specify a community name'))
     process.exit(1)
   }
   logger.log(chalk.yellow('(1/2) Logging in salesforce...'))
   const apiVersion = (await getPackageXml()).version[0]
   const sfdcConnector = await Sfdc.newInstance({
-    username: program.username,
-    password: program.password,
-    oauth2: getOauth2Options(program, DEFAULT_CLIENT_ID),
-    isSandbox: !!program.sandbox,
-    serverUrl: program.serverUrl,
+    username: options.username,
+    password: options.password,
+    oauth2: getOauth2Options(options, DEFAULT_CLIENT_ID),
+    isSandbox: !!options.sandbox,
+    serverUrl: options.serverUrl,
     apiVersion
   })
   logger.log(chalk.green(`Logged in as ${sfdcConnector.username}!`))
-  const comm = (await sfdcConnector.rest('/connect/communities'))?.communities.find(x => x.name === program.communityName)
+  const comm = (await sfdcConnector.rest('/connect/communities'))?.communities.find(x => x.name === options.communityName)
   if (!comm) {
     logger.log(chalk.red('The specified community does not exist'))
     process.exit(1)
   }
-  logger.log(chalk.yellow(`(2/2) Publishing community ${program.communityName}...`))
+  logger.log(chalk.yellow(`(2/2) Publishing community ${options.communityName}...`))
   const publishResult = await sfdcConnector.publishCommunity(comm.id)
   console.log(publishResult?.message)
 })()

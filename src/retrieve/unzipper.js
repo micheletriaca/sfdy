@@ -2,8 +2,7 @@ const _ = require('highland')
 const fs = require('fs')
 const yauzl = require('yauzl')
 const util = require('util')
-const makeDir = require('make-dir')
-const getStream = require('get-stream')
+const { buffer } = require('stream/consumers')
 const memoize = require('lodash').memoize
 const logger = require('../services/log-service')
 const path = require('path')
@@ -20,6 +19,7 @@ module.exports = async (zipBuffer, sfdcConnector, pkgJson) => {
   return new Promise(resolve => {
     yauzl.fromBuffer(zipBuffer, { lazyEntries: false }, (err, zipFile) => {
       const wf = util.promisify(fs.writeFile)
+      const makeDir = folder => fs.promises.mkdir(folder, { recursive: true })
       const mMakeDir = memoize(makeDir)
       if (err) return console.error(err)
       const openStream = util.promisify(zipFile.openReadStream.bind(zipFile))
@@ -49,7 +49,7 @@ module.exports = async (zipBuffer, sfdcConnector, pkgJson) => {
           const finalMeta = metaInfo.xmlName + '/' + metaName.replace(new RegExp('.' + metaInfo.suffix + '$'), '')
           return packageTypesToKeep.has(finalMeta)
         })
-        .map(async x => { x.data = await getStream.buffer(await openStream(x)); return x })
+        .map(async x => { x.data = await buffer(await openStream(x)); return x })
         .map(x => _(x))
         .parallel(20)
         .toArray(async entries => {

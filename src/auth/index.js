@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
-const fetch = require('node-fetch').default
 const http = require('http')
-const open = require('open')
+
+const open = (...args) => import('open').then(({ default: open }) => open(...args))
 
 const get = (url, at) => fetch(url, { headers: { authorization: `Bearer ${at}` } }).then(res => res.json())
 const post = (url, body, ct = 'application/x-www-form-urlencoded') => fetch(url, {
@@ -43,5 +43,8 @@ module.exports = async (baseUrl, clientId, clientSecret, callbackPort) => new Pr
   query.append('redirect_uri', `http://localhost:${callbackPort}/callback`)
   query.append('scope', 'api web refresh_token')
 
-  open(authorizeUrl.toString())
+  open(authorizeUrl.toString()).catch(error => {
+    server.close()
+    reject(error)
+  })
 })

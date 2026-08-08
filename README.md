@@ -12,7 +12,7 @@ It has been built to work around strange behaviors and known limitations of the 
 
 ## Requirements
 
-- [Node.js](https://nodejs.org/en/) at least `10.x.x`
+- [Node.js](https://nodejs.org/en/) `22.x` or newer. Node.js 24 LTS is the recommended runtime.
 
 ## Usage
 
@@ -549,7 +549,7 @@ npm i sfdy
 #### retrieve
 
 ```js
-const retrieve = require('sfdy/src/retrieve')
+const retrieve = require('sfdy/retrieve')
 
 retrieve({
   basePath: 'root/folder',
@@ -570,7 +570,7 @@ retrieve({
 #### deploy
 
 ```js
-const deploy = require('sfdy/src/deploy')
+const deploy = require('sfdy/deploy')
 
 deploy({
   logger: (msg: string) => logger.appendLine(msg),
@@ -588,6 +588,12 @@ deploy({
 ```
 
 ## Changelog
+
+- 2.0.0
+  - Requires Node.js 22 or newer
+  - Adds OAuth 2.0 client credentials authentication for CI/CD
+  - Replaces private `sfdy/src/*` imports with supported public subpath exports
+  - Uses the native Fetch API and updates the dependency tree
 
 - 1.8.1
   - Prints the corrupted filename if a trasformation fails because of a corrupt xml

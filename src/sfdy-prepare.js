@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-const program = require('commander')
+const { program } = require('commander')
 const logger = require('./services/log-service')
 const chalk = require('chalk')
 const { printLogo } = require('./utils/branding-utils')
@@ -25,7 +25,7 @@ addAuthenticationOptions(program)
   .option('--skip-untransform', 'Skip untransform phase')
   .parse(process.argv)
 
-configureAuthentication(program)
+const options = configureAuthentication(program.opts())
 
 const config = configService.getConfig()
 
@@ -36,11 +36,11 @@ const config = configService.getConfig()
   logger.log(chalk.yellow('(1/2) Logging in salesforce...'))
   const packageXml = await getPackageXml()
   const sfdcConnector = await Sfdc.newInstance({
-    username: program.username,
-    password: program.password,
-    oauth2: getOauth2Options(program, DEFAULT_CLIENT_ID),
-    serverUrl: program.serverUrl,
-    isSandbox: !!program.sandbox,
+    username: options.username,
+    password: options.password,
+    oauth2: getOauth2Options(options, DEFAULT_CLIENT_ID),
+    serverUrl: options.serverUrl,
+    isSandbox: !!options.sandbox,
     apiVersion: packageXml.version[0]
   })
   logger.log(chalk.green('Logged in!'))
@@ -50,7 +50,7 @@ const config = configService.getConfig()
   const allFiles = readAllFilesInFolder(basePath)
   const renderers = config.renderers || []
   const plugins = [
-    ...(!program.skipUntransform ? renderers.map(x => require(path.resolve(pathService.getBasePath(), x)).untransform) : []),
+    ...(!options.skipUntransform ? renderers.map(x => require(path.resolve(pathService.getBasePath(), x)).untransform) : []),
     ...standardPlugins,
     ...(config.postRetrievePlugins || []),
     ...renderers.map(x => require(path.resolve(pathService.getBasePath(), x)).transform)
