@@ -16,19 +16,16 @@ const path = require('path')
 const fs = require('fs')
 const util = require('util')
 const wf = util.promisify(fs.writeFile)
+const { DEFAULT_CLIENT_ID } = require('./utils/constants')
+const { addAuthenticationOptions, configureAuthentication, getOauth2Options } = require('./utils/auth-utils')
 
 require('./error-handling')()
 
-program
-  .option('-u, --username <username>', 'Username')
-  .option('-p, --password <password>', 'Password + Token')
-  .option('-s, --sandbox', 'Use sandbox login endpoint')
+addAuthenticationOptions(program)
   .option('--skip-untransform', 'Skip untransform phase')
   .parse(process.argv)
 
-if (!program.username || !program.password) {
-  program.outputHelp(txt => { throw Error('Username and password are mandatory\n' + txt) })
-}
+configureAuthentication(program)
 
 const config = configService.getConfig()
 
@@ -36,11 +33,13 @@ const config = configService.getConfig()
   console.time('running time')
   printLogo()
 
-  logger.log(chalk.yellow(`(1/2) Logging in salesforce as ${program.username}...`))
+  logger.log(chalk.yellow('(1/2) Logging in salesforce...'))
   const packageXml = await getPackageXml()
   const sfdcConnector = await Sfdc.newInstance({
     username: program.username,
     password: program.password,
+    oauth2: getOauth2Options(program, DEFAULT_CLIENT_ID),
+    serverUrl: program.serverUrl,
     isSandbox: !!program.sandbox,
     apiVersion: packageXml.version[0]
   })

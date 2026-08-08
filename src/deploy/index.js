@@ -15,6 +15,7 @@ const { readFiles } = require('../services/file-service')
 const path = require('path')
 const nativeRequire = require('../utils/native-require')
 const { DEFAULT_CLIENT_ID } = require('../utils/constants')
+const { getOauth2Options } = require('../utils/auth-utils')
 
 module.exports = async ({
   loginOpts,
@@ -46,14 +47,7 @@ module.exports = async ({
   const sfdcConnector = await Sfdc.newInstance({
     username: loginOpts.username,
     password: loginOpts.password,
-    oauth2: loginOpts.refreshToken && loginOpts.instanceUrl
-      ? {
-          refreshToken: loginOpts.refreshToken,
-          instanceUrl: loginOpts.instanceUrl,
-          clientId: loginOpts.clientId || DEFAULT_CLIENT_ID,
-          clientSecret: loginOpts.clientSecret || undefined
-        }
-      : undefined,
+    oauth2: getOauth2Options(loginOpts, DEFAULT_CLIENT_ID),
     isSandbox: !!loginOpts.sandbox,
     serverUrl: loginOpts.serverUrl,
     apiVersion

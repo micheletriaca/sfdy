@@ -68,6 +68,23 @@ You can pass a username and password in all the available commands. For example:
 sfdy retrieve -u USERNAME -p PASSWORD ...
 ```
 
+For non-interactive CI/CD jobs, use the OAuth 2.0 client credentials flow. Enable that flow on your Salesforce Connected App, select its Run As user, and provide the consumer key and secret:
+
+```bash
+sfdy deploy --server-url https://your-domain.my.salesforce.com --client-id CLIENT_ID --client-secret CLIENT_SECRET ...
+```
+
+Credentials can be supplied through protected CI variables instead of command-line arguments:
+
+```bash
+export SFDY_CLIENT_ID=clientid
+export SFDY_CLIENT_SECRET=clientsecret
+export SFDY_SERVER_URL=https://your-domain.my.salesforce.com
+sfdy deploy ...
+```
+
+Salesforce requires a My Domain token endpoint for this flow; `login.salesforce.com` and `test.salesforce.com` are not supported. For a sandbox, use its My Domain URL, for example `https://your-domain--sandbox-name.sandbox.my.salesforce.com`. Client credentials authentication obtains an OAuth access token; the Metadata SOAP API is still used for metadata operations, but the deprecated SOAP login is not.
+
 Otherwise, just type:
 
 ```bash
@@ -104,7 +121,7 @@ export SFDY_REFRESH_TOKEN=refreshtoken
 export SFDY_INSTANCE_URL=instanceurl
 ```
 
-By default, the SFDY connected app will be used. If you want to use yours, you can pass a user-defined `client_id` and `client_secret` in all the available commands.
+By default, the SFDY connected app will be used for the interactive refresh-token flow. If you want to use yours, you can pass a user-defined `client_id` and `client_secret`.
 
 ```bash
 sfdy auth --client-id CLIENT_ID --client-secret CLIENT_SECRET -s ...

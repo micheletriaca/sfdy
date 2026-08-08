@@ -20,6 +20,10 @@
     "sfdx"
   ],
   "homepage": "https://github.com/micheletriaca/sfdy#readme",
+  "scripts": {
+    "lint": "eslint src test",
+    "test": "npm run lint && node test/auth-utils.test.js && node test/client-credentials.test.js"
+  },
   "dependencies": {
     "base64-stream": "^1.0.0",
     "chalk": "^3.0.0",

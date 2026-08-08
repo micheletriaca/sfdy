@@ -12,6 +12,7 @@ const pathService = require('../services/path-service')
 const nativeRequire = require('../utils/native-require')
 const path = require('path')
 const { DEFAULT_CLIENT_ID } = require('../utils/constants')
+const { getOauth2Options } = require('../utils/auth-utils')
 
 module.exports = async ({ loginOpts, basePath, logger: _logger, files, meta, config }) => {
   if (basePath) pathService.setBasePath(basePath)
@@ -22,14 +23,7 @@ module.exports = async ({ loginOpts, basePath, logger: _logger, files, meta, con
   const sfdcConnector = await Sfdc.newInstance({
     username: loginOpts.username,
     password: loginOpts.password,
-    oauth2: loginOpts.refreshToken && loginOpts.instanceUrl
-      ? {
-          refreshToken: loginOpts.refreshToken,
-          instanceUrl: loginOpts.instanceUrl,
-          clientId: loginOpts.clientId || DEFAULT_CLIENT_ID,
-          clientSecret: loginOpts.clientSecret || undefined
-        }
-      : undefined,
+    oauth2: getOauth2Options(loginOpts, DEFAULT_CLIENT_ID),
     isSandbox: !!loginOpts.sandbox,
     serverUrl: loginOpts.serverUrl,
     apiVersion: (await getPackageXml()).version[0]

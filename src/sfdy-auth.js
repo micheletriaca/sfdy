@@ -9,9 +9,9 @@ const auth = require('./auth')
 
 program
   .option('-s, --sandbox', 'Use sandbox login endpoint')
-  .option('--client-id', 'Use a custom clientId')
-  .option('--client-secret', 'Use a custom clientSecret')
-  .option('--callback-port', 'Use a custom callback port')
+  .option('--client-id <clientId>', 'Use a custom clientId')
+  .option('--client-secret <clientSecret>', 'Use a custom clientSecret')
+  .option('--callback-port <port>', 'Use a custom callback port')
   .option('-e, --output-eval-script', 'If you launch eval $(sfdy auth -e) then you can skip passing credentials within the current session')
   .parse(process.argv)
 

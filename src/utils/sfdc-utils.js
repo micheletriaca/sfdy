@@ -54,29 +54,61 @@ class SfdcConn {
   async login ({ username, password, isSandbox = true, serverUrl, oauth2, apiVersion, sessionId, instanceHostname }) {
     this.apiVersion = apiVersion
     this.username = username
-    if (oauth2) await this.oauth2Refresh(oauth2)
+    if (oauth2) await this.oauth2Login(oauth2)
     else await this.soapLogin({ username, password, isSandbox, serverUrl, sessionId, instanceHostname })
   }
 
-  async oauth2Refresh ({ instanceUrl, refreshToken, clientId, clientSecret }) {
-    const get = (url, at) => fetch(url, { headers: { authorization: `Bearer ${at}` } }).then(res => res.json())
-    const post = (url, body, ct = 'application/x-www-form-urlencoded') => fetch(url, {
-      method: 'POST', body, headers: { 'content-type': ct }
-    }).then(res => res.json())
+  async oauth2Login (oauth2) {
+    if (oauth2.grantType === 'client_credentials') return this.oauth2ClientCredentials(oauth2)
+    return this.oauth2Refresh(oauth2)
+  }
 
+  async oauth2TokenRequest (url, body) {
+    const response = await fetch(url, {
+      method: 'POST', body, headers: { 'content-type': 'application/x-www-form-urlencoded' }
+    })
+    const result = await response.json()
+    if (!response.ok) {
+      const error = new Error(result.error_description || result.error || `OAuth token request failed (${response.status})`)
+      error.name = 'SalesforceOAuthError'
+      error.detail = result
+      throw error
+    }
+    return result
+  }
+
+  async setOauth2Session (oauth2Response) {
+    this.instanceUrl = oauth2Response.instance_url
+    this.sessionId = oauth2Response.access_token
+    if (!this.username) {
+      const userInfoUrl = oauth2Response.id || `${this.instanceUrl}/services/oauth2/userinfo`
+      const response = await fetch(userInfoUrl, { headers: { authorization: `Bearer ${this.sessionId}` } })
+      const userInfo = await response.json()
+      if (!response.ok) throw new Error(userInfo.error_description || userInfo.error || 'Unable to retrieve the authenticated Salesforce user')
+      this.username = userInfo.username || userInfo.preferred_username || userInfo.email
+    }
+  }
+
+  async oauth2Refresh ({ instanceUrl, refreshToken, clientId, clientSecret }) {
     const body = new URLSearchParams()
     body.append('grant_type', 'refresh_token')
     body.append('refresh_token', refreshToken)
     body.append('client_id', clientId)
     if (clientSecret) body.append('client_secret', clientSecret)
 
-    const resOauth2 = await post(`${instanceUrl}/services/oauth2/token`, body.toString())
-    if (!this.username) {
-      const userInfo = await get(resOauth2.id, resOauth2.access_token)
-      this.username = userInfo.username
-    }
-    this.instanceUrl = resOauth2.instance_url
-    this.sessionId = resOauth2.access_token
+    const resOauth2 = await this.oauth2TokenRequest(`${instanceUrl.replace(/\/$/, '')}/services/oauth2/token`, body.toString())
+    await this.setOauth2Session(resOauth2)
+  }
+
+  async oauth2ClientCredentials ({ loginUrl, clientId, clientSecret }) {
+    if (!loginUrl) throw new Error('Client credentials authentication requires a Salesforce My Domain login URL')
+    const body = new URLSearchParams()
+    body.append('grant_type', 'client_credentials')
+    body.append('client_id', clientId)
+    body.append('client_secret', clientSecret)
+
+    const resOauth2 = await this.oauth2TokenRequest(`${loginUrl.replace(/\/$/, '')}/services/oauth2/token`, body.toString())
+    await this.setOauth2Session(resOauth2)
   }
 
   async soapLogin ({ username, password, isSandbox = true, serverUrl, sessionId, instanceHostname }) {

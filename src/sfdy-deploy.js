@@ -3,17 +3,10 @@
 const program = require('commander')
 const deploy = require('./deploy')
 const configService = require('./services/config-service')
+const { addAuthenticationOptions, configureAuthentication } = require('./utils/auth-utils')
 require('./error-handling')()
 
-program
-  .option('-u, --username <username>', 'Username')
-  .option('-p, --password <password>', 'Password + Token')
-  .option('-s, --sandbox', 'Use sandbox login endpoint')
-  .option('--server-url <serverUrl>', 'Specify server url')
-  .option('--refresh-token <refreshToken>', 'Refresh Token')
-  .option('--instance-url <instanceUrl>', 'Instance url')
-  .option('--client-id <clientId>', 'Client id')
-  .option('--client-secret <clientSecret>', 'Client secret')
+addAuthenticationOptions(program)
   .option('-f, --files <files>', 'Deploy specific files (comma separated)')
   .option('-d, --diff <branchRange>', 'Delta deploy from branch to branch - example develop..uat')
   .option('-t, --test-report', 'Generate junit test-report.xml')
@@ -26,18 +19,8 @@ program
   .option('--folder <folder>', 'Set alternative src folder')
   .parse(process.argv)
 
-const hasOauth2 = !!program.refreshToken && !!program.instanceUrl
-const hasUserPass = !!program.username && !!program.password
-if (hasOauth2 && hasUserPass) {
-  program.outputHelp(txt => { throw Error('Username + password OR refreshToken + instanceUrl are mandatory\n' + txt) })
-}
-
 const config = configService.getConfig()
-
-if (!program.clientId && process.env.SFDY_CLIENT_ID) program.clientId = process.env.SFDY_CLIENT_ID
-if (!program.clientSecret && process.env.SFDY_CLIENT_SECRET) program.clientSecret = process.env.SFDY_CLIENT_SECRET
-if (!program.refreshToken && process.env.SFDY_REFRESH_TOKEN) program.refreshToken = process.env.SFDY_REFRESH_TOKEN
-if (!program.instanceUrl && process.env.SFDY_INSTANCE_URL) program.instanceUrl = process.env.SFDY_INSTANCE_URL
+configureAuthentication(program)
 
 deploy({
   diffCfg: program.diff,
@@ -50,7 +33,8 @@ deploy({
     refreshToken: program.refreshToken,
     instanceUrl: program.instanceUrl,
     clientId: program.clientId,
-    clientSecret: program.clientSecret
+    clientSecret: program.clientSecret,
+    clientCredentials: program.clientCredentials
   },
   quickDeploy: program.quickDeploy,
   destructive: !!program.destructive,

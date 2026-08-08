@@ -7,30 +7,14 @@ const Sfdc = require('./utils/sfdc-utils')
 const { DEFAULT_CLIENT_ID } = require('./utils/constants')
 const { getPackageXml } = require('./utils/package-utils')
 const logger = require('./services/log-service')
+const { addAuthenticationOptions, configureAuthentication, getOauth2Options } = require('./utils/auth-utils')
 require('./error-handling')()
 
-program
-  .option('-u, --username <username>', 'Username')
-  .option('-p, --password <password>', 'Password + Token')
-  .option('-s, --sandbox', 'Use sandbox login endpoint')
-  .option('--server-url <serverUrl>', 'Specify server url')
-  .option('--refresh-token <refreshToken>', 'Refresh Token')
-  .option('--instance-url <instanceUrl>', 'Instance url')
-  .option('--client-id <clientId>', 'Client id')
-  .option('--client-secret <clientSecret>', 'Client secret')
+addAuthenticationOptions(program)
   .option('-n, --community-name <communityName>', 'The community name')
   .parse(process.argv)
 
-const hasOauth2 = !!program.refreshToken && !!program.instanceUrl
-const hasUserPass = !!program.username && !!program.password
-if (hasOauth2 && hasUserPass) {
-  program.outputHelp(txt => { throw Error('Username + password OR refreshToken + instanceUrl are mandatory\n' + txt) })
-}
-
-if (!program.clientId && process.env.SFDY_CLIENT_ID) program.clientId = process.env.SFDY_CLIENT_ID
-if (!program.clientSecret && process.env.SFDY_CLIENT_SECRET) program.clientSecret = process.env.SFDY_CLIENT_SECRET
-if (!program.refreshToken && process.env.SFDY_REFRESH_TOKEN) program.refreshToken = process.env.SFDY_REFRESH_TOKEN
-if (!program.instanceUrl && process.env.SFDY_INSTANCE_URL) program.instanceUrl = process.env.SFDY_INSTANCE_URL
+configureAuthentication(program)
 
 ;(async () => {
   console.time('running time')
@@ -44,14 +28,7 @@ if (!program.instanceUrl && process.env.SFDY_INSTANCE_URL) program.instanceUrl =
   const sfdcConnector = await Sfdc.newInstance({
     username: program.username,
     password: program.password,
-    oauth2: program.refreshToken && program.instanceUrl
-      ? {
-          refreshToken: program.refreshToken,
-          instanceUrl: program.instanceUrl,
-          clientId: program.clientId || DEFAULT_CLIENT_ID,
-          clientSecret: program.clientSecret || undefined
-        }
-      : undefined,
+    oauth2: getOauth2Options(program, DEFAULT_CLIENT_ID),
     isSandbox: !!program.sandbox,
     serverUrl: program.serverUrl,
     apiVersion
