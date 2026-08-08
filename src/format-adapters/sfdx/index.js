@@ -276,6 +276,8 @@ const getContainerRoot = component => {
 const getPackageComponents = components => {
   const selected = new Set(components.map(componentKey))
   return uniqueComponents(components.flatMap(component => {
+    const folder = folderTypes.find(item => item.type === component.type)
+    if (folder) return { type: folder.packageType, fullName: component.fullName }
     const parent = getContainerParent(component)
     if (!parent) return component
     if (selected.has(componentKey(parent.component))) return []

@@ -513,6 +513,17 @@ const packageMapping = {
     'experiences/Store.site-meta.xml',
     'experiences/Store/routes/home.json'
   ])
+  assert.deepStrictEqual(genericAdapter.getPackageComponents([
+    { type: 'ReportFolder', fullName: 'Sales' },
+    { type: 'DashboardFolder', fullName: 'Ops' },
+    { type: 'DocumentFolder', fullName: 'Manuals' },
+    { type: 'EmailFolder', fullName: 'Templates' }
+  ]), [
+    { type: 'Report', fullName: 'Sales' },
+    { type: 'Dashboard', fullName: 'Ops' },
+    { type: 'Document', fullName: 'Manuals' },
+    { type: 'EmailTemplate', fullName: 'Templates' }
+  ])
 
   const genericRoundTrip = await genericAdapter.toSource(genericMetadata.entries)
   assert.deepStrictEqual(genericRoundTrip.upserts.map(item => item.fileName), genericSource.map(item => item.fileName))

@@ -51,6 +51,7 @@ const fieldXml = `<?xml version="1.0" encoding="UTF-8"?>
     await fs.promises.mkdir(path.join(sourceFolder, 'permissionsets'), { recursive: true })
     await fs.promises.mkdir(path.join(sourceFolder, 'lwc', 'tile'), { recursive: true })
     await fs.promises.mkdir(path.join(sourceFolder, 'staticresources', 'App'), { recursive: true })
+    await fs.promises.mkdir(path.join(sourceFolder, 'reports'), { recursive: true })
     await fs.promises.writeFile(path.join(basePath, 'sfdx-project.json'), JSON.stringify({
       packageDirectories: [{ path: 'force-app', default: true }],
       sourceApiVersion: '65.0'
@@ -66,6 +67,10 @@ const fieldXml = `<?xml version="1.0" encoding="UTF-8"?>
     <cacheControl>Public</cacheControl>
     <contentType>application/zip</contentType>
 </StaticResource>`)
+    await fs.promises.writeFile(
+      path.join(sourceFolder, 'reports', 'Sales.reportFolder-meta.xml'),
+      '<ReportFolder xmlns="http://soap.sforce.com/2006/04/metadata"><name>Sales</name></ReportFolder>'
+    )
 
     Sfdc.newInstance = async () => ({
       sessionId: `sfdx-deploy-test-${Date.now()}`,
@@ -88,6 +93,12 @@ const fieldXml = `<?xml version="1.0" encoding="UTF-8"?>
           inFolder: 'false',
           metaFile: 'false',
           xmlName: 'LightningComponentBundle'
+        }, {
+          directoryName: 'reports',
+          inFolder: 'true',
+          metaFile: 'false',
+          suffix: 'report',
+          xmlName: 'Report'
         }, {
           directoryName: 'staticresources',
           inFolder: 'false',
@@ -175,6 +186,18 @@ const fieldXml = `<?xml version="1.0" encoding="UTF-8"?>
     const staticManifest = await parseXml(staticEntries.find(item => item.fileName === 'package.xml').data)
     assert.strictEqual(staticManifest.Package.types[0].name[0], 'StaticResource')
     assert.deepStrictEqual(staticManifest.Package.types[0].members, ['App'])
+
+    await runDeploy('reports/Sales.reportFolder-meta.xml')
+    const reportFolderEntries = await unzip(deployedZip)
+    assert.deepStrictEqual(reportFolderEntries.map(item => item.fileName).sort(), [
+      'package.xml',
+      'reports/Sales-meta.xml'
+    ])
+    const reportFolderManifest = await parseXml(
+      reportFolderEntries.find(item => item.fileName === 'package.xml').data
+    )
+    assert.strictEqual(reportFolderManifest.Package.types[0].name[0], 'Report')
+    assert.deepStrictEqual(reportFolderManifest.Package.types[0].members, ['Sales'])
     console.log('SFDX deploy integration tests passed')
   } finally {
     Sfdc.newInstance = originalNewInstance
