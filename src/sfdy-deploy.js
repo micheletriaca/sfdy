@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-const program = require('commander')
+const { program } = require('commander')
 const deploy = require('./deploy')
 const configService = require('./services/config-service')
 const { addAuthenticationOptions, configureAuthentication } = require('./utils/auth-utils')
@@ -20,32 +20,32 @@ addAuthenticationOptions(program)
   .parse(process.argv)
 
 const config = configService.getConfig()
-configureAuthentication(program)
+const options = configureAuthentication(program.opts())
 
 deploy({
-  diffCfg: program.diff,
-  files: program.files,
+  diffCfg: options.diff,
+  files: options.files,
   loginOpts: {
-    username: program.username,
-    password: program.password,
-    sandbox: program.sandbox,
-    serverUrl: program.serverUrl,
-    refreshToken: program.refreshToken,
-    instanceUrl: program.instanceUrl,
-    clientId: program.clientId,
-    clientSecret: program.clientSecret,
-    clientCredentials: program.clientCredentials
+    username: options.username,
+    password: options.password,
+    sandbox: options.sandbox,
+    serverUrl: options.serverUrl,
+    refreshToken: options.refreshToken,
+    instanceUrl: options.instanceUrl,
+    clientId: options.clientId,
+    clientSecret: options.clientSecret,
+    clientCredentials: options.clientCredentials
   },
-  quickDeploy: program.quickDeploy,
-  destructive: !!program.destructive,
-  destructivePackage: typeof program.destructive === 'string' && program.destructive,
-  ignoreWarnings: !!program.ignoreWarnings,
-  checkOnly: !!program.validate,
+  quickDeploy: options.quickDeploy,
+  destructive: !!options.destructive,
+  destructivePackage: typeof options.destructive === 'string' && options.destructive,
+  ignoreWarnings: !!options.ignoreWarnings,
+  checkOnly: !!options.validate,
   preDeployPlugins: config.preDeployPlugins || [],
   renderers: config.renderers || [],
-  specifiedTests: program.specifiedTests,
-  testLevel: program.testLevel,
-  testReport: program.testReport,
-  srcFolder: program.folder,
+  specifiedTests: options.specifiedTests,
+  testLevel: options.testLevel,
+  testReport: options.testReport,
+  srcFolder: options.folder,
   config
 }).then(deployResult => process.exit(deployResult.status !== 'Succeeded' ? 1 : 0))

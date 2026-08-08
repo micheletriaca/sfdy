@@ -1,7 +1,6 @@
 const { buildXml, parseXmlNoArray } = require('./xml-utils')
 const logger = require('../services/log-service')
 const chalk = require('chalk')
-const fetch = require('node-fetch').default
 const { Base64Encode } = require('base64-stream')
 const _ = require('highland')
 

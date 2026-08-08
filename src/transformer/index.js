@@ -9,7 +9,6 @@ const logger = require('../services/log-service')
 const { readFiles } = require('../services/file-service')
 const path = require('path')
 const nativeRequire = require('../utils/native-require')
-const makeDir = require('make-dir')
 const memoize = require('lodash').memoize
 const util = require('util')
 const fs = require('fs')
@@ -24,6 +23,7 @@ module.exports = {
     srcFolder,
     config
   }) => {
+    const makeDir = folder => fs.promises.mkdir(folder, { recursive: true })
     const mMakeDir = memoize(makeDir)
     const wf = util.promisify(fs.writeFile)
     if (basePath) pathService.setBasePath(basePath)

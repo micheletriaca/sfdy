@@ -1,16 +1,32 @@
 {
   "name": "sfdy",
-  "version": "1.8.1",
+  "version": "2.0.0",
   "description": "Tool to better handle Salesforce metadata",
-  "main": "src/sfdy.js",
+  "main": "src/index.js",
   "bin": "src/sfdy.js",
+  "files": [
+    "src"
+  ],
   "author": "Michele Triaca",
   "license": "MIT",
   "repository": {
     "url": "https://github.com/micheletriaca/sfdy"
   },
   "engines": {
-    "node": ">=10"
+    "node": ">=22"
+  },
+  "exports": {
+    ".": "./src/index.js",
+    "./auth": "./src/auth/index.js",
+    "./constants": "./src/utils/constants.js",
+    "./deploy": "./src/deploy/index.js",
+    "./package-utils": "./src/utils/package-utils.js",
+    "./path-service": "./src/services/path-service.js",
+    "./retrieve": "./src/retrieve/index.js",
+    "./sfdc-utils": "./src/utils/sfdc-utils.js",
+    "./transformer": "./src/transformer/index.js",
+    "./xml-utils": "./src/utils/xml-utils.js",
+    "./package.json": "./package.json"
   },
   "keywords": [
     "salesforce",
@@ -22,32 +38,28 @@
   "homepage": "https://github.com/micheletriaca/sfdy#readme",
   "scripts": {
     "lint": "eslint src test",
-    "test": "npm run lint && node test/auth-utils.test.js && node test/client-credentials.test.js"
+    "test": "npm run lint && node --test"
   },
   "dependencies": {
     "base64-stream": "^1.0.0",
-    "chalk": "^3.0.0",
-    "commander": "^2.20.3",
-    "del": "^5.1.0",
-    "fs-extra": "^8.1.0",
-    "get-stream": "^5.1.0",
-    "globby": "^11.0.0",
+    "chalk": "^4.1.2",
+    "commander": "^14.0.3",
+    "fs-extra": "^11.4.0",
+    "globby": "^11.1.0",
     "highland": "^2.13.5",
-    "junit-report-builder": "^1.3.3",
-    "lodash": "^4.17.20",
-    "make-dir": "^3.0.2",
+    "junit-report-builder": "^5.1.2",
+    "lodash": "^4.18.1",
     "multimatch": "^4.0.0",
-    "node-fetch": "^2.6.1",
-    "open": "^8.4.0",
-    "xml2js": "^0.5.0",
-    "yauzl": "^2.10.0",
-    "yazl": "^2.5.1"
+    "open": "^11.0.0",
+    "xml2js": "^0.6.2",
+    "yauzl": "^3.4.0",
+    "yazl": "^3.3.1"
   },
   "devDependencies": {
-    "eslint": "^8.35.0",
-    "eslint-config-standard": "^17.0.0",
-    "eslint-plugin-import": "^2.27.5",
-    "eslint-plugin-n": "^15.6.1",
-    "eslint-plugin-promise": "^6.1.1"
+    "eslint": "^8.57.1",
+    "eslint-config-standard": "^17.1.0",
+    "eslint-plugin-import": "^2.32.0",
+    "eslint-plugin-n": "^16.6.2",
+    "eslint-plugin-promise": "^6.6.0"
   }
 }

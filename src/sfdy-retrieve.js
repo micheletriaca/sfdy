@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-const program = require('commander')
+const { program } = require('commander')
 const pathService = require('./services/path-service')
 const configService = require('./services/config-service')
 const retrieve = require('./retrieve')
@@ -12,12 +12,12 @@ addAuthenticationOptions(program)
   .option('-m, --meta <metadatas>', 'Retrieve specific metadata')
   .parse(process.argv)
 
-configureAuthentication(program)
+const options = configureAuthentication(program.opts())
 
 retrieve({
   basePath: pathService.getBasePath(),
   config: configService.getConfig(),
-  files: program.files,
-  loginOpts: program,
-  meta: program.meta
+  files: options.files,
+  loginOpts: options,
+  meta: options.meta
 })

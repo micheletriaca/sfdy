@@ -8,7 +8,6 @@ const nativeRequire = require('../utils/native-require')
 const logger = require('../services/log-service')
 const globby = require('globby')
 const fs = require('fs')
-const del = require('del')
 const chalk = require('chalk')
 
 const transformations = []
@@ -112,9 +111,16 @@ module.exports = {
     })
   },
   applyCleans: async () => {
-    await del([...filesToClean], {
-      cwd: path.join(pathService.getBasePath(), pathService.getSrcFolder())
-    })
+    const srcFolder = path.join(pathService.getBasePath(), pathService.getSrcFolder())
+    await Promise.all([...filesToClean]
+      .map(file => {
+        const target = path.resolve(srcFolder, file)
+        const relativeTarget = path.relative(srcFolder, target)
+        if (relativeTarget.startsWith('..') || path.isAbsolute(relativeTarget)) {
+          throw new Error(`Refusing to clean a path outside the source folder: ${file}`)
+        }
+        return fs.promises.rm(target, { recursive: true, force: true })
+      }))
   },
   applyTransformations: async (targetFiles) => {
     const fileMap = await l.keyBy(targetFiles, 'fileName')
