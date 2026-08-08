@@ -93,12 +93,13 @@ module.exports = {
   getPackageXml: async (opts = {}) => {
     const hasSpecificFiles = opts.specificFiles && opts.specificFiles.length
     const hasSpecificMeta = opts.specificMeta && opts.specificMeta.length
+    const hasGeneratedPackage = Array.isArray(opts.specificMeta) && opts.apiVersion
     const hasSpecificPackage = opts.specificPackage
     if (hasSpecificFiles && opts.sfdcConnector) {
       const packageMapping = await module.exports.getPackageMapping(opts.sfdcConnector)
       return module.exports.buildPackageXmlFromFiles(opts.specificFiles, packageMapping, opts.skipParseGlobPatterns)
-    } else if (hasSpecificMeta) {
-      return module.exports.buildPackageXmlFromMeta(opts.specificMeta)
+    } else if (hasSpecificMeta || hasGeneratedPackage) {
+      return module.exports.buildPackageXmlFromMeta(opts.specificMeta, opts.apiVersion)
     }
     if (hasSpecificPackage) {
       return (await parseXml(fs.readFileSync(path.resolve(pathService.getBasePath(), opts.specificPackage)))).Package
@@ -106,8 +107,10 @@ module.exports = {
       return (await parseXml(fs.readFileSync(pathService.getPackagePath()))).Package
     }
   },
-  buildPackageXmlFromMeta: async (meta) => {
-    const packageJson = await parseXml(fs.readFileSync(pathService.getPackagePath()))
+  buildPackageXmlFromMeta: async (meta, apiVersion) => {
+    const packageJson = apiVersion
+      ? { Package: { version: [apiVersion] } }
+      : await parseXml(fs.readFileSync(pathService.getPackagePath()))
     const types = _(meta).groupBy(x => x.split('/')[0]).mapValues(x => x.map(y => {
       const idx = y.indexOf('/')
       return y.substring(idx + 1) || '*'

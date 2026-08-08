@@ -8,12 +8,6 @@ const retrieve = require('../src/retrieve')
 const Sfdc = require('../src/utils/sfdc-utils')
 const pathService = require('../src/services/path-service')
 
-const packageXml = `<?xml version="1.0" encoding="UTF-8"?>
-<Package xmlns="http://soap.sforce.com/2006/04/metadata">
-    <types><members>*</members><name>CustomObjectTranslation</name></types>
-    <version>65.0</version>
-</Package>\n`
-
 const translationXml = `<?xml version="1.0" encoding="UTF-8"?>
 <CustomObjectTranslation xmlns="http://soap.sforce.com/2006/04/metadata">
     <fields><name>Status__c</name><label>Nuovo stato</label></fields>
@@ -54,7 +48,6 @@ const zipStaticResource = async () => {
 
   try {
     await fs.promises.mkdir(translationFolder, { recursive: true })
-    await fs.promises.writeFile(path.join(basePath, 'src', 'package.xml'), packageXml)
     await fs.promises.writeFile(
       path.join(translationFolder, 'Status__c.fieldTranslation-meta.xml'),
       '<CustomFieldTranslation><name>Status__c</name><label>Vecchio stato</label></CustomFieldTranslation>'
@@ -91,7 +84,7 @@ const zipStaticResource = async () => {
 
     await retrieve({
       basePath,
-      config: { sourceFormat: 'sfdx', postRetrievePlugins: [] },
+      config: { sourceFormat: 'sfdx', apiVersion: '65.0', postRetrievePlugins: [] },
       files: 'objectTranslations/Invoice__c-it/Status__c.fieldTranslation-meta.xml',
       loginOpts: { username: 'test@example.com', password: 'secret' },
       logger: () => {}
@@ -110,6 +103,7 @@ const zipStaticResource = async () => {
       basePath,
       config: {
         sourceFormat: 'sfdx',
+        apiVersion: '65.0',
         postRetrievePlugins: [],
         staticResources: { useBundleRenderer: ['*'] }
       },
@@ -127,6 +121,17 @@ const zipStaticResource = async () => {
       fs.existsSync(path.join(basePath, 'src', 'staticresources', 'App.resource-meta.xml')),
       true
     )
+
+    retrievedZip = await zipTranslation()
+    await retrieve({
+      basePath,
+      config: { sourceFormat: 'sfdx', apiVersion: '65.0', postRetrievePlugins: [] },
+      loginOpts: { username: 'test@example.com', password: 'secret' },
+      logger: () => {}
+    })
+    const fullRetrieveTypes = new Map(requestedPackage.types.map(type => [type.name[0], type.members]))
+    assert.deepStrictEqual(fullRetrieveTypes.get('CustomObjectTranslation'), ['Invoice__c-it'])
+    assert.deepStrictEqual(fullRetrieveTypes.get('StaticResource'), ['App'])
     console.log('SFDX retrieve command integration tests passed')
   } finally {
     Sfdc.newInstance = originalNewInstance

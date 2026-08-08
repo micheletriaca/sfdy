@@ -282,6 +282,7 @@ The configuration file is a JSON object:
 ```json
 {
   "sourceFormat": "metadata",
+  "apiVersion": "65.0",
   "permissionSets": {
     "stripUselessFls": true
   },
@@ -313,8 +314,12 @@ The configuration file is a JSON object:
 
 `sourceFormat` accepts `metadata` (the default) or `sfdx`. The command-line option
 `--source-format <format>` overrides the value in `.sfdy.json` for one deploy or retrieve.
+`apiVersion` is optional when `sfdx-project.json` provides `sourceApiVersion`.
 
-With `sfdx`, `src` is treated as a Salesforce source-format package directory. Metadata
+With `sfdx`, the default package directory from `sfdx-project.json` is used when available;
+for a standard project this resolves to `force-app/main/default`. Without that project file,
+`src` remains the default. Set `sourceFolder` in `.sfdy.json`, or pass `--folder`, to override it.
+Metadata
 whose representation is already valid for Metadata API, including Apex, Aura, LWC and
 Experience Bundles, passes through unchanged. The adapter converts XML descriptor names,
 folder and Document descriptors, decomposed Custom Objects, Object Translations and Bots,
@@ -332,9 +337,12 @@ sfdy retrieve --source-format sfdx --files='objects/Account/fields/Status__c.fie
 Selecting a file inside a bundle selects the complete bundle. Exact directory paths are
 expanded recursively, so `--files='lwc/accountCard'` is also supported.
 
-This mode currently uses the configured `src` directory as a single package directory. It
-does not read package directories or `sourceBehaviorOptions` from `sfdx-project.json`, and
-it does not provide Salesforce source tracking.
+`package.xml` is not required in source-format projects. Deploy and selective retrieve
+manifests are generated from the selected files. A retrieve without `--files` or `--meta`
+retrieves every component already represented in the local source tree; use `--meta` to add
+a component that is not present locally. An existing `package.xml` does not define the SFDX
+inventory. Multiple package directories, `sourceBehaviorOptions`, and Salesforce source
+tracking are not currently supported.
 
 #### permissionSets
 

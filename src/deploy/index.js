@@ -38,17 +38,21 @@ module.exports = async ({
   testReport,
   srcFolder,
   sourceFormat,
-  config,
+  config = {},
   excludeFiles = []
 }) => {
-  if (basePath) pathService.setBasePath(basePath)
-  if (srcFolder) pathService.setSrcFolder(srcFolder)
+  pathService.configureProject({ basePath, srcFolder, sourceFormat, config })
   if (_logger) logger.setLogger(_logger)
   let formatAdapter = getAdapter(config, sourceFormat)
   console.time('running time')
   printLogo()
   logger.log(chalk.yellow('(1/4) Logging in salesforce...'))
-  const apiVersion = (await getPackageXml()).version[0]
+  const apiVersion = formatAdapter
+    ? pathService.getApiVersion()
+    : (await getPackageXml()).version[0]
+  if (!apiVersion) {
+    throw new Error('Missing API version. Set apiVersion in .sfdy.json or sourceApiVersion in sfdx-project.json')
+  }
   const sfdcConnector = await Sfdc.newInstance({
     username: loginOpts.username,
     password: loginOpts.password,
@@ -201,9 +205,11 @@ const performFullDeploy = async ({
     const converted = await formatAdapter.toMetadata(targetFiles)
     targetFiles = converted.entries
     sourceComponents = formatAdapter.getPackageComponents(converted.components)
-    const initialPackage = specificFilesMode
-      ? await getPackageXml({ specificMeta: sourceComponents.map(x => `${x.type}/${x.fullName}`), sfdcConnector })
-      : await getPackageXml()
+    const initialPackage = await getPackageXml({
+      specificMeta: sourceComponents.map(x => `${x.type}/${x.fullName}`),
+      sfdcConnector,
+      apiVersion
+    })
     await pluginEngine.registerPlugins(plugins, sfdcConnector, sfdcConnector.username, initialPackage, config)
   } else {
     await pluginEngine.registerPlugins(plugins, sfdcConnector, sfdcConnector.username, await getPackageXml({ specificFiles, sfdcConnector }), config)
@@ -237,7 +243,7 @@ const performFullDeploy = async ({
       const fileList = targetFiles.filter(pluginEngine.applyFilters()).map(x => x.fileName)
       logger.log(chalk.grey(fileList.join('\n')))
       const pkgJson = formatAdapter
-        ? await getPackageXml({ specificMeta: sourceComponents.map(x => `${x.type}/${x.fullName}`), sfdcConnector })
+        ? await getPackageXml({ specificMeta: sourceComponents.map(x => `${x.type}/${x.fullName}`), sfdcConnector, apiVersion })
         : await getPackageXml({ specificFiles: fileList, sfdcConnector, skipParseGlobPatterns: true })
       zip.addBuffer(Buffer.from(buildXml({ Package: pkgJson }) + '\n', 'utf-8'), 'destructiveChanges.xml')
     } else if (destructivePackage && typeof destructivePackage === 'string') {
@@ -255,7 +261,7 @@ const performFullDeploy = async ({
         zip.addBuffer(fileMap[f].data, f)
       })
     const pkgJson = formatAdapter
-      ? await getPackageXml({ specificMeta: sourceComponents.map(x => `${x.type}/${x.fullName}`), sfdcConnector })
+      ? await getPackageXml({ specificMeta: sourceComponents.map(x => `${x.type}/${x.fullName}`), sfdcConnector, apiVersion })
       : await getPackageXml({ specificFiles: fileList, sfdcConnector, skipParseGlobPatterns: true })
     zip.addBuffer(Buffer.from(buildXml({ Package: pkgJson }) + '\n', 'utf-8'), 'package.xml')
     if (fileList.length) {

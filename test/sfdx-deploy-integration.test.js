@@ -31,11 +31,6 @@ const unzip = zipBuffer => new Promise((resolve, reject) => {
   })
 })
 
-const packageXml = `<?xml version="1.0" encoding="UTF-8"?>
-<Package xmlns="http://soap.sforce.com/2006/04/metadata">
-    <version>65.0</version>
-</Package>\n`
-
 const fieldXml = `<?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>Status__c</fullName>
@@ -48,7 +43,7 @@ const fieldXml = `<?xml version="1.0" encoding="UTF-8"?>
   const previousSourceFolder = pathService.getSrcFolder()
   const originalNewInstance = Sfdc.newInstance
   const basePath = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'sfdy-sfdx-deploy-'))
-  const sourceFolder = path.join(basePath, 'src')
+  const sourceFolder = path.join(basePath, 'force-app', 'main', 'default')
   let deployedZip
 
   try {
@@ -56,7 +51,10 @@ const fieldXml = `<?xml version="1.0" encoding="UTF-8"?>
     await fs.promises.mkdir(path.join(sourceFolder, 'permissionsets'), { recursive: true })
     await fs.promises.mkdir(path.join(sourceFolder, 'lwc', 'tile'), { recursive: true })
     await fs.promises.mkdir(path.join(sourceFolder, 'staticresources', 'App'), { recursive: true })
-    await fs.promises.writeFile(path.join(sourceFolder, 'package.xml'), packageXml)
+    await fs.promises.writeFile(path.join(basePath, 'sfdx-project.json'), JSON.stringify({
+      packageDirectories: [{ path: 'force-app', default: true }],
+      sourceApiVersion: '65.0'
+    }))
     await fs.promises.writeFile(path.join(sourceFolder, 'objects', 'Invoice__c', 'fields', 'Status__c.field-meta.xml'), fieldXml)
     await fs.promises.writeFile(path.join(sourceFolder, 'permissionsets', 'Admin.permissionset-meta.xml'), '<PermissionSet/>')
     await fs.promises.writeFile(path.join(sourceFolder, 'lwc', 'tile', 'tile.js'), 'export default class Tile {}')

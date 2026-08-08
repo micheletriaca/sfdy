@@ -10,6 +10,7 @@ require('./error-handling')()
 addAuthenticationOptions(program)
   .option('-f, --files <files>', 'Retrieve specific files')
   .option('-m, --meta <metadatas>', 'Retrieve specific metadata')
+  .option('--folder <folder>', 'Set alternative source folder')
   .option('--source-format <format>', 'Project source format: metadata or sfdx')
   .parse(process.argv)
 
@@ -21,5 +22,6 @@ retrieve({
   files: options.files,
   loginOpts: options,
   meta: options.meta,
+  srcFolder: options.folder,
   sourceFormat: options.sourceFormat
 })
