@@ -2,59 +2,126 @@
 
 ## Small, stable infrastructure for Salesforce metadata delivery
 
-Salesforce CI/CD infrastructure should be boring.
+`sfdy` gets Salesforce metadata into Git and safely back out again. It
+retrieves, normalizes, validates and deploys Metadata API and Salesforce DX
+projects—in full, by file, or directly from a Git diff.
 
-`sfdy` is a deliberately small deployment engine for the metadata workflows
-teams run every day: retrieve, transform, validate and deploy—either in full,
-by file, or from a Git diff.
-
-It has powered real Salesforce projects since 2019 while remaining only a few
-thousand lines of runtime JavaScript. It does not depend on Salesforce CLI or
-jsforce, and the same core runs from the command line, inside a CI/CD pipeline,
-as a JavaScript library and behind the
+The same small engine runs from the terminal, in CI/CD and behind the
 [fast-sfdc VS Code extension](https://marketplace.visualstudio.com/items?itemName=m1ck83.fast-sfdc).
 
-The goal is simple: put it in your delivery workflow and stop thinking about
-your deployment tooling.
+## From zero to metadata
 
-## The 80/20 metadata tool
+`sfdy` requires Node.js 22 or newer. Install it once, then run one command from
+an empty directory or an existing Salesforce project:
 
-General-purpose platforms optimize for breadth. `sfdy` optimizes for the
-common path.
+```bash
+npm install --global sfdy
+mkdir your-salesforce-project
+cd your-salesforce-project
+git init
+sfdy create
+```
 
-It does not try to reproduce every command in the Salesforce developer
-toolchain. It focuses on the small, stable set of capabilities behind most
-day-to-day metadata workflows and makes them predictable, scriptable and easy
-to customize.
+`sfdy create` detects the project format and source directory when they already
+exist. Otherwise it creates the project, asks which metadata you want, opens
+Salesforce login, optionally saves the credential securely and runs the first
+retrieve.
 
-That deliberately narrow scope matters:
+Accept the defaults and you get a Salesforce DX project containing the org's
+Apex classes and Lightning web components. The API version is detected from an
+existing project and otherwise defaults to `65.0`.
 
-- fewer dependencies and moving parts;
-- less tooling churn in long-lived projects;
-- a codebase small enough to understand and debug;
-- one deployment engine from the developer's editor to production;
-- focused upgrades when the Salesforce platform actually requires them.
+Commit the result, work normally, then deploy only the change:
 
-Small does not mean abandoned or frozen. `sfdy` evolves with the platform—such
-as adding OAuth 2.0 client credentials and Salesforce source-format support—
-without repeatedly changing the workflow around it.
+```bash
+git add .
+git commit -m 'Import Salesforce metadata'
+
+# Edit files, then:
+git add .
+git commit -m 'Update account components'
+sfdy deploy --diff='HEAD~1..HEAD'
+```
+
+The deploy command lets you select any login saved for the project. Pass its
+alias when the command must be non-interactive:
+
+```bash
+sfdy deploy --target uat --diff='origin/main..HEAD'
+```
+
+That is the complete local loop: create, retrieve, edit, commit, delta deploy.
+No mandatory manifest, separate delta generator or Salesforce CLI installation.
 
 ## Why sfdy
 
-### Git-based incremental deployments are built in
+### Easy on the first run and the thousandth
 
-Deploy the files changed between two Git references directly:
+The first command discovers what it can and asks only for what it cannot know.
+Afterwards, the CLI works with project paths, metadata names, glob patterns and
+Git ranges directly.
+
+`package.xml` is optional. Authentication profiles are named, securely stored
+per project and selected with the same `--target` option across commands. Every
+interactive choice also has an explicit flag for scripts and CI/CD.
+
+### One engine from VS Code to production
+
+The CLI, JavaScript API and `fast-sfdc` use the same project configuration,
+credential vault, format adapters and transformation pipeline. An org added in
+fast-sfdc is immediately available to `sfdy` in that project, and a login saved
+by `sfdy` appears in fast-sfdc.
+
+What a developer deploys from VS Code is therefore prepared by the same code
+that validates a pull request and deploys it to production. There is no second
+implementation whose behavior must be kept approximately aligned.
+
+For unattended jobs, `sfdy` supports OAuth 2.0 client credentials, meaningful
+process exit codes, check-only deployments, quick deploys and JUnit test
+reports. It can also be imported directly instead of being wrapped in shell
+scripts:
+
+```js
+const { deploy, retrieve } = require('sfdy')
+```
+
+### Metadata patching is part of delivery
+
+Salesforce metadata is not always stable, complete or portable between orgs.
+`sfdy` can normalize it after retrieve and patch it in memory before deploy,
+without changing the canonical files tracked by Git.
+
+Built-in patches handle common profile, permission, translation, managed-
+package and static-resource problems. Small JavaScript plugins can transform
+XML or arbitrary files, retrieve related metadata, query Salesforce, or apply
+environment-specific values at the deployment boundary.
+
+A credential can carry a logical environment such as `dev`, `uat` or `prod`.
+Plugins receive it as `target.environment`, so the same command and source can
+be used for every target:
+
+```bash
+sfdy auth --save --alias uat --environment uat
+sfdy deploy --target uat --diff='origin/main..HEAD'
+```
+
+Renderers go one step further and let Git store a cleaner representation than
+Salesforce accepts. The built-in static-resource renderer, for example, keeps
+archives as ordinary directories and rebuilds them only for deployment.
+
+### Delta deploy is a deploy mode
+
+Deploy the files changed between any two Git references directly:
 
 ```bash
 sfdy deploy --diff='origin/main..HEAD'
 ```
 
-`sfdy` selects the changed metadata, builds the deployment manifest, applies
-your renderers and pre-deploy transformations, and sends the result to the
-Salesforce Metadata API. There is no separate delta generator and no
-intermediate deployment project to manage.
+`sfdy` resolves the changed metadata, builds the manifest, runs renderers and
+pre-deploy patches, and sends the result to the Metadata API. There is no
+separate plugin, generated delta project or intermediate artifact to manage.
 
-Glob patterns can further include or exclude files from the delta:
+File patterns can refine the selection:
 
 ```bash
 sfdy deploy \
@@ -62,107 +129,25 @@ sfdy deploy \
   --files='!experiences/EnvironmentSpecificSite/**'
 ```
 
-Destructive changesets are supported explicitly, while full destructive
-deployments are deliberately rejected as unsafe.
+Deletions remain explicit destructive deployments instead of being inferred
+from an absent local file.
 
-### Metadata can be normalized instead of merely moved
+## Small by design
 
-Salesforce metadata is not always stable, complete or directly portable
-between orgs. `sfdy` treats transformation as part of the delivery workflow.
+`sfdy` follows the 80/20 rule deliberately. It does not reproduce every command
+in the Salesforce developer toolchain; it focuses on the small, stable set of
+capabilities behind most metadata delivery workflows.
 
-Built-in patches can remove noisy or undeployable metadata, complete profiles
-with information Salesforce omits, strip managed-package artifacts and keep
-static resources as uncompressed folders.
+It has powered real Salesforce projects since 2019 while remaining only a few
+thousand lines of runtime JavaScript. It does not depend on Salesforce CLI or
+jsforce. Its narrow scope means quick startup, fewer dependencies, less churn,
+a codebase that can still be understood, and upgrades driven by actual platform
+changes rather than perpetual reinvention.
 
-Custom plugins and renderers can:
-
-- transform XML or arbitrary file content;
-- add, remove or require related metadata;
-- change environment-specific values before deployment;
-- normalize retrieved metadata before it reaches Git;
-- query Salesforce through the REST or Tooling API;
-- represent metadata in a repository-friendly format.
-
-The same transformation pipeline runs locally, in CI/CD and in `fast-sfdc`.
-What a developer deploys from VS Code is prepared by the same engine used by
-the release pipeline.
-
-### Automation is a first-class use case
-
-`sfdy` supports non-interactive OAuth 2.0 client credentials, environment-based
-configuration, meaningful process exit codes, deployment validation, quick
-deploys and JUnit test reports.
-
-It can also be imported directly instead of being wrapped in shell scripts:
-
-```js
-const { deploy, retrieve } = require('sfdy')
-```
-
-The public API also exposes the deploy, retrieve, transformer, format-adapter
-and metadata utility modules through supported package exports. The complete
-extension and JavaScript APIs are documented below.
-
-### Metadata API and Salesforce source format
-
-`sfdy` works with traditional Metadata API projects and `package.xml` out of
-the box.
-
-It can also work directly with Salesforce source-format projects:
-
-```json
-{
-  "sourceFormat": "sfdx"
-}
-```
-
-In source-format mode, `sfdy` reads the default package directory from
-`sfdx-project.json`, generates manifests when needed, converts decomposed
-metadata at the API boundary and keeps plugins operating on a consistent
-Metadata API representation.
-
-## Quick start
-
-`sfdy` requires Node.js 22 or newer. Node.js 24 LTS is recommended.
-
-```bash
-npm install -g sfdy
-mkdir your-salesforce-project && cd your-salesforce-project
-sfdy create
-```
-
-`sfdy create` detects an existing Metadata API or Salesforce DX project. In an
-empty directory it creates one, opens Salesforce authentication, optionally
-saves the login in the project vault, and retrieves Apex classes and Lightning
-web components by default. Use `--metadata`, `--source-format` and
-`--api-version` to override the defaults. The API version is detected from an
-existing project and otherwise defaults to `65.0`.
-
-Before opening OAuth, the interactive wizard asks whether the target is a
-production org, sandbox or custom domain. Pass `--sandbox` or `--server-url`
-to make that choice explicitly.
-
-For a non-interactive CI/CD job, configure an OAuth 2.0 client-credentials flow
-on a Salesforce Connected App and expose the credentials as protected
-variables:
-
-```bash
-export SFDY_SERVER_URL='https://your-domain.my.salesforce.com'
-export SFDY_CLIENT_ID='your-client-id'
-export SFDY_CLIENT_SECRET='your-client-secret'
-
-sfdy deploy --diff='origin/main..HEAD'
-```
-
-For local interactive authentication:
-
-```bash
-sfdy auth --save --alias dev
-sfdy retrieve --target dev
-```
-
-Run `sfdy --help` to list commands and `sfdy <command> --help` for command
-options.
+Small does not mean frozen. OAuth 2.0 client credentials, Salesforce source
+format, secure shared credentials and Plugin API v2 were added without
+replacing the workflow around them. Delivery infrastructure should be boring:
+put it in place and spend your attention on the software being delivered.
 
 ## Command-line workflows
 
@@ -192,8 +177,10 @@ of built-in patches:
 sfdy init --api-version 65.0
 ```
 
-The generated `.sfdy.json` controls the project format, source root, built-in
-patches, plugins, renderers and files that must never be deployed.
+A project's `.sfdy.json` controls its format, source root, built-in patches,
+plugins, renderers and files that must never be deployed. `sfdy create` writes
+only the detected or selected format and API version; add policy as the project
+needs it. For example:
 
 ```json
 {
@@ -209,6 +196,23 @@ patches, plugins, renderers and files that must never be deployed.
 the lower-level deploy and retrieve APIs retain `metadata` as their backwards-
 compatible default. `--source-format` overrides the configured format for one
 deploy or retrieve.
+
+Every wizard choice can be supplied explicitly. For example:
+
+```bash
+sfdy create . \
+  --source-format=sfdx \
+  --api-version=65.0 \
+  --metadata='ApexClass/*,LightningComponentBundle/*' \
+  --sandbox \
+  --save \
+  --alias=dev \
+  --environment=dev
+```
+
+Use `--no-retrieve` to configure and authenticate without performing the first
+retrieve. Pass another directory as the positional argument to create or
+connect that project without changing the current directory.
 
 The default source root is:
 
@@ -260,6 +264,7 @@ CI or any non-interactive process, omitting it is an error.
 
 ```bash
 sfdy credentials
+sfdy credentials --json
 sfdy credentials --remove dev
 ```
 
@@ -274,11 +279,13 @@ export SFDY_CLIENT_SECRET='connected-app-consumer-secret'
 sfdy deploy --validate
 ```
 
-For an ephemeral local session, the web-server flow can populate the current
-shell instead of saving the login:
+For an ephemeral local session, run the web-server flow without `--save`, then
+export the instance URL and refresh token it prints:
 
 ```bash
-eval "$(sfdy auth -s -e)"
+sfdy auth --sandbox
+export SFDY_INSTANCE_URL='https://your-instance.my.salesforce.com'
+export SFDY_REFRESH_TOKEN='your-refresh-token'
 sfdy retrieve
 ```
 
@@ -422,16 +429,20 @@ The repository should contain one canonical representation of its metadata.
 Target-specific values belong at the deployment boundary, where they can be
 applied without changing tracked files.
 
-Set the lowercase `environment` variable to expose a logical target name to
-plugins as `target.environment`:
+Assign a logical environment when saving a credential:
 
 ```bash
-export environment='uat'
-sfdy deploy --diff='origin/main..HEAD'
+sfdy auth --save --alias uat-admin --environment uat
+sfdy deploy --target uat-admin --diff='origin/main..HEAD'
 ```
 
-A metadata-stage pre-deploy plugin can then apply the same policy to Metadata
-API and source-format projects. The
+The selected profile exposes `uat` to plugins as `target.environment`. The
+credential alias is used as the environment when `--environment` is omitted.
+The lowercase `environment` process variable can still override it for an
+ephemeral or CI/CD invocation.
+
+A metadata-stage pre-deploy plugin can apply the same policy to Metadata API
+and source-format projects. The
 [environment endpoint example](#a-complete-plugin) below maps `dev`, `uat` and
 `prod` to different Named Credential endpoints.
 
@@ -456,12 +467,15 @@ differences rather than scattering them through pipeline scripts.
 current source tree without retrieving metadata:
 
 ```bash
-environment=dev sfdy prepare
+sfdy prepare --target dev
 ```
 
 It applies configured renderers, built-in metadata patches and
 `postRetrievePlugins`, then writes the resulting project representation. The
-command still authenticates because a plugin may query the target org.
+command still authenticates because a plugin may query the target org. Set the
+lowercase `environment` process variable when you need to override the logical
+environment stored with the selected credential.
+
 `--skip-untransform` skips the deploy direction of configured renderers before
 normalization.
 
@@ -584,10 +598,12 @@ module.exports = definePlugin({
 })
 ```
 
-Run it with the project environment exposed to `sfdy`:
+Run it against a saved target carrying the corresponding environment:
 
 ```bash
-environment=uat sfdy deploy --files='namedCredentials/Backend.namedCredential*'
+sfdy deploy \
+  --target uat-admin \
+  --files='namedCredentials/Backend.namedCredential*'
 ```
 
 `definePlugin` marks the module as Plugin API v2 and preserves type inference
@@ -837,7 +853,7 @@ The CLI is a thin wrapper around the same public functions used by
 `fast-sfdc` and other integrations:
 
 ```js
-const { deploy, retrieve, transformer, auth } = require('sfdy')
+const { deploy, retrieve, transformer, auth, credentials } = require('sfdy')
 ```
 
 ### Deploy programmatically
@@ -928,8 +944,9 @@ The lower-level transformer API additionally accepts an existing
 
 | Export | Purpose |
 | --- | --- |
-| `sfdy` | `auth`, `deploy`, `retrieve`, `transformer` |
+| `sfdy` | `auth`, `credentials`, `deploy`, `retrieve`, `transformer` |
 | `sfdy/plugin` | Plugin API v2 helpers, file model, selections and TypeScript types |
+| `sfdy/credentials` | Shared encrypted project credential vault |
 | `sfdy/deploy`, `sfdy/retrieve` | Direct operation imports |
 | `sfdy/transformer` | Local transform and untransform operations |
 | `sfdy/auth` | Interactive OAuth web-server flow |
@@ -955,16 +972,6 @@ Use `sfdy` when you want a focused and dependable metadata delivery engine:
 - metadata requires normalization between orgs and source control;
 - you want to extend the workflow with ordinary JavaScript;
 - you value a small maintenance surface over a large feature surface.
-
-## Stability is a feature
-
-`sfdy` has been used and maintained since 2019. Its core workflow has remained
-recognizable across Salesforce CLI generations and changes to the Salesforce
-platform.
-
-That is intentional. Delivery infrastructure should not demand constant
-attention merely to keep performing the same job. `sfdy` favors a small API,
-explicit behavior and targeted evolution over perpetual reinvention.
 
 ## Documentation
 
