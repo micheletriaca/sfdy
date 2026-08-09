@@ -16,9 +16,6 @@ const apiVersion = program.opts().apiVersion || (legacyVersion && legacyVersion[
 fs.writeFileSync(configPath, JSON.stringify({
   sourceFormat: 'metadata',
   ...(apiVersion ? { apiVersion } : {}),
-  permissionSets: {
-    stripUselessFls: true
-  },
   objectTranslations: {
     stripUntranslatedFields: true,
     stripNotVersionedFields: true

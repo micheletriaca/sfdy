@@ -6,6 +6,7 @@ const configService = require('./services/config-service')
 const retrieve = require('./retrieve')
 const { addAuthenticationOptions } = require('./utils/auth-utils')
 const { resolveAuthentication } = require('./utils/credential-auth-utils')
+const { printLogo } = require('./utils/branding-utils')
 require('./error-handling')()
 
 addAuthenticationOptions(program)
@@ -17,6 +18,7 @@ addAuthenticationOptions(program)
 
 ;(async () => {
   const options = await resolveAuthentication(program.opts())
+  printLogo()
   await retrieve({
     basePath: pathService.getBasePath(),
     config: configService.getConfig(),

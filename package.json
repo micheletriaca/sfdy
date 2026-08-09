@@ -5,7 +5,8 @@
   "main": "src/index.js",
   "bin": "src/sfdy.js",
   "files": [
-    "src"
+    "src",
+    "STANDARD_PATCHES.md"
   ],
   "author": "Michele Triaca",
   "license": "MIT",

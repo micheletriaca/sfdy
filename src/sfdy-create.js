@@ -3,6 +3,7 @@
 const { program } = require('commander')
 const { createProject } = require('./create')
 const { addAuthenticationOptions } = require('./utils/auth-utils')
+const { printLogo } = require('./utils/branding-utils')
 require('./error-handling')()
 
 addAuthenticationOptions(program)
@@ -16,5 +17,8 @@ addAuthenticationOptions(program)
   .option('--callback-port <port>', 'OAuth callback port', Number)
   .option('--save', 'Save a new OAuth login without asking')
   .option('--no-retrieve', 'Configure and authenticate without running the first retrieve')
-  .action(async (directory, options) => createProject({ ...options, directory }))
+  .action(async (directory, options) => {
+    printLogo()
+    return createProject({ ...options, directory })
+  })
   .parseAsync(process.argv)

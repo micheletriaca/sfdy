@@ -1,6 +1,5 @@
 const chalk = require('chalk')
 const yazl = require('yazl')
-const { printLogo } = require('../utils/branding-utils')
 const stdRenderers = require('../renderers')
 const Sfdc = require('../utils/sfdc-utils')
 const { buildXml } = require('../utils/xml-utils')
@@ -45,7 +44,6 @@ module.exports = async ({
   if (_logger) logger.setLogger(_logger)
   let formatAdapter = getAdapter(config, sourceFormat)
   console.time('running time')
-  printLogo()
   logger.log(chalk.yellow('(1/4) Logging in salesforce...'))
   const apiVersion = pathService.getApiVersion()
   if (!apiVersion) {
