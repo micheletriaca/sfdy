@@ -48,7 +48,7 @@
   "scripts": {
     "check-types": "tsc -p tsconfig.plugin-api.json",
     "lint": "eslint src test",
-    "test": "npm run check-types && npm run lint && node test/auth-utils.test.js && node test/client-credentials.test.js && node test/credentials.test.js && node test/prompt-utils.test.js && node test/public-exports.test.js && node test/plugin-api.test.js && node test/core-plugins.test.js && node test/streaming-deploy.test.js && node test/metadata-manifestless-integration.test.js && node test/sfdx-format-adapter.test.js && node test/sfdx-deploy-integration.test.js && node test/sfdx-retrieve-integration.test.js && node test/sfdx-retrieve-command-integration.test.js && node test/sfdx-transformer-integration.test.js"
+    "test": "npm run check-types && npm run lint && node test/auth-utils.test.js && node test/client-credentials.test.js && node test/credentials.test.js && node test/create.test.js && node test/prompt-utils.test.js && node test/public-exports.test.js && node test/plugin-api.test.js && node test/core-plugins.test.js && node test/streaming-deploy.test.js && node test/metadata-manifestless-integration.test.js && node test/sfdx-format-adapter.test.js && node test/sfdx-deploy-integration.test.js && node test/sfdx-retrieve-integration.test.js && node test/sfdx-retrieve-command-integration.test.js && node test/sfdx-transformer-integration.test.js"
   },
   "dependencies": {
     "base64-stream": "^1.0.0",

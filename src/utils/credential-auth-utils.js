@@ -2,8 +2,8 @@ const credentials = require('../credentials')
 const { configureAuthentication } = require('./auth-utils')
 const { ask } = require('./prompt-utils')
 
-const fromEnvironment = (options, name, envName) => {
-  if (!options[name] && process.env[envName]) options[name] = process.env[envName]
+const fromEnvironment = (options, name, envName, environment) => {
+  if (!options[name] && environment[envName]) options[name] = environment[envName]
 }
 
 const selectCredential = async (profiles, { input = process.stdin, output = process.stdout } = {}) => {
@@ -20,13 +20,14 @@ const selectCredential = async (profiles, { input = process.stdin, output = proc
 const resolveAuthentication = async (options, {
   credentialManager = credentials,
   interactive = !!process.stdin.isTTY,
-  select = selectCredential
+  select = selectCredential,
+  environment = process.env
 } = {}) => {
-  fromEnvironment(options, 'clientId', 'SFDY_CLIENT_ID')
-  fromEnvironment(options, 'clientSecret', 'SFDY_CLIENT_SECRET')
-  fromEnvironment(options, 'refreshToken', 'SFDY_REFRESH_TOKEN')
-  fromEnvironment(options, 'instanceUrl', 'SFDY_INSTANCE_URL')
-  fromEnvironment(options, 'serverUrl', 'SFDY_SERVER_URL')
+  fromEnvironment(options, 'clientId', 'SFDY_CLIENT_ID', environment)
+  fromEnvironment(options, 'clientSecret', 'SFDY_CLIENT_SECRET', environment)
+  fromEnvironment(options, 'refreshToken', 'SFDY_REFRESH_TOKEN', environment)
+  fromEnvironment(options, 'instanceUrl', 'SFDY_INSTANCE_URL', environment)
+  fromEnvironment(options, 'serverUrl', 'SFDY_SERVER_URL', environment)
 
   const selector = options.target || (options.username && !options.password ? options.username : undefined)
   const hasCompleteAuthentication = (options.username && options.password) ||

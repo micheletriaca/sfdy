@@ -1,0 +1,20 @@
+#!/usr/bin/env node
+
+const { program } = require('commander')
+const { createProject } = require('./create')
+const { addAuthenticationOptions } = require('./utils/auth-utils')
+require('./error-handling')()
+
+addAuthenticationOptions(program)
+  .argument('[directory]', 'Project directory', '.')
+  .option('--source-format <format>', 'Project source format: metadata or sfdx')
+  .option('--folder <folder>', 'Project source folder')
+  .option('--api-version <version>', 'Salesforce Metadata API version')
+  .option('-m, --metadata <metadata>', 'Comma-separated metadata types or Type/member selections')
+  .option('--alias <alias>', 'Alias for a newly saved credential')
+  .option('--environment <environment>', 'Environment name exposed to metadata plugins')
+  .option('--callback-port <port>', 'OAuth callback port', Number)
+  .option('--save', 'Save a new OAuth login without asking')
+  .option('--no-retrieve', 'Configure and authenticate without running the first retrieve')
+  .action(async (directory, options) => createProject({ ...options, directory }))
+  .parseAsync(process.argv)

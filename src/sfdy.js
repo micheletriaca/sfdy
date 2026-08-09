@@ -7,6 +7,7 @@ program
   .version(packageInfo.version, '-v, --version')
   .description(packageInfo.description)
   .usage('<command> [options]')
+  .command('create', 'Create or connect a Salesforce project')
   .command('retrieve', 'Retrieve patched metadata')
   .command('deploy', 'Deploy patched metadata')
   .command('community:publish', 'Publish community')

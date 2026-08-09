@@ -127,9 +127,20 @@ Metadata API representation.
 
 ```bash
 npm install -g sfdy
-cd your-salesforce-project
-sfdy init --api-version 65.0
+mkdir your-salesforce-project && cd your-salesforce-project
+sfdy create
 ```
+
+`sfdy create` detects an existing Metadata API or Salesforce DX project. In an
+empty directory it creates one, opens Salesforce authentication, optionally
+saves the login in the project vault, and retrieves Apex classes and Lightning
+web components by default. Use `--metadata`, `--source-format` and
+`--api-version` to override the defaults. The API version is detected from an
+existing project and otherwise defaults to `65.0`.
+
+Before opening OAuth, the interactive wizard asks whether the target is a
+production org, sandbox or custom domain. Pass `--sandbox` or `--server-url`
+to make that choice explicitly.
 
 For a non-interactive CI/CD job, configure an OAuth 2.0 client-credentials flow
 on a Salesforce Connected App and expose the credentials as protected
@@ -155,12 +166,14 @@ options.
 
 ## Command-line workflows
 
-The CLI has six commands:
+The CLI has eight commands:
 
 | Command | Purpose |
 | --- | --- |
-| `sfdy init` | Create the project configuration |
+| `sfdy create` | Detect or scaffold a project, authenticate and run its first retrieve |
+| `sfdy init` | Generate the opinionated legacy starter configuration |
 | `sfdy auth` | Authorize an org interactively |
+| `sfdy credentials` | List or remove project credentials |
 | `sfdy retrieve` | Retrieve and normalize metadata |
 | `sfdy deploy` | Prepare and deploy metadata |
 | `sfdy prepare` | Reapply the retrieve pipeline to local files |
@@ -170,8 +183,10 @@ Run `sfdy <command> --help` for the complete option list.
 
 ### Configure a project
 
-Run `sfdy init` from the project root. For a Metadata API project without an
-existing `package.xml`, provide the API version explicitly:
+Run `sfdy create` from the project root. It preserves an existing project and
+writes the minimal `.sfdy.json` needed by the CLI. The older `sfdy init`
+command remains available when you explicitly want its opinionated starter set
+of built-in patches:
 
 ```bash
 sfdy init --api-version 65.0
@@ -190,9 +205,10 @@ patches, plugins, renderers and files that must never be deployed.
 }
 ```
 
-`sourceFormat` is `metadata` by default. Set it to `sfdx` for a Salesforce
-source-format project. `--source-format` overrides it for one deploy or
-retrieve.
+`sfdy create` proposes `sfdx` for a new project. When no format is configured,
+the lower-level deploy and retrieve APIs retain `metadata` as their backwards-
+compatible default. `--source-format` overrides the configured format for one
+deploy or retrieve.
 
 The default source root is:
 

@@ -7,7 +7,7 @@ module.exports = {
   getConfig: () => {
     const configPath = path.resolve(pathService.getBasePath(), '.sfdy.json')
     const configExists = fs.existsSync(configPath)
-    if (!configExists) console.warn(chalk.yellow('**** WARNING **** Missing configuration file .sfdy.json. To create it, just run sfdy init'))
+    if (!configExists) console.warn(chalk.yellow('**** WARNING **** Missing configuration file .sfdy.json. Run sfdy create to configure this project'))
     return configExists ? require(configPath) : {}
   }
 }
