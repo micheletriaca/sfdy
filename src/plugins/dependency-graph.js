@@ -1,21 +1,33 @@
-module.exports = async (context, helpers) => {
-  helpers.requireMetadata(['Profile/*'], async ({ filterPackage }) => filterPackage([
-    'CustomApplication',
-    'ApexClass',
-    'ApexPage',
-    'CustomObject',
-    'CustomField',
-    'RecordType',
-    'CustomTab',
-    'CustomPermission',
-    'Layout',
-    'DataCategoryGroup',
-    'ExternalDataSource'
-  ]))
+const { definePlugin } = require('../plugin')
 
-  helpers.requireMetadata('CustomObjectTranslation/*', async ({ filterPackage }) => filterPackage([
-    'CustomObject',
-    'CustomField',
-    'Layout'
-  ]))
-}
+const profileDependencies = [
+  'CustomApplication',
+  'ApexClass',
+  'ApexPage',
+  'CustomObject',
+  'CustomField',
+  'RecordType',
+  'CustomTab',
+  'CustomPermission',
+  'Layout',
+  'DataCategoryGroup',
+  'ExternalDataSource'
+]
+
+module.exports = definePlugin({
+  name: 'core-dependency-graph',
+  stage: 'metadata',
+
+  plan ({ selection, inventory }) {
+    if (selection.match('Profile/*').length) {
+      selection.require(inventory.match(profileDependencies.map(type => `${type}/*`)))
+    }
+    if (selection.match('CustomObjectTranslation/*').length) {
+      selection.require(inventory.match([
+        'CustomObject/*',
+        'CustomField/*',
+        'Layout/*'
+      ]))
+    }
+  }
+})

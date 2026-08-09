@@ -1,34 +1,37 @@
-const pluginEngine = require('../plugin-engine')
-const stdRenderers = require('../renderers')
-const Sfdc = require('../utils/sfdc-utils')
-const { expandDirectoryPatterns, getListOfSrcFiles, getPackageXml, getPackageMapping } = require('../utils/package-utils')
 const _ = require('lodash')
-// const standardPlugins = require('../plugins')
+const globby = require('globby')
+const Sfdc = require('../utils/sfdc-utils')
+const stdRenderers = require('../renderers')
+const { expandDirectoryPatterns, getListOfSrcFiles, getPackageXml, getPackageMapping } = require('../utils/package-utils')
 const pathService = require('../services/path-service')
 const logger = require('../services/log-service')
 const { readFiles } = require('../services/file-service')
-const path = require('path')
-const nativeRequire = require('../utils/native-require')
-const memoize = require('lodash').memoize
-const util = require('util')
-const fs = require('fs')
-const getFolderName = (fileName) => fileName.substring(0, fileName.lastIndexOf('/'))
 const { getAdapter } = require('../format-adapters')
-const globby = require('globby')
+const { FileSelection, FileTree } = require('../plugin')
+const { resolveSelections, runExtensions } = require('../plugin/runtime')
+const { prepareExtensions, warnLegacy } = require('../plugin/loader')
+const { readProjectEntries, writeProjectEntries } = require('../plugin/project-files')
 
 const getApiVersion = async loginOpts => loginOpts.apiVersion || pathService.getApiVersion()
 
-const cleanFormattedFiles = async files => {
-  const sourceFolder = pathService.getSrcFolder(true)
-  await Promise.all(files.map(fileName => {
-    const target = path.resolve(sourceFolder, fileName)
-    const relativeTarget = path.relative(sourceFolder, target)
-    if (relativeTarget.startsWith('..') || path.isAbsolute(relativeTarget)) {
-      throw new Error(`Refusing to clean a path outside the source folder: ${fileName}`)
-    }
-    return fs.promises.rm(target, { recursive: true, force: true })
-  }))
-}
+const createConnector = async (loginOpts, apiVersion) => Sfdc.newInstance({
+  sessionId: loginOpts.sessionId,
+  instanceHostname: loginOpts.instanceHostname,
+  username: loginOpts.username,
+  password: loginOpts.password,
+  isSandbox: !!loginOpts.sandbox,
+  serverUrl: loginOpts.serverUrl,
+  apiVersion
+})
+
+const createRunOptions = ({ fileTree, direction, formatAdapter, sfdcConnector, config }) => ({
+  fileTree,
+  direction,
+  format: formatAdapter ? 'sfdx' : 'metadata',
+  target: { environment: process.env.environment, username: sfdcConnector.username },
+  sfdcConnector,
+  config
+})
 
 module.exports = {
   transform: async ({
@@ -40,32 +43,14 @@ module.exports = {
     sourceFormat,
     config = {}
   }) => {
-    const makeDir = folder => fs.promises.mkdir(folder, { recursive: true })
-    const mMakeDir = memoize(makeDir)
-    const wf = util.promisify(fs.writeFile)
     pathService.configureProject({ basePath, srcFolder, sourceFormat, config })
     if (_logger) logger.setLogger(_logger)
 
     let formatAdapter = getAdapter(config, sourceFormat)
     const apiVersion = await getApiVersion(loginOpts)
     if (!apiVersion) throw new Error('Missing API version for source-format transformation')
-    const sfdcConnector = await Sfdc.newInstance({
-      sessionId: loginOpts.sessionId,
-      instanceHostname: loginOpts.instanceHostname,
-      username: loginOpts.username,
-      password: loginOpts.password,
-      isSandbox: !!loginOpts.sandbox,
-      serverUrl: loginOpts.serverUrl,
-      apiVersion
-    })
+    const sfdcConnector = await createConnector(loginOpts, apiVersion)
     if (formatAdapter) formatAdapter = getAdapter(config, sourceFormat, await getPackageMapping(sfdcConnector))
-
-    const plugins = [
-      //      ...standardPlugins,
-      //      ...(config.postRetrievePlugins || []),
-      ...(formatAdapter ? [] : stdRenderers.map(x => x.transform)),
-      ...((config.renderers || []).map(x => nativeRequire(path.resolve(pathService.getBasePath(), x)).transform))
-    ]
 
     const pkg = formatAdapter
       ? await getPackageXml({ specificMeta: [], apiVersion })
@@ -75,23 +60,49 @@ module.exports = {
         skipParseGlobPatterns: true,
         apiVersion
       })
-    await pluginEngine.registerPlugins(plugins, sfdcConnector, sfdcConnector.username, pkg, config)
-    await pluginEngine.applyTransformations(files)
-    await pluginEngine.applyCleans()
-    const filteredFiles = files.filter(pluginEngine.applyFilters())
-    const existingFiles = formatAdapter
-      ? await globby(['**/*'], { cwd: pathService.getSrcFolder(true) })
-      : []
+    const preparedRenderers = prepareExtensions({
+      entries: [
+        ...(formatAdapter ? [] : stdRenderers),
+        ...(config.renderers || [])
+      ],
+      basePath: pathService.getBasePath(),
+      packageJson: pkg,
+      legacyHook: 'transform'
+    })
+    warnLegacy(preparedRenderers.legacy, 'Renderer')
+
+    const sourceFolder = pathService.getSrcFolder(true)
+    const diskEntries = await readProjectEntries(sourceFolder)
+    const metadataTree = new FileTree({ files })
+    await runExtensions({
+      ...createRunOptions({
+        fileTree: metadataTree,
+        direction: 'retrieve',
+        formatAdapter,
+        sfdcConnector,
+        config
+      }),
+      stage: 'metadata',
+      extensions: preparedRenderers.extensions
+    })
     const formatted = formatAdapter
-      ? await formatAdapter.toSource(filteredFiles, { existingFiles })
-      : { upserts: filteredFiles, deletes: [] }
-    await cleanFormattedFiles(formatted.deletes)
-    await Promise.all(formatted.upserts
-      .map(async y => {
-        await mMakeDir(path.resolve(pathService.getSrcFolder(true), getFolderName(y.fileName)))
-        await wf(path.resolve(pathService.getSrcFolder(true), y.fileName), y.data)
-      }))
+      ? await formatAdapter.toSource(metadataTree.entries(), { existingFiles: diskEntries.map(entry => entry.fileName) })
+      : { upserts: metadataTree.entries(), deletes: metadataTree.deletedPaths() }
+    const projectTree = new FileTree({ diskEntries, files: formatted.upserts })
+    projectTree.markDeleted(formatted.deletes)
+    await runExtensions({
+      ...createRunOptions({
+        fileTree: projectTree,
+        direction: 'retrieve',
+        formatAdapter,
+        sfdcConnector,
+        config
+      }),
+      extensions: preparedRenderers.extensions
+    })
+    await writeProjectEntries(sourceFolder, projectTree.entries(), projectTree.deletedPaths())
   },
+
   untransform: async ({
     loginOpts,
     basePath,
@@ -108,52 +119,89 @@ module.exports = {
     let formatAdapter = getAdapter(config, sourceFormat)
     const apiVersion = await getApiVersion(loginOpts)
     if (!apiVersion) throw new Error('Missing API version for source-format transformation')
-    const sfdcConnector = await Sfdc.newInstance({
-      sessionId: loginOpts.sessionId,
-      instanceHostname: loginOpts.instanceHostname,
-      username: loginOpts.username,
-      password: loginOpts.password,
-      isSandbox: !!loginOpts.sandbox,
-      serverUrl: loginOpts.serverUrl,
-      apiVersion
-    })
+    const sfdcConnector = await createConnector(loginOpts, apiVersion)
     if (formatAdapter) formatAdapter = getAdapter(config, sourceFormat, await getPackageMapping(sfdcConnector))
 
-    const getFiles = () => files.split(',').map(x => x.trim()) || []
-    let specificFiles = [...new Set([...getFiles()])]
+    const sourceFolder = pathService.getSrcFolder(true)
+    const diskEntries = await readProjectEntries(sourceFolder)
+    const availableFiles = diskEntries.map(entry => entry.fileName)
+    let selectedFiles = [...new Set(files.split(',').map(file => file.trim()))]
+    if (formatAdapter) selectedFiles = await globby(expandDirectoryPatterns(selectedFiles), { cwd: sourceFolder })
 
-    const plugins = [
-      ...(formatAdapter ? [] : stdRenderers.map(x => x.untransform)),
-      ...(renderers.map(x => nativeRequire(path.resolve(pathService.getBasePath(), x)).untransform))
-    ]
-    let targetFiles
-    let pkg
-    if (formatAdapter) {
-      const selectedFiles = await globby(expandDirectoryPatterns(specificFiles), { cwd: pathService.getSrcFolder(true) })
-      const availableFiles = await globby(['**/*'], { cwd: pathService.getSrcFolder(true) })
-      const sourceFiles = formatAdapter.getCompanionPaths(selectedFiles, availableFiles)
-      const converted = await formatAdapter.toMetadata(readFiles(pathService.getSrcFolder(true), sourceFiles))
-      targetFiles = converted.entries
-      const components = formatAdapter.getPackageComponents(converted.components)
-      pkg = await getPackageXml({
-        specificMeta: components.map(x => `${x.type}/${x.fullName}`),
+    const preliminaryComponents = formatAdapter
+      ? formatAdapter.getPackageComponents(formatAdapter.resolve(selectedFiles))
+      : []
+    const pkg = formatAdapter
+      ? await getPackageXml({
+        specificMeta: preliminaryComponents.map(component => `${component.type}/${component.fullName}`),
         apiVersion
       })
-    } else {
-      await pluginEngine.registerPlugins(plugins, sfdcConnector, sfdcConnector.username, await getPackageXml({
-        specificFiles,
-        sfdcConnector,
-        apiVersion
-      }), config)
-      specificFiles = pluginEngine.applyRemappers(specificFiles)
-      const packageMapping = await getPackageMapping(sfdcConnector)
-      const filesToRead = await getListOfSrcFiles(packageMapping, specificFiles)
-      targetFiles = readFiles(pathService.getSrcFolder(true), filesToRead)
-    }
-    if (formatAdapter) await pluginEngine.registerPlugins(plugins, sfdcConnector, sfdcConnector.username, pkg, config)
-    await pluginEngine.applyTransformations(targetFiles)
+      : await getPackageXml({ specificFiles: selectedFiles, sfdcConnector, apiVersion })
+    const preparedRenderers = prepareExtensions({
+      entries: [
+        ...(formatAdapter ? [] : stdRenderers),
+        ...renderers
+      ],
+      basePath: pathService.getBasePath(),
+      packageJson: pkg,
+      legacyHook: 'untransform'
+    })
+    warnLegacy(preparedRenderers.legacy, 'Renderer')
 
-    const fileMap = _.keyBy(targetFiles, 'fileName')
-    return fileMap
+    const selection = new FileSelection(selectedFiles)
+    const diskTree = new FileTree({ diskEntries })
+    await resolveSelections({
+      extensions: preparedRenderers.extensions,
+      selection,
+      project: diskTree.project,
+      direction: 'deploy',
+      format: formatAdapter ? 'sfdx' : 'metadata',
+      target: { environment: process.env.environment, username: sfdcConnector.username },
+      sfdcConnector,
+      config
+    })
+    selectedFiles = selection.values()
+
+    if (formatAdapter) {
+      const expanded = await globby(expandDirectoryPatterns(selectedFiles), { cwd: sourceFolder })
+      selectedFiles = formatAdapter.getCompanionPaths(expanded, availableFiles)
+        .filter(fileName => formatAdapter.isMetadataPath(fileName))
+    } else {
+      const packageMapping = await getPackageMapping(sfdcConnector)
+      selectedFiles = await getListOfSrcFiles(packageMapping, selectedFiles)
+    }
+
+    const fileTree = new FileTree({
+      diskEntries,
+      files: readFiles(sourceFolder, selectedFiles),
+      origin: 'disk'
+    })
+    await runExtensions({
+      ...createRunOptions({
+        fileTree,
+        direction: 'deploy',
+        formatAdapter,
+        sfdcConnector,
+        config
+      }),
+      extensions: preparedRenderers.extensions
+    })
+
+    let metadataTree = fileTree
+    if (formatAdapter) {
+      metadataTree = new FileTree({ files: (await formatAdapter.toMetadata(fileTree.entries())).entries })
+    }
+    await runExtensions({
+      ...createRunOptions({
+        fileTree: metadataTree,
+        direction: 'deploy',
+        formatAdapter,
+        sfdcConnector,
+        config
+      }),
+      stage: 'metadata',
+      extensions: preparedRenderers.extensions
+    })
+    return _.keyBy(metadataTree.entries(), 'fileName')
   }
 }

@@ -5,6 +5,7 @@ const path = require('path')
 const transformer = require('../src/transformer')
 const Sfdc = require('../src/utils/sfdc-utils')
 const pathService = require('../src/services/path-service')
+const { defineRenderer } = require('../src/plugin')
 
 const objectXml = `<?xml version="1.0" encoding="UTF-8"?>
 <CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
@@ -44,15 +45,32 @@ const fieldXml = `<?xml version="1.0" encoding="UTF-8"?>
       })
     })
 
-    const config = { sourceFormat: 'sfdx', apiVersion: '65.0' }
+    const renderer = defineRenderer({
+      name: 'field-label-renderer',
+      async onDeploy ({ files }) {
+        const file = files.get('objects/Invoice__c/fields/Status__c.field-meta.xml')
+        const field = await file.readXml()
+        field.label = ['Deploy rendered']
+        await file.writeXml(field)
+      },
+      async onRetrieve ({ files }) {
+        const file = files.get('objects/Invoice__c/fields/Status__c.field-meta.xml')
+        const field = await file.readXml()
+        field.label = ['Stored rendered']
+        await file.writeXml(field)
+      }
+    })
+    const config = { sourceFormat: 'sfdx', apiVersion: '65.0', renderers: [renderer] }
     const files = await transformer.untransform({
       basePath,
       config,
       files: 'objects/**/*',
-      loginOpts: { sessionId: 'session', instanceHostname: 'example.test', apiVersion: '65.0' }
+      loginOpts: { sessionId: 'session', instanceHostname: 'example.test', apiVersion: '65.0' },
+      renderers: [renderer]
     })
     assert.deepStrictEqual(Object.keys(files), ['objects/Invoice__c.object'])
     assert.match(files['objects/Invoice__c.object'].data.toString(), /<fullName>Status__c<\/fullName>/)
+    assert.match(files['objects/Invoice__c.object'].data.toString(), /<label>Deploy rendered<\/label>/)
 
     await transformer.transform({
       basePath,
@@ -63,7 +81,7 @@ const fieldXml = `<?xml version="1.0" encoding="UTF-8"?>
     assert.strictEqual(fs.existsSync(path.join(objectFolder, 'Invoice__c.object-meta.xml')), true)
     assert.match(
       await fs.promises.readFile(path.join(objectFolder, 'fields', 'Status__c.field-meta.xml'), 'utf8'),
-      /<label>Status<\/label>/
+      /<label>Stored rendered<\/label>/
     )
     console.log('SFDX transformer integration tests passed')
   } finally {

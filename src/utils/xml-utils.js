@@ -4,6 +4,38 @@ const xml2js = require('xml2js')
 const parser = util.promisify(new xml2js.Parser({ explicitArray: true }).parseString)
 const noArrayParser = util.promisify(new xml2js.Parser({ explicitArray: false }).parseString)
 
+const parseXmlRoot = async (value, {
+  filePath = '<memory>',
+  expectedRoot,
+  label = 'XML file'
+} = {}) => {
+  let document
+  try {
+    document = await parser(value)
+  } catch (error) {
+    throw new Error(`${label} ${filePath} is not valid XML: ${error.message}`, { cause: error })
+  }
+
+  const roots = Object.keys(document || {})
+  if (!roots.length) throw new Error(`${label} ${filePath} does not have an XML root element`)
+  const rootName = roots[0]
+  if (expectedRoot && rootName !== expectedRoot) {
+    throw new Error(
+      `${label} ${filePath} has XML root <${rootName}>; expected <${expectedRoot}> from its path`
+    )
+  }
+
+  let root = document[rootName]
+  if (root === '' || root == null) {
+    root = {}
+    document[rootName] = root
+  }
+  if (typeof root !== 'object' || Array.isArray(root)) {
+    throw new Error(`${label} ${filePath} has an invalid <${rootName}> root value`)
+  }
+  return { document, root, rootName }
+}
+
 const renderOpts = {
   indent: '    ',
   emptyTag: true
@@ -73,6 +105,7 @@ const sfdcXmlBuilder = (tagname, value, isRoot = true, indentLevel = '') => {
 
 module.exports = {
   parseXml: parser,
+  parseXmlRoot,
   parseXmlNoArray: noArrayParser,
   buildXml: v => sfdcXmlBuilder(Object.keys(v)[0], Object.values(v)[0])
 }

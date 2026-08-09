@@ -271,7 +271,9 @@ All these patches serve 2 purposes:
 
 All of these patches can be disabled, so you can incrementally adopt them or skip a specific patch if you don't find it useful.
 
-In addition to metadata patching, `sfdy` provides an out-of-the-box renderer to handle static resource bundles.
+In Metadata API projects, `sfdy` provides an out-of-the-box renderer for storing
+static resource bundles as expanded directories. SFDX projects use their native
+source-format static-resource representation and do not run this renderer.
 
 First of all, create the configuration file `.sfdy.json` in the root folder of the salesforce project:
 
@@ -385,7 +387,7 @@ currently supported.
 
 | Renderer | Metadata | Description |
 | --- | --- | --- |
-| useBundleRenderer | StaticResource | glob pattern to identify static resource files to handle as an uncompressed bundle. The `contentType` of the `.resource-meta.xml` file must be `application/zip`. This renderer retrieves directly the uncompressed folder instead of the `.resource` file. If you deploy a single file inside the bundle, the `.resource` file is rebuilded behind the scenes and deployed in place of the single specified file
+| useBundleRenderer | StaticResource | Metadata API projects only. Glob pattern identifying static resource files stored as expanded directories. The `contentType` of the `.resource-meta.xml` file must be `application/zip`. If a single file inside the bundle is deployed, the renderer rebuilds and deploys the corresponding `.resource` archive. |
 
 #### other
 
@@ -393,11 +395,222 @@ currently supported.
 | --- | --- | --- |
 | stripManagedPackageFields | CustomObject, PermissionSet, Profile | Array of namespaces of stuff created by managed packages (eg Marketing Cloud) that we don't want to track changes using Version Control. This plugin removes `fields`, `picklistValues`, `weblinks` from `CustomObject` and `fieldPermissions` from `Profile` and `PermisissionSet` |
 
-### Build your own plugins
+### Plugin API v2
 
-`sfdy` offers a convenient way to develop your own plugins. This is useful in many cases. A simple use case might be changing named credentials endpoints or email addresses in the workflow's email alerts based on the target org, but the possibilities are endless. You can even query salesforce (rest API or tooling API) to conditionally apply transformations to the metadata based on information coming from the target org.
+Plugin API v2 runs on the project's configured file format by default. In an
+SFDX project, project-stage plugins receive files such as
+`objects/Account/fields/Name.field-meta.xml`; in a Metadata API project they
+receive the corresponding Metadata API files.
 
-All the standard plugins are built using the plugin engine of `sfdy`, so the best reference to understand how to develop a custom plugin is to look at the [plugins](src/plugins) folder in which all the standard plugins reside.
+The execution order is:
+
+```text
+Retrieve: Salesforce -> metadata plugins -> adapter -> project plugins -> renderers -> filesystem
+Deploy:   filesystem -> renderers -> project plugins -> adapter -> metadata plugins -> Salesforce
+```
+
+JavaScript plugins get typed completions through the `sfdy/plugin` public
+export. Add `// @ts-check` to also enable diagnostics in VS Code:
+
+```javascript
+// @ts-check
+
+const { definePlugin } = require('sfdy/plugin')
+
+module.exports = definePlugin({
+  name: 'environment-patches',
+
+  async onDeploy ({ files, target }) {
+    for (const file of files.match('namedCredentials/*.namedCredential-meta.xml')) {
+      const credential = await file.readXml()
+      credential.endpoint = [`https://service-${target.environment}.example.com`]
+      await file.writeXml(credential)
+    }
+  }
+})
+```
+
+#### Representation stage
+
+Plugins default to `stage: 'project'`. A plugin that intentionally operates on
+the Metadata API representation can instead declare `stage: 'metadata'`:
+
+```javascript
+module.exports = definePlugin({
+  name: 'raw-profile-cleanup',
+  stage: 'metadata',
+
+  async onRetrieve ({ files }) {
+    for (const file of files.match('profiles/*.profile')) {
+      // This path and XML shape are Metadata API format in every project.
+    }
+  }
+})
+```
+
+The representation name is stable in both directions: metadata-stage plugins
+run before the adapter on retrieve and after it on deploy. This is useful for a
+single format-independent implementation, but should be chosen deliberately;
+the default project stage is normally easier for project-owned plugins.
+
+Plugins and renderers may also declare `formats: ['metadata']` or
+`formats: ['sfdx']` when they only make sense for a particular project format.
+The built-in metadata static-resource renderer uses `formats: ['metadata']`.
+Projects may override these properties when loading a v2 extension:
+
+```json
+{
+  "preDeployPlugins": [
+    {
+      "path": "build-scripts/sfdy/raw-patches.js",
+      "stage": "metadata",
+      "formats": ["sfdx", "metadata"]
+    }
+  ]
+}
+```
+
+Stage and format overrides are intentionally rejected for legacy extensions.
+
+TypeScript plugins can import the same API:
+
+```typescript
+import { definePlugin } from 'sfdy/plugin'
+
+export default definePlugin({
+  name: 'profile-cleanup',
+
+  async onRetrieve({ files }) {
+    for (const file of files.match('profiles/*')) {
+      const profile = await file.readXml()
+      profile.userPermissions = []
+      await file.writeXml(profile)
+    }
+  }
+})
+```
+
+#### File views
+
+Each plugin receives four related views:
+
+- `files` is the mutable working set for the current operation;
+- `project` is a read-only overlay of the working set on top of the existing
+  filesystem;
+- `disk` is a read-only snapshot of the filesystem before the operation;
+- `output` records paths that must be removed when the transaction is
+  committed; active replacement files at the same paths are written after the
+  cleanup.
+
+When the same path exists on disk and is being retrieved, `project` returns the
+incoming version. Files created or modified by an earlier plugin are also
+visible through `project` to later plugins. Excluding an incoming file reveals
+the previous disk version; deleting it hides both versions.
+
+At `stage: 'metadata'`, these views contain the current Metadata API
+transaction, including components added with `selection.require()`. In an SFDX
+project the on-disk source tree is a different representation, so it is not
+mixed into the metadata-stage `disk` view.
+
+Reading a file from `project` does not add it to the operation. Inclusion is
+explicit:
+
+```javascript
+const stored = project.get('profiles/Admin.profile-meta.xml')
+if (stored) {
+  const editable = files.include(stored)
+  const profile = await editable.readXml()
+  profile.description = ['Included by a plugin']
+  await editable.writeXml(profile)
+}
+```
+
+Mutable files expose `readBytes`, `readText`, `readXml`, `writeBytes`,
+`writeText`, `writeXml`, `exclude` and `delete`. `files.create()` adds a file to
+the working set immediately, so subsequent plugins can match and transform it.
+
+XML remains intentionally schema-free. `readXml()` returns the root object
+produced by `xml2js`; TypeScript authors may optionally provide a local type:
+
+```typescript
+type Profile = {
+  userPermissions?: Array<{ name: string[] }>
+}
+
+const profile = await file.readXml<Profile>()
+```
+
+#### Planning retrieve dependencies
+
+The optional `plan` hook runs before retrieving files and can extend the
+metadata selection using the local inventory:
+
+```javascript
+module.exports = definePlugin({
+  name: 'profile-dependencies',
+
+  plan ({ selection, inventory }) {
+    if (selection.match('Profile/*').length) {
+      selection.require(inventory.match('CustomObject/*'))
+    }
+  }
+})
+```
+
+`selection.include()` adds components to both the retrieve request and its
+output. `selection.require()` retrieves auxiliary components for plugin
+context but does not write them to the project. The latter replaces the v1
+`filterPackage`/`patchPackage` dependency behavior.
+
+#### Renderers
+
+Renderers use the same typed file transaction but declare their two directions
+explicitly:
+
+```javascript
+const { defineRenderer } = require('sfdy/plugin')
+
+module.exports = defineRenderer({
+  name: 'profile-csv',
+
+  async onRetrieve ({ files }) {
+    // Project representation -> repository representation.
+  },
+
+  async onDeploy ({ files }) {
+    // Repository representation -> project representation.
+  },
+
+  resolveSelection ({ selection }) {
+    // Optionally expand or remap selected project paths.
+  }
+})
+```
+
+Plugins and renderers run sequentially in configuration order. Every extension
+sees the complete result of the previous one.
+
+The `.sfdy.json` configuration keys and path-based loading remain unchanged:
+use `postRetrievePlugins`, `preDeployPlugins` and `renderers` as before.
+
+#### Legacy API compatibility
+
+Modules without `apiVersion: 2` continue to use Plugin API v1 through a
+compatibility adapter and emit a deprecation warning on every run. Legacy
+extensions run at the same project-format stage as v2 extensions. Therefore a
+legacy extension may continue to work unchanged in an SFDX project when its
+paths and XML structure are unaffected, but format-dependent transformations
+must be migrated.
+
+The compatibility adapter preserves `xmlTransformer`, `modifyRawContent`,
+`filterMetadata`, `requireMetadata`, `addRemapper`, `requireFiles`, `addFiles`
+and `cleanFiles`. Plugin API v1 is planned for removal in sfdy 3.
+
+### Legacy: build plugins with API v1
+
+This section documents the deprecated v1 API for existing plugins. New plugins
+should use Plugin API v2 above; the built-in plugins in [plugins](src/plugins)
+are v2 examples.
 
 A plugin is a `.js` module that exports a function with this signature:
 

@@ -7,6 +7,7 @@ const yazl = require('yazl')
 const retrieve = require('../src/retrieve')
 const Sfdc = require('../src/utils/sfdc-utils')
 const pathService = require('../src/services/path-service')
+const { definePlugin } = require('../src/plugin')
 
 const translationXml = `<?xml version="1.0" encoding="UTF-8"?>
 <CustomObjectTranslation xmlns="http://soap.sforce.com/2006/04/metadata">
@@ -82,9 +83,34 @@ const zipStaticResource = async () => {
       pollRetrieveMetadataStatus: async () => ({ zipFile: retrievedZip.toString('base64') })
     })
 
+    const patchRawTranslation = definePlugin({
+      name: 'patch-raw-translation',
+      stage: 'metadata',
+      async onRetrieve ({ files }) {
+        const file = files.get('objectTranslations/Invoice__c-it.objectTranslation')
+        const translation = await file.readXml()
+        translation.fields[0].label = ['Metadata stage patched']
+        await file.writeXml(translation)
+      }
+    })
+    const patchTranslation = definePlugin({
+      name: 'patch-translation',
+      async onRetrieve ({ files, project }) {
+        assert.strictEqual(project.has('objectTranslations/Invoice__c-it/Amount__c.fieldTranslation-meta.xml'), true)
+        const file = files.get('objectTranslations/Invoice__c-it/Status__c.fieldTranslation-meta.xml')
+        const translation = await file.readXml()
+        assert.deepStrictEqual(translation.label, ['Metadata stage patched'])
+        translation.label = ['Plugin patched']
+        await file.writeXml(translation)
+      }
+    })
     await retrieve({
       basePath,
-      config: { sourceFormat: 'sfdx', apiVersion: '65.0', postRetrievePlugins: [] },
+      config: {
+        sourceFormat: 'sfdx',
+        apiVersion: '65.0',
+        postRetrievePlugins: [patchRawTranslation, patchTranslation]
+      },
       files: 'objectTranslations/Invoice__c-it/Status__c.fieldTranslation-meta.xml',
       loginOpts: { username: 'test@example.com', password: 'secret' },
       logger: () => {}
@@ -94,7 +120,7 @@ const zipStaticResource = async () => {
     assert.deepStrictEqual(requestedPackage.types[0].members, ['Invoice__c-it'])
     assert.match(
       await fs.promises.readFile(path.join(translationFolder, 'Status__c.fieldTranslation-meta.xml'), 'utf8'),
-      /Nuovo stato/
+      /Plugin patched/
     )
     assert.strictEqual(fs.existsSync(path.join(translationFolder, 'Amount__c.fieldTranslation-meta.xml')), true)
 

@@ -1,7 +1,7 @@
 const _ = require('lodash')
 const __ = require('highland')
 
-const remapProfileName = async (f, context) => {
+const remapProfileName = async (f, services) => {
   f = f.replace(/^.*\/(.*)\.profile/, '$1').split(' ').map(x => decodeURIComponent(x)).join(' ')
   const fMap = {
     Admin: 'System Administrator',
@@ -41,9 +41,9 @@ const remapProfileName = async (f, context) => {
   }
 
   const pNames = new Set(Object.values(fMap))
-  const stdProfiles = await __(await context.q('SELECT Profile.Name FROM PermissionSet WHERE IsCustom = FALSE AND Profile.Name != NULL'))
+  const stdProfiles = await __(await services.query('SELECT Profile.Name FROM PermissionSet WHERE IsCustom = FALSE AND Profile.Name != NULL'))
     .filter(x => !pNames.has(x.Profile.Name))
-    .map(x => __(context.q(`SELECT FullName, Name FROM Profile WHERE Name = '${x.Profile.Name?.replace('\'', '\\\'')}' LIMIT 1`, true)))
+    .map(x => __(services.query(`SELECT FullName, Name FROM Profile WHERE Name = '${x.Profile.Name?.replace('\'', '\\\'')}' LIMIT 1`, true)))
     .parallel(4)
     .reduce(fMap, (memo, x) => ({ ...memo, [x[0].FullName]: x[0].Name }))
     .toPromise(Promise)
@@ -51,19 +51,19 @@ const remapProfileName = async (f, context) => {
   return stdProfiles[f] || f
 }
 
-const retrievePermissionsList = _.memoize(async (profileName, context) => {
-  const psetId = (await context.q(`SELECT Id FROM PermissionSet Where Profile.Name = '${profileName?.replace('\'', '\\\'')}'`))[0].Id
-  const res = await context.sfdcConnector.rest(`/sobjects/PermissionSet/${psetId}`)
+const retrievePermissionsList = async (profileName, services) => {
+  const psetId = (await services.query(`SELECT Id FROM PermissionSet Where Profile.Name = '${profileName?.replace('\'', '\\\'')}'`))[0].Id
+  const res = await services.salesforce.rest(`/sobjects/PermissionSet/${psetId}`)
   return Object.keys(res)
     .filter(x => x.startsWith('Permissions'))
     .map(x => ({
       enabled: [!!res[x] + ''],
       name: [x.replace(/^Permissions/, '')]
     }))
-})
+}
 
-const retrieveAllObjects = _.memoize(async (byLicenseOrByProfile = 'license', context) => {
-  return _(await context.q(`SELECT
+const retrieveAllObjects = async (byLicenseOrByProfile = 'license', services) => {
+  return _(await services.query(`SELECT
     Id,
     Parent.Profile.Name,
     Parent.License.Name,
@@ -81,10 +81,10 @@ const retrieveAllObjects = _.memoize(async (byLicenseOrByProfile = 'license', co
     .groupBy(`Parent.${byLicenseOrByProfile === 'license' ? 'License' : 'Profile'}.Name`)
     .mapValues(x => _(x).uniqBy('SobjectType').value())
     .value()
-})
+}
 
-const retrieveAllTabVisibilities = async (profile, context) => {
-  return context.sfdcConnector.query(`SELECT
+const retrieveAllTabVisibilities = async (profile, services) => {
+  return services.salesforce.query(`SELECT
     Id,
     Parent.Profile.Name,
     Visibility,
@@ -95,7 +95,7 @@ const retrieveAllTabVisibilities = async (profile, context) => {
 }
 
 const getVersionedObjects = objectFileNames => {
-  return new Set(objectFileNames.map(x => x.fileName.replace(/^objects\/(.*)\.object$/, '$1')))
+  return new Set(objectFileNames.map(x => (x.path || x.fileName).replace(/^objects\/(.*)\.object$/, '$1')))
 }
 
 module.exports = {

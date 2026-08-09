@@ -5,7 +5,6 @@ const path = require('path')
 const { buffer } = require('stream/consumers')
 const yazl = require('yazl')
 const adapter = require('../src/format-adapters/sfdx')
-const pluginEngine = require('../src/plugin-engine')
 const pathService = require('../src/services/path-service')
 const unzip = require('../src/retrieve/unzipper')
 
@@ -95,7 +94,6 @@ const pkg = (type, member) => ({
     await fs.promises.writeFile(path.join(fieldsFolder, 'Amount__c.field-meta.xml'), '<CustomField><label>Amount</label></CustomField>')
     await fs.promises.writeFile(path.join(fieldsFolder, 'Status__c.field-meta.xml'), '<CustomField><label>Old status</label></CustomField>')
 
-    await pluginEngine.registerPlugins([], connector, 'test@example.com', pkg('CustomField', 'Invoice__c.Status__c'))
     await unzip(
       await zipMetadata(metadataXml([['Status__c', 'New status']])),
       connector,
@@ -107,7 +105,6 @@ const pkg = (type, member) => ({
     assert.strictEqual(fs.existsSync(path.join(fieldsFolder, 'Amount__c.field-meta.xml')), true)
     assert.match(await fs.promises.readFile(path.join(fieldsFolder, 'Status__c.field-meta.xml'), 'utf8'), /New status/)
 
-    await pluginEngine.registerPlugins([], connector, 'test@example.com', pkg('CustomObject', 'Invoice__c'))
     await unzip(
       await zipMetadata(metadataXml([['Status__c', 'Ignored by root retrieve']])),
       connector,
@@ -120,7 +117,6 @@ const pkg = (type, member) => ({
     assert.strictEqual(fs.existsSync(path.join(fieldsFolder, 'Amount__c.field-meta.xml')), true)
     assert.match(await fs.promises.readFile(path.join(fieldsFolder, 'Status__c.field-meta.xml'), 'utf8'), /New status/)
 
-    await pluginEngine.registerPlugins([], connector, 'test@example.com', pkg('CustomObject', 'Invoice__c'))
     await unzip(
       await zipMetadata(metadataXml([['Status__c', 'Full retrieve']])),
       connector,
@@ -139,7 +135,6 @@ const pkg = (type, member) => ({
     <labels><fullName>Updated</fullName><value>Old</value></labels>
     <labels><fullName>Preserved</fullName><value>Keep</value></labels>
 </CustomLabels>`)
-    await pluginEngine.registerPlugins([], connector, 'test@example.com', pkg('CustomLabel', 'Updated'))
     await unzip(
       await zipLabels(Buffer.from(`
 <CustomLabels xmlns="http://soap.sforce.com/2006/04/metadata">
@@ -153,7 +148,6 @@ const pkg = (type, member) => ({
     assert.match(labels, /<value>New<\/value>/)
     assert.match(labels, /<fullName>Preserved<\/fullName>/)
 
-    await pluginEngine.registerPlugins([], connector, 'test@example.com', pkg('LightningComponentBundle', 'tile'))
     await unzip(
       await zipBundle(),
       connector,
@@ -164,7 +158,6 @@ const pkg = (type, member) => ({
     assert.strictEqual(fs.existsSync(path.join(basePath, 'src', 'lwc', 'tile', 'tile.html')), true)
     assert.strictEqual(fs.existsSync(path.join(basePath, 'src', 'lwc', 'tile', 'tile.js-meta.xml')), true)
 
-    await pluginEngine.registerPlugins([], connector, 'test@example.com', pkg('Report', 'Sales/Quarterly/'))
     await unzip(
       await zipReportFolder(),
       connector,

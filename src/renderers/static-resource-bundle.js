@@ -3,85 +3,102 @@ const yazl = require('yazl')
 const path = require('path')
 const _ = require('lodash')
 const multimatch = require('multimatch')
+const { buffer } = require('stream/consumers')
+const { defineRenderer } = require('../plugin')
 
-module.exports = {
-  transform: async ({ config }, helpers) => {
-    const filesToFilter = new Set()
+const resourcePattern = /^staticresources\/([^/]+)\/.*$/
+const remapResourcePath = filePath => {
+  const match = filePath.match(resourcePattern)
+  return match ? `staticresources/${match[1]}.resource` : filePath
+}
 
-    helpers.addRemapper(/^staticresources\/([^/]+)\/.*$/, (filename, regexp) => {
-      return `staticresources/${filename.match(regexp)[1]}.resource`
-    })
+const usesBundleRenderer = (config, resourceName) => multimatch(
+  resourceName,
+  _.get(config, 'staticResources.useBundleRenderer', []).map(value => `staticresources/${value}`)
+).length > 0
 
-    helpers.filterMetadata(fileName => {
-      return !filesToFilter.has(fileName)
-    })
-
-    helpers.xmlTransformer('staticresources/*-meta.xml', async (filename, xml, requireFiles, addFiles, cleanFiles) => {
-      if (xml.contentType[0] === 'application/zip') {
-        const resourceName = filename.replace('-meta.xml', '')
-        const dir = resourceName.replace('.resource', '')
-        cleanFiles(dir)
-
-        if (!multimatch(resourceName, _.get(config, 'staticResources.useBundleRenderer', []).map(x => `staticresources/${x}`)).length) return
-
-        filesToFilter.add(resourceName)
-        cleanFiles(resourceName)
-        const resource = await requireFiles(resourceName)
-        return new Promise(resolve => {
-          yauzl.fromBuffer(resource[0].data, { lazyEntries: true, autoClose: true }, function (err, zipfile) {
-            if (err) throw err
-            zipfile.readEntry()
-            zipfile.on('entry', async entry => {
-              if (!entry.fileName.endsWith('/')) {
-                zipfile.openReadStream(entry, async (err2, s) => {
-                  const bufs = []
-                  s.on('data', d => bufs.push(d))
-                  s.on('end', () => {
-                    entry.data = Buffer.concat(bufs)
-                    entry.fileName = path.join(dir, entry.fileName)
-                    addFiles(entry)
-                    zipfile.readEntry()
-                  })
-                })
-              } else zipfile.readEntry()
-            })
-            zipfile.on('end', resolve)
-          })
-        })
+const unzip = archive => new Promise((resolve, reject) => {
+  yauzl.fromBuffer(archive, { lazyEntries: true, autoClose: true }, (error, zipFile) => {
+    if (error) return reject(error)
+    const entries = []
+    zipFile.on('error', reject)
+    zipFile.on('entry', entry => {
+      if (entry.fileName.endsWith('/')) return zipFile.readEntry()
+      const normalized = path.posix.normalize(entry.fileName)
+      if (normalized.startsWith('../') || path.posix.isAbsolute(normalized)) {
+        return reject(new Error(`Unsafe path in static resource archive: ${entry.fileName}`))
       }
+      zipFile.openReadStream(entry, async (streamError, stream) => {
+        if (streamError) return reject(streamError)
+        try {
+          entries.push({ path: normalized, contents: await buffer(stream) })
+          zipFile.readEntry()
+        } catch (readError) {
+          reject(readError)
+        }
+      })
     })
+    zipFile.on('end', () => resolve(entries))
+    zipFile.readEntry()
+  })
+})
+
+const zip = async (folder, files) => {
+  const archive = new yazl.ZipFile()
+  for (const file of files) {
+    archive.addBuffer(await file.readBytes(), file.path.slice(folder.length + 1))
+  }
+  archive.end()
+  return buffer(archive.outputStream)
+}
+
+module.exports = defineRenderer({
+  name: 'core-static-resource-bundle',
+  formats: ['metadata'],
+
+  resolveSelection ({ selection }) {
+    selection.replace(selection.values().map(remapResourcePath))
   },
 
-  untransform: async ({ config }, helpers) => {
-    helpers.xmlTransformer('staticresources/*-meta.xml', async (filename, xml, requireFiles, addFiles) => {
-      if (xml.contentType[0] === 'application/zip') {
-        const resourceName = filename.replace('-meta.xml', '')
-        const folder = resourceName.replace('.resource', '')
-        if (!multimatch(resourceName, _.get(config, 'staticResources.useBundleRenderer', []).map(x => `staticresources/${x}`)).length) return
-        const filesToZip = await requireFiles(`${folder}/**/*`)
-        return new Promise(resolve => {
-          const zip = new yazl.ZipFile()
-          filesToZip.forEach(f => zip.addBuffer(f.data, f.fileName.replace(folder + '/', '')))
-          zip.end()
-          const bufs = []
-          zip.outputStream.on('data', d => bufs.push(d))
-          zip.outputStream.on('end', () => {
-            addFiles({
-              fileName: filename.replace('-meta.xml', ''),
-              data: Buffer.concat(bufs)
-            })
-            resolve()
-          })
-        })
+  async onRetrieve ({ files, project, output, config }) {
+    for (const descriptor of files.match('staticresources/*-meta.xml')) {
+      const xml = await descriptor.readXml()
+      if (xml.contentType?.[0] !== 'application/zip') continue
+
+      const resourceName = descriptor.path.replace('-meta.xml', '')
+      const folder = resourceName.replace('.resource', '')
+      output.delete(folder)
+      if (!usesBundleRenderer(config, resourceName)) continue
+
+      const resource = files.get(resourceName) || project.get(resourceName)
+      if (!resource) throw new Error(`Missing static resource archive: ${resourceName}`)
+      const entries = await unzip(await resource.readBytes())
+      output.delete(resourceName)
+      files.get(resourceName)?.exclude()
+      for (const entry of entries) {
+        const targetPath = path.posix.join(folder, entry.path)
+        const existing = files.get(targetPath)
+        if (existing) existing.writeBytes(entry.contents)
+        else files.create({ path: targetPath, contents: entry.contents })
       }
-    })
+    }
+  },
 
-    helpers.filterMetadata(fileName => {
-      return !fileName.match(/^staticresources\/([^/]+)\/.*$/)
-    })
+  async onDeploy ({ files, project, config }) {
+    for (const descriptor of files.match('staticresources/*-meta.xml')) {
+      const xml = await descriptor.readXml()
+      if (xml.contentType?.[0] !== 'application/zip') continue
 
-    helpers.addRemapper(/^staticresources\/([^/]+)\/.*$/, (filename, regexp) => {
-      return `staticresources/${filename.match(regexp)[1]}.resource`
-    })
+      const resourceName = descriptor.path.replace('-meta.xml', '')
+      if (!usesBundleRenderer(config, resourceName)) continue
+      const folder = resourceName.replace('.resource', '')
+      const archive = await zip(folder, project.match(`${folder}/**/*`))
+      const active = files.get(resourceName)
+      const stored = project.get(resourceName)
+      if (active) active.writeBytes(archive)
+      else if (stored) files.include(stored).writeBytes(archive)
+      else files.create({ path: resourceName, contents: archive })
+      files.exclude(`${folder}/**/*`)
+    }
   }
-}
+})

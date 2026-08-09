@@ -1,21 +1,30 @@
 const multimatch = require('multimatch')
 const _ = require('lodash')
+const { definePlugin } = require('../../plugin')
+const { transformXml } = require('../v2-utils')
 
-module.exports = async (context, helpers) => {
-  const extraAppsGlob = _.get(context, 'config.profiles.addExtraApplications', [])
-  if (!extraAppsGlob.length) return
+module.exports = definePlugin({
+  name: 'core-add-profile-application-visibilities',
+  stage: 'metadata',
 
-  helpers.requireMetadata(['Profile/*'], async ({ patchPackage }) => patchPackage([
-    'CustomApplication/*'
-  ]))
+  plan ({ selection, config }) {
+    const extraAppsGlob = _.get(config, 'profiles.addExtraApplications', [])
+    if (extraAppsGlob.length && selection.match('Profile/*').length) {
+      selection.require({ type: 'CustomApplication', fullName: '*' })
+    }
+  },
 
-  helpers.xmlTransformer('profiles/**/*', async (filename, fJson, requireFiles) => {
-    const appsToConsider = (await requireFiles('applications/**/*'))
-      .map(x => x.fileName.replace(/^applications\/(.*)\.app$/, '$1'))
+  async onRetrieve ({ files, project, config }) {
+    const extraAppsGlob = _.get(config, 'profiles.addExtraApplications', [])
+    if (!extraAppsGlob.length) return
+    const appsToConsider = project.match('applications/**/*')
+      .map(file => file.path.replace(/^applications\/(.*)\.app$/, '$1'))
 
     const realGlob = [...extraAppsGlob, ...appsToConsider]
-    fJson.applicationVisibilities = (fJson.applicationVisibilities || []).filter(x => {
-      return multimatch(x.application[0], realGlob).length > 0
+    await transformXml(files, 'profiles/**/*', fJson => {
+      fJson.applicationVisibilities = (fJson.applicationVisibilities || []).filter(x => {
+        return multimatch(x.application[0], realGlob).length > 0
+      })
     })
-  })
-}
+  }
+})

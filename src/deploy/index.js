@@ -1,7 +1,6 @@
 const chalk = require('chalk')
 const yazl = require('yazl')
 const { printLogo } = require('../utils/branding-utils')
-const pluginEngine = require('../plugin-engine')
 const stdRenderers = require('../renderers')
 const Sfdc = require('../utils/sfdc-utils')
 const { buildXml } = require('../utils/xml-utils')
@@ -12,13 +11,14 @@ const pathService = require('../services/path-service')
 const printDeployResult = require('../deploy/result-logger')
 const logger = require('../services/log-service')
 const { readFiles } = require('../services/file-service')
-const path = require('path')
-const nativeRequire = require('../utils/native-require')
 const { DEFAULT_CLIENT_ID } = require('../utils/constants')
 const { getOauth2Options } = require('../utils/auth-utils')
 const { getAdapter } = require('../format-adapters')
 const globby = require('globby')
-const fs = require('fs')
+const { FileSelection, FileTree } = require('../plugin')
+const { resolveSelections, runExtensions } = require('../plugin/runtime')
+const { prepareExtensions, warnLegacy } = require('../plugin/loader')
+const { readProjectEntries } = require('../plugin/project-files')
 
 module.exports = async ({
   loginOpts,
@@ -173,60 +173,128 @@ const performFullDeploy = async ({
       .map(x => x.replace(pathService.getSrcFolder() + '/', ''))
   }
 
-  let specificFiles = [...new Set([...getDiffFiles(), ...getFiles(files)])]
+  const specificFiles = [...new Set([...getDiffFiles(), ...getFiles(files)])]
   if (specificFiles.length) logger.log(chalk.yellow('--files specified. Deploying only specific files...'))
 
-  const packageMapping = formatAdapter ? null : await getPackageMapping(sfdcConnector)
   const filesToExclude = new Set([...((config && config.excludeFiles) || []), ...(excludeFiles || [])])
-  let targetFiles
+  const sourceFolder = pathService.getSrcFolder(true)
+  const diskEntries = await readProjectEntries(sourceFolder)
+  const availableFiles = diskEntries.map(entry => entry.fileName)
+  const packageMapping = formatAdapter ? null : await getPackageMapping(sfdcConnector)
+  let selectedProjectFiles
+  let initialPackage
   let sourceComponents = []
 
-  const plugins = [
-    ...(formatAdapter ? [] : stdRenderers.map(x => x.untransform)),
-    ...(renderers.map(x => nativeRequire(path.resolve(pathService.getBasePath(), x)).untransform)),
-    ...(destructive ? [] : preDeployPlugins)
-  ]
-
   if (formatAdapter) {
-    const patterns = expandDirectoryPatterns(specificFilesMode ? specificFiles : ['**/*'])
-    const selectedFiles = await globby(patterns, { cwd: pathService.getSrcFolder(true) })
-    const availableFiles = specificFilesMode
-      ? await globby(['**/*'], { cwd: pathService.getSrcFolder(true) })
-      : selectedFiles
-    const companionFiles = formatAdapter.getCompanionPaths(selectedFiles, availableFiles)
+    const selectedFiles = specificFilesMode
+      ? await globby(expandDirectoryPatterns(specificFiles), { cwd: sourceFolder })
+      : availableFiles
+    selectedProjectFiles = formatAdapter.getCompanionPaths(selectedFiles, availableFiles)
     const ignoredFiles = new Set(['package.xml', 'lwc/.eslintrc.json', 'lwc/jsconfig.json'])
-    const filesToRead = [...new Set([...selectedFiles, ...companionFiles])]
+    selectedProjectFiles = [...new Set(selectedProjectFiles)]
       .filter(fileName => !ignoredFiles.has(fileName))
       .filter(fileName => formatAdapter.isMetadataPath(fileName))
-      .filter(fileName => fs.existsSync(path.join(pathService.getSrcFolder(true), fileName)))
-    targetFiles = readFiles(pathService.getSrcFolder(true), filesToRead, [...filesToExclude])
-    const converted = await formatAdapter.toMetadata(targetFiles)
-    targetFiles = converted.entries
-    sourceComponents = formatAdapter.getPackageComponents(converted.components)
-    const initialPackage = await getPackageXml({
+    sourceComponents = formatAdapter.getPackageComponents(formatAdapter.resolve(selectedProjectFiles))
+    initialPackage = await getPackageXml({
       specificMeta: sourceComponents.map(x => `${x.type}/${x.fullName}`),
       sfdcConnector,
       apiVersion
     })
-    await pluginEngine.registerPlugins(plugins, sfdcConnector, sfdcConnector.username, initialPackage, config)
   } else {
     if (specificFilesMode) {
-      const initialPackage = await getPackageXml({ specificFiles, sfdcConnector, apiVersion })
-      await pluginEngine.registerPlugins(plugins, sfdcConnector, sfdcConnector.username, initialPackage, config)
-      specificFiles = pluginEngine.applyRemappers(specificFiles)
-      const filesToRead = await getListOfSrcFiles(packageMapping, specificFiles)
-      targetFiles = readFiles(pathService.getSrcFolder(true), filesToRead, [...filesToExclude])
+      initialPackage = await getPackageXml({ specificFiles, sfdcConnector, apiVersion })
+      selectedProjectFiles = specificFiles
     } else {
-      const filesToRead = await getListOfSrcFiles(packageMapping, ['**/*'])
-      targetFiles = readFiles(pathService.getSrcFolder(true), filesToRead, [...filesToExclude])
-      const initialPackage = await getPackageXml({
-        specificFiles: targetFiles.map(file => file.fileName),
+      selectedProjectFiles = availableFiles
+      initialPackage = await getPackageXml({
+        specificFiles: selectedProjectFiles,
         sfdcConnector,
         skipParseGlobPatterns: true,
         apiVersion
       })
-      await pluginEngine.registerPlugins(plugins, sfdcConnector, sfdcConnector.username, initialPackage, config)
     }
+  }
+
+  const preparedRenderers = prepareExtensions({
+    entries: [
+      ...(formatAdapter ? [] : stdRenderers),
+      ...renderers
+    ],
+    basePath: pathService.getBasePath(),
+    packageJson: initialPackage,
+    legacyHook: 'untransform'
+  })
+  const preparedPlugins = prepareExtensions({
+    entries: destructive ? [] : preDeployPlugins,
+    basePath: pathService.getBasePath(),
+    packageJson: initialPackage
+  })
+  warnLegacy(preparedRenderers.legacy, 'Renderer')
+  warnLegacy(preparedPlugins.legacy, 'Plugin')
+
+  if (specificFilesMode) {
+    const selection = new FileSelection(selectedProjectFiles)
+    const diskTree = new FileTree({ diskEntries })
+    await resolveSelections({
+      extensions: [...preparedRenderers.extensions, ...preparedPlugins.extensions],
+      selection,
+      project: diskTree.project,
+      direction: 'deploy',
+      format: formatAdapter ? 'sfdx' : 'metadata',
+      target: { environment: process.env.environment, username: sfdcConnector.username },
+      sfdcConnector,
+      config
+    })
+    selectedProjectFiles = selection.values()
+  }
+
+  if (formatAdapter) {
+    const expandedSelection = specificFilesMode
+      ? await globby(expandDirectoryPatterns(selectedProjectFiles), { cwd: sourceFolder })
+      : selectedProjectFiles
+    selectedProjectFiles = formatAdapter.getCompanionPaths(expandedSelection, availableFiles)
+      .filter(fileName => formatAdapter.isMetadataPath(fileName))
+  } else if (specificFilesMode) {
+    selectedProjectFiles = await getListOfSrcFiles(packageMapping, selectedProjectFiles)
+  }
+
+  const fileTree = new FileTree({
+    diskEntries,
+    files: readFiles(sourceFolder, selectedProjectFiles, [...filesToExclude]),
+    origin: 'disk'
+  })
+  const runOptions = {
+    fileTree,
+    direction: 'deploy',
+    format: formatAdapter ? 'sfdx' : 'metadata',
+    target: { environment: process.env.environment, username: sfdcConnector.username },
+    sfdcConnector,
+    config,
+    checkOnly,
+    destructive
+  }
+  await runExtensions({ ...runOptions, extensions: preparedRenderers.extensions })
+  await runExtensions({ ...runOptions, extensions: preparedPlugins.extensions })
+
+  let metadataTree = fileTree
+  if (formatAdapter) {
+    const converted = await formatAdapter.toMetadata(fileTree.entries())
+    metadataTree = new FileTree({ files: converted.entries })
+    sourceComponents = formatAdapter.getPackageComponents(converted.components)
+  }
+  await runExtensions({
+    ...runOptions,
+    fileTree: metadataTree,
+    stage: 'metadata',
+    extensions: preparedPlugins.extensions
+  })
+  const targetFiles = metadataTree.entries()
+  if (formatAdapter) {
+    const resolvedMetadata = await formatAdapter.resolveMetadata(targetFiles)
+    const finalComponentKeys = new Set([...resolvedMetadata, ...formatAdapter.getPackageComponents(resolvedMetadata)]
+      .map(component => `${component.type}/${component.fullName}`))
+    sourceComponents = sourceComponents.filter(component =>
+      finalComponentKeys.has(`${component.type}/${component.fullName}`))
   }
 
   if (!(specificFilesMode || destructivePackage) && destructive) {
@@ -235,8 +303,6 @@ const performFullDeploy = async ({
 
   logger.log(chalk.green('Built package.xml!'))
   logger.log(chalk.yellow('(3/4) Creating zip & applying predeploy patches...'))
-
-  await pluginEngine.applyTransformations(targetFiles)
 
   const fileMap = _.keyBy(targetFiles, 'fileName')
 
@@ -251,7 +317,7 @@ const performFullDeploy = async ({
     zip.addBuffer(Buffer.from(buildXml({ Package: { version: apiVersion } }) + '\n', 'utf-8'), 'package.xml')
     if (specificFilesMode) {
       logger.log(chalk.yellow('The following files will be deleted:'))
-      const fileList = targetFiles.filter(pluginEngine.applyFilters()).map(x => x.fileName)
+      const fileList = targetFiles.map(x => x.fileName)
       logger.log(chalk.grey(fileList.join('\n')))
       const pkgJson = formatAdapter
         ? await getPackageXml({ specificMeta: sourceComponents.map(x => `${x.type}/${x.fullName}`), sfdcConnector, apiVersion })
@@ -265,15 +331,23 @@ const performFullDeploy = async ({
   } else {
     const fileList = []
     targetFiles
-      .filter(pluginEngine.applyFilters())
       .map(x => x.fileName)
       .forEach(f => {
         fileList.push(f)
         zip.addBuffer(fileMap[f].data, f)
       })
     const pkgJson = formatAdapter
-      ? await getPackageXml({ specificMeta: sourceComponents.map(x => `${x.type}/${x.fullName}`), sfdcConnector, apiVersion })
-      : await getPackageXml({ specificFiles: fileList, sfdcConnector, skipParseGlobPatterns: true, apiVersion })
+      ? await getPackageXml({
+        specificMeta: sourceComponents.map(component => `${component.type}/${component.fullName}`),
+        sfdcConnector,
+        apiVersion
+      })
+      : await getPackageXml({
+        specificFiles: fileList,
+        sfdcConnector,
+        skipParseGlobPatterns: true,
+        apiVersion
+      })
     zip.addBuffer(Buffer.from(buildXml({ Package: pkgJson }) + '\n', 'utf-8'), 'package.xml')
     if (specificFilesMode && fileList.length) {
       logger.log(chalk.yellow('The following files will be deployed:'))

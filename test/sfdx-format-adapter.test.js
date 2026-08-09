@@ -638,6 +638,21 @@ const packageMapping = {
     { type: 'CustomLabel', fullName: 'Updated' }
   ]), ['labels/CustomLabels.labels-meta.xml'])
 
+  await assert.rejects(
+    adapter.toMetadata([entry(
+      'objects/Invoice__c/fields/Broken__c.field-meta.xml',
+      '<Profile/>'
+    )]),
+    /SFDX source file objects\/Invoice__c\/fields\/Broken__c\.field-meta\.xml has XML root <Profile>; expected <CustomField> from its path/
+  )
+  await assert.rejects(
+    adapter.toSource([entry(
+      'objectTranslations/Invoice__c-it.objectTranslation',
+      '<CustomObject/>'
+    )]),
+    /Metadata API file objectTranslations\/Invoice__c-it\.objectTranslation has XML root <CustomObject>; expected <CustomObjectTranslation> from its path/
+  )
+
   console.log('SFDX format adapter tests passed')
 })().catch(error => {
   console.error(error)

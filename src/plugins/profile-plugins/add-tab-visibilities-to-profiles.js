@@ -3,29 +3,33 @@ const chalk = require('chalk')
 const _ = require('lodash')
 const __ = require('highland')
 const { remapProfileName, retrieveAllTabVisibilities, getVersionedObjects } = require('./utils')
+const { definePlugin } = require('../../plugin')
+const { transformXml } = require('../v2-utils')
 
 const getVersionedTabs = _.memoize((allTabs, versionedTabs, versionedObjects) => {
   return versionedTabs
-    .map(x => x.fileName.replace(/^tabs\/(.*)\.tab$/, '$1'))
+    .map(x => (x.path || x.fileName).replace(/^tabs\/(.*)\.tab$/, '$1'))
     .concat(allTabs
       .filter(x => versionedObjects.has(x.SobjectName))
       .map(x => x.Name)
     )
 })
 
-module.exports = async (context, helpers) => {
-  const extraTabsGlob = _.get(context, 'config.profiles.addExtraTabVisibility', [])
-  if (!extraTabsGlob.length) return
-  context.q = _.memoize(context.sfdcConnector.query)
+module.exports = definePlugin({
+  name: 'core-add-profile-tab-visibilities',
+  stage: 'metadata',
 
-  helpers.xmlTransformer('profiles/**/*', async (filename, fJson, requireFiles) => {
-    context.log(chalk.blue(`----> Processing ${filename}: Adding tabs`))
+  async onRetrieve ({ files, project, config, salesforce, log }) {
+    const extraTabsGlob = _.get(config, 'profiles.addExtraTabVisibility', [])
+    if (!extraTabsGlob.length) return
+    const query = _.memoize(salesforce.query.bind(salesforce))
+    const services = { query, salesforce }
     const allTabs = [
-      ...await context.q('SELECT Name, SobjectName FROM TabDefinition ORDER BY Name'),
-      ...await __(await context.q('SELECT Id, Type, DeveloperName FROM CustomTab', true))
+      ...await query('SELECT Name, SobjectName FROM TabDefinition ORDER BY Name'),
+      ...await __(await query('SELECT Id, Type, DeveloperName FROM CustomTab', true))
         .map(async x => {
           if (x.Type === 'customObject') {
-            const y = (await context.q(`SELECT FullName FROM CustomTab WHERE Id = '${x.Id}'`, true))[0]
+            const y = (await query(`SELECT FullName FROM CustomTab WHERE Id = '${x.Id}'`, true))[0]
             return { Name: y.FullName, SobjectName: y.FullName }
           } else if (x.DeveloperName) {
             return { Name: x.DeveloperName, SobjectName: '' }
@@ -35,32 +39,34 @@ module.exports = async (context, helpers) => {
         .parallel(10)
         .collect()
         .toPromise(Promise)
-    ]
-    const versionedObjects = getVersionedObjects(await requireFiles('objects/**/*'))
-    const versionedTabs = new Set(getVersionedTabs(allTabs, await requireFiles('tabs/**/*'), versionedObjects))
-    const realProfileName = await remapProfileName(filename, context)
-    const visibleTabs = _.keyBy(await retrieveAllTabVisibilities(realProfileName, context), 'Name')
-    const tabVisibilities = allTabs
-      .filter(b => {
-        if (versionedTabs.has(b.Name) || versionedObjects.has(b.SobjectName)) return true
-        else return multimatch(b.Name, extraTabsGlob).length > 0
-      })
+    ].filter(Boolean)
+    const versionedObjects = getVersionedObjects(project.match('objects/**/*'))
+    const versionedTabs = new Set(getVersionedTabs(allTabs, project.match('tabs/**/*'), versionedObjects))
 
-    const finalTabs = {
-      ..._(tabVisibilities)
-        .map(tab => ({
-          tab: [tab.Name],
-          visibility: [(!visibleTabs[tab.Name] && 'Hidden') || visibleTabs[tab.Name].Visibility]
-        }))
-        .keyBy('tab')
-        .value(),
-      ..._(fJson.tabVisibilities || [])
-        .filter(x => versionedTabs.has(x.tab[0]))
-        .keyBy(x => x.tab[0])
-        .value()
-    }
+    await transformXml(files, 'profiles/**/*', async (fJson, file) => {
+      log.info(chalk.blue(`----> Processing ${file.path}: Adding tabs`))
+      const realProfileName = await remapProfileName(file.path, services)
+      const visibleTabs = _.keyBy(await retrieveAllTabVisibilities(realProfileName, services), 'Name')
+      const tabVisibilities = allTabs.filter(tab =>
+        versionedTabs.has(tab.Name) || versionedObjects.has(tab.SobjectName) ||
+        multimatch(tab.Name, extraTabsGlob).length > 0)
 
-    fJson.tabVisibilities = Object.keys(finalTabs).sort().map(x => finalTabs[x])
-    context.log(chalk.blue('----> Done'))
-  })
-}
+      const finalTabs = {
+        ..._(tabVisibilities)
+          .map(tab => ({
+            tab: [tab.Name],
+            visibility: [(!visibleTabs[tab.Name] && 'Hidden') || visibleTabs[tab.Name].Visibility]
+          }))
+          .keyBy('tab')
+          .value(),
+        ..._(fJson.tabVisibilities || [])
+          .filter(x => versionedTabs.has(x.tab[0]))
+          .keyBy(x => x.tab[0])
+          .value()
+      }
+
+      fJson.tabVisibilities = Object.keys(finalTabs).sort().map(x => finalTabs[x])
+      log.info(chalk.blue('----> Done'))
+    })
+  }
+})

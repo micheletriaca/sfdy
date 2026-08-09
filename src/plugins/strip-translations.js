@@ -1,4 +1,6 @@
 const get = require('lodash').get
+const { definePlugin } = require('../plugin')
+const { transformXml } = require('./v2-utils')
 
 const processXml = (root, keysToProcess) => {
   return Object.keys(keysToProcess).reduce((filterIt, key) => {
@@ -16,44 +18,49 @@ const processXml = (root, keysToProcess) => {
   }, true)
 }
 
-module.exports = async (context, helpers) => {
-  if (get(context, 'config.objectTranslations.stripUntranslatedFields')) {
-    helpers.xmlTransformer('translations/**/*', async (filename, fJson) => {
-      processXml(fJson, {
-        reportTypes: [
-          'label',
-          'description',
-          { sections: 'label' }
-        ],
-        customApplications: 'label',
-        customLabels: 'label',
-        customTabs: 'label'
-      })
-    })
+module.exports = definePlugin({
+  name: 'core-strip-untranslated-content',
+  stage: 'metadata',
 
-    helpers.xmlTransformer('standardValueSetTranslations/**/*', async (filename, fJson) => {
-      processXml(fJson, { valueTranslation: 'translation' })
-    })
-
-    helpers.xmlTransformer('objectTranslations/**/*', async (filename, fJson) => {
-      processXml(fJson, {
-        validationRules: 'errorMessage',
-        webLinks: 'label',
-        recordTypes: [
-          'label',
-          'description'
-        ],
-        quickActions: 'label',
-        fields: [
-          'help',
-          'label',
-          'relationshipLabel',
-          { picklistValues: 'translation' },
-          { lookupFilter: 'errorMessage' }
-        ],
-        layouts: { sections: 'label' },
-        sharingReasons: 'label'
+  async onRetrieve ({ files, config }) {
+    if (get(config, 'objectTranslations.stripUntranslatedFields')) {
+      await transformXml(files, 'translations/**/*', fJson => {
+        processXml(fJson, {
+          reportTypes: [
+            'label',
+            'description',
+            { sections: 'label' }
+          ],
+          customApplications: 'label',
+          customLabels: 'label',
+          customTabs: 'label'
+        })
       })
-    })
+
+      await transformXml(files, 'standardValueSetTranslations/**/*', fJson => {
+        processXml(fJson, { valueTranslation: 'translation' })
+      })
+
+      await transformXml(files, 'objectTranslations/**/*', fJson => {
+        processXml(fJson, {
+          validationRules: 'errorMessage',
+          webLinks: 'label',
+          recordTypes: [
+            'label',
+            'description'
+          ],
+          quickActions: 'label',
+          fields: [
+            'help',
+            'label',
+            'relationshipLabel',
+            { picklistValues: 'translation' },
+            { lookupFilter: 'errorMessage' }
+          ],
+          layouts: { sections: 'label' },
+          sharingReasons: 'label'
+        })
+      })
+    }
   }
-}
+})

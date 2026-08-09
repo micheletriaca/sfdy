@@ -1,9 +1,12 @@
 const get = require('lodash').get
+const { definePlugin } = require('../plugin')
 
-module.exports = async (context, helpers) => {
-  if (!get(context, 'config.roles.stripPartnerRoles')) return
+module.exports = definePlugin({
+  name: 'core-strip-partner-roles',
+  stage: 'metadata',
 
-  helpers.filterMetadata(fileName => {
-    return !/PartnerUser[0-9]*.role$/.test(fileName)
-  })
-}
+  onRetrieve ({ files, config }) {
+    if (!get(config, 'roles.stripPartnerRoles')) return
+    files.excludeWhere(file => /PartnerUser[0-9]*\.role$/.test(file.path))
+  }
+})

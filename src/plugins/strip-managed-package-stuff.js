@@ -1,21 +1,28 @@
-module.exports = async (context, helpers) => {
-  if (!context.config.stripManagedPackageFields) return
+const { definePlugin } = require('../plugin')
+const { transformXml } = require('./v2-utils')
 
-  const namespaces = context.config.stripManagedPackageFields
-  const fn = apiName => x => !namespaces.some(mp => x[apiName][0].startsWith(mp))
-  helpers.xmlTransformer('objects/**/*', async (filename, fJson) => {
-    fJson.fields = (fJson.fields || []).filter(fn('fullName'))
-    fJson.webLinks = (fJson.webLinks || []).filter(fn('fullName'))
-    ;(fJson.recordTypes || [])
-      .filter(v => v.picklistValues)
-      .forEach(v => (v.picklistValues = v.picklistValues.filter(fn('picklist'))))
-  })
+module.exports = definePlugin({
+  name: 'core-strip-managed-package-fields',
+  stage: 'metadata',
 
-  helpers.xmlTransformer('permissionsets/**/*', async (filename, fJson) => {
-    fJson.fieldPermissions = (fJson.fieldPermissions || []).filter(fn('field'))
-  })
+  async onRetrieve ({ files, config }) {
+    if (!config.stripManagedPackageFields) return
 
-  helpers.xmlTransformer('profiles/**/*', async (filename, fJson) => {
-    fJson.fieldPermissions = (fJson.fieldPermissions || []).filter(fn('field'))
-  })
-}
+    const namespaces = config.stripManagedPackageFields
+    const keepUnmanaged = apiName => value => !namespaces.some(namespace =>
+      value[apiName][0].startsWith(namespace))
+    await transformXml(files, 'objects/**/*', fJson => {
+      fJson.fields = (fJson.fields || []).filter(keepUnmanaged('fullName'))
+      fJson.webLinks = (fJson.webLinks || []).filter(keepUnmanaged('fullName'))
+      ;(fJson.recordTypes || [])
+        .filter(value => value.picklistValues)
+        .forEach(value => (value.picklistValues = value.picklistValues.filter(keepUnmanaged('picklist'))))
+    })
+    await transformXml(files, 'permissionsets/**/*', fJson => {
+      fJson.fieldPermissions = (fJson.fieldPermissions || []).filter(keepUnmanaged('field'))
+    })
+    await transformXml(files, 'profiles/**/*', fJson => {
+      fJson.fieldPermissions = (fJson.fieldPermissions || []).filter(keepUnmanaged('field'))
+    })
+  }
+})

@@ -7,6 +7,7 @@ const publicModules = [
   'deploy',
   'package-utils',
   'path-service',
+  'plugin',
   'retrieve',
   'sfdc-utils',
   'transformer',

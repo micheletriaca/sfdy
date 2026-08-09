@@ -8,6 +8,7 @@ const deploy = require('../src/deploy')
 const Sfdc = require('../src/utils/sfdc-utils')
 const pathService = require('../src/services/path-service')
 const { parseXml } = require('../src/utils/xml-utils')
+const { definePlugin } = require('../src/plugin')
 
 const unzip = zipBuffer => new Promise((resolve, reject) => {
   yauzl.fromBuffer(zipBuffer, { lazyEntries: false }, (error, zipFile) => {
@@ -57,7 +58,7 @@ const fieldXml = `<?xml version="1.0" encoding="UTF-8"?>
       sourceApiVersion: '65.0'
     }))
     await fs.promises.writeFile(path.join(sourceFolder, 'objects', 'Invoice__c', 'fields', 'Status__c.field-meta.xml'), fieldXml)
-    await fs.promises.writeFile(path.join(sourceFolder, 'permissionsets', 'Admin.permissionset-meta.xml'), '<PermissionSet/>')
+    await fs.promises.writeFile(path.join(sourceFolder, 'permissionsets', 'Admin.permissionset-meta.xml'), '<PermissionSet><label>Initial</label></PermissionSet>')
     await fs.promises.writeFile(path.join(sourceFolder, 'lwc', 'tile', 'tile.js'), 'export default class Tile {}')
     await fs.promises.writeFile(path.join(sourceFolder, 'lwc', 'tile', 'tile.html'), '<template></template>')
     await fs.promises.writeFile(path.join(sourceFolder, 'lwc', 'tile', 'tile.js-meta.xml'), '<LightningComponentBundle/>')
@@ -130,13 +131,15 @@ const fieldXml = `<?xml version="1.0" encoding="UTF-8"?>
       preDeployPlugins
     })
 
-    await runDeploy('objects/Invoice__c/fields/Status__c.field-meta.xml', [async (...pluginArgs) => {
-      const helpers = pluginArgs[1]
-      helpers.xmlTransformer('objects/*.object', async (...transformArgs) => {
-        const objectXml = transformArgs[1]
-        objectXml.fields[0].label = ['Patched by plugin']
-      })
-    }])
+    await runDeploy('objects/Invoice__c/fields/Status__c.field-meta.xml', [definePlugin({
+      name: 'patch-field',
+      async onDeploy ({ files }) {
+        const file = files.get('objects/Invoice__c/fields/Status__c.field-meta.xml')
+        const field = await file.readXml()
+        field.label = ['Patched by plugin']
+        await file.writeXml(field)
+      }
+    })])
 
     const entries = await unzip(deployedZip)
     const entryMap = new Map(entries.map(item => [item.fileName, item.data]))
@@ -150,7 +153,34 @@ const fieldXml = `<?xml version="1.0" encoding="UTF-8"?>
     assert.strictEqual(manifest.Package.types[0].name[0], 'CustomField')
     assert.deepStrictEqual(manifest.Package.types[0].members, ['Invoice__c.Status__c'])
 
-    await runDeploy('permissionsets/Admin.permissionset-meta.xml')
+    await runDeploy('objects/Invoice__c/fields/Status__c.field-meta.xml', [definePlugin({
+      name: 'patch-metadata-stage-field',
+      stage: 'metadata',
+      async onDeploy ({ files }) {
+        const file = files.get('objects/Invoice__c.object')
+        const object = await file.readXml()
+        object.fields[0].label = ['Patched after adapter']
+        await file.writeXml(object)
+      }
+    })])
+    const metadataStageEntries = await unzip(deployedZip)
+    const metadataStageObject = await parseXml(
+      metadataStageEntries.find(item => item.fileName === 'objects/Invoice__c.object').data
+    )
+    assert.deepStrictEqual(metadataStageObject.CustomObject.fields[0].label, ['Patched after adapter'])
+    const metadataStageManifest = await parseXml(
+      metadataStageEntries.find(item => item.fileName === 'package.xml').data
+    )
+    assert.strictEqual(metadataStageManifest.Package.types[0].name[0], 'CustomField')
+
+    let legacyCalled = false
+    await runDeploy('permissionsets/Admin.permissionset-meta.xml', [async (context, helpers) => {
+      helpers.xmlTransformer('permissionsets/**/*', (fileName, permissionSet) => {
+        legacyCalled = true
+        permissionSet.label = [`Legacy ${context.environment || 'plugin'}`]
+      })
+    }])
+    assert.strictEqual(legacyCalled, true)
     const permissionSetEntries = await unzip(deployedZip)
     assert.deepStrictEqual(permissionSetEntries.map(item => item.fileName).sort(), [
       'package.xml',
@@ -159,6 +189,8 @@ const fieldXml = `<?xml version="1.0" encoding="UTF-8"?>
     const permissionSetManifest = await parseXml(permissionSetEntries.find(item => item.fileName === 'package.xml').data)
     assert.strictEqual(permissionSetManifest.Package.types[0].name[0], 'PermissionSet')
     assert.deepStrictEqual(permissionSetManifest.Package.types[0].members, ['Admin'])
+    const permissionSet = await parseXml(permissionSetEntries.find(item => item.fileName === 'permissionsets/Admin.permissionset').data)
+    assert.deepStrictEqual(permissionSet.PermissionSet.label, ['Legacy plugin'])
 
     await runDeploy('lwc/tile/tile.js')
     const bundleEntries = await unzip(deployedZip)

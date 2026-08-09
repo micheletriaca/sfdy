@@ -4,7 +4,7 @@ const yazl = require('yazl')
 const yauzl = require('yauzl')
 const mime = require('mime')
 const { buffer } = require('stream/consumers')
-const { parseXml, buildXml } = require('../../utils/xml-utils')
+const { parseXmlRoot, buildXml } = require('../../utils/xml-utils')
 const { XML_NAMESPACE, simpleTypes, folderTypes, decomposedTypes, aggregateTypes } = require('./definitions')
 
 // The adapter is intentionally I/O-free. Callers apply `deletes` first and then
@@ -16,6 +16,11 @@ const xmlEntry = (fileName, xml) => entry(fileName, buildXml(cloneDeep(xml)) + '
 const asArray = value => Array.isArray(value) ? value : value ? [value] : []
 const isTrue = value => value === true || value === 'true'
 const isFolderType = definition => definition && definition.type.endsWith('Folder')
+const parseAdapterXml = (file, expectedRoot, label) => parseXmlRoot(file.data, {
+  filePath: file.fileName,
+  expectedRoot,
+  label
+})
 
 const fallbackDefinitions = simpleTypes.map(definition => ({
   type: definition.type,
@@ -388,6 +393,7 @@ const composeStaticResource = async ({ definition, fullName, entries }) => {
   const content = entries.filter(item => item !== descriptor)
   if (!descriptor) throw new Error(`Missing descriptor for SFDX static resource: ${fullName}`)
   if (!content.length) throw new Error(`Missing content for SFDX static resource: ${fullName}`)
+  await parseAdapterXml(descriptor, 'StaticResource', 'SFDX source file')
 
   const expandedPrefix = `${definition.directory}/${fullName}/`
   const expanded = content.every(item => item.fileName.startsWith(expandedPrefix))
@@ -439,7 +445,7 @@ const groupDecomposedEntries = entries => {
 const composeDecomposed = async ({ definition, parentName, entries: sourceEntries }) => {
   const main = sourceEntries.find(item => item.component.type === definition.type)
   const result = main
-    ? await parseXml(main.sourceEntry.data)
+    ? (await parseAdapterXml(main.sourceEntry, definition.type, 'SFDX source file')).document
     : { [definition.type]: { $: { xmlns: XML_NAMESPACE } } }
 
   for (const child of definition.children) {
@@ -447,8 +453,11 @@ const composeDecomposed = async ({ definition, parentName, entries: sourceEntrie
     if (!children.length) continue
     result[definition.type][child.xmlTag] = []
     for (const item of children) {
-      const childXml = await parseXml(item.sourceEntry.data)
-      const childValue = cloneDeep(Object.values(childXml)[0])
+      const childValue = cloneDeep((await parseAdapterXml(
+        item.sourceEntry,
+        child.type,
+        'SFDX source file'
+      )).root)
       delete childValue.$
       result[definition.type][child.xmlTag].push(childValue)
     }
@@ -467,10 +476,26 @@ const toMetadata = async (sourceEntries, packageMapping) => {
   const staticResourcePaths = new Set([...staticResourceGroups.values()]
     .flatMap(group => group.entries)
     .map(item => item.fileName))
-  const converted = sourceEntries
-    .filter(item => !decomposedSourcePaths.has(item.fileName) && !staticResourcePaths.has(item.fileName))
-    .map(item => toMetadataSimple(item) || toMetadataGeneric(item, sourceEntries, packageMapping))
-    .filter(Boolean)
+  const converted = []
+  for (const sourceEntry of sourceEntries
+    .filter(item => !decomposedSourcePaths.has(item.fileName) && !staticResourcePaths.has(item.fileName))) {
+    const simpleDefinition = findSimpleDefinition(sourceEntry.fileName)
+    if (simpleDefinition) {
+      const isDescriptor = simpleDefinition.companionSuffix &&
+        sourceEntry.fileName.endsWith(`.${simpleDefinition.companionSuffix}`)
+      if (!simpleDefinition.companionSuffix || isDescriptor) {
+        await parseAdapterXml(sourceEntry, simpleDefinition.type, 'SFDX source file')
+      }
+    } else {
+      const definition = findDefinition(sourceEntry.fileName, packageMapping)
+      if (definition && sourceEntry.fileName.endsWith('-meta.xml')) {
+        await parseAdapterXml(sourceEntry, definition.type, 'SFDX source file')
+      }
+    }
+    const metadataEntry = toMetadataSimple(sourceEntry) ||
+      toMetadataGeneric(sourceEntry, sourceEntries, packageMapping)
+    if (metadataEntry) converted.push(metadataEntry)
+  }
 
   for (const group of decomposedGroups.values()) converted.push(await composeDecomposed(group))
   for (const group of staticResourceGroups.values()) converted.push(...await composeStaticResource(group))
@@ -524,7 +549,11 @@ const isRequested = (requested, type, fullName) => !requested || requested.has(`
 
 const decomposeMetadata = async (metadataEntry, definition, requested, rootOnly) => {
   const parentName = path.posix.basename(metadataEntry.fileName, `.${definition.metadataSuffix}`)
-  const parsed = await parseXml(metadataEntry.data)
+  const parsed = (await parseAdapterXml(
+    metadataEntry,
+    definition.type,
+    'Metadata API file'
+  )).document
   const sourceEntries = []
   const fullParentRequested = isRequested(requested, definition.type, parentName)
   const rootOnlyRequested = rootOnly && rootOnly.has(`${definition.type}/${parentName}`)
@@ -588,7 +617,11 @@ const resolveMetadata = async (metadataEntries, packageMapping) => {
 
     const parentName = metadataParentName(metadataEntry, definition)
     components.push({ type: definition.type, fullName: parentName })
-    const parsed = await parseXml(metadataEntry.data)
+    const parsed = (await parseAdapterXml(
+      metadataEntry,
+      definition.type,
+      'Metadata API file'
+    )).document
     for (const child of definition.children) {
       for (const value of parsed[definition.type][child.xmlTag] || []) {
         components.push({
@@ -621,9 +654,17 @@ const mergeSelectedChildren = async (incomingEntry, existingEntry, definition, c
   if (parentSelection && !rootOnly) return incomingEntry
   if (!existingEntry && !rootOnly) return incomingEntry
 
-  const incoming = await parseXml(incomingEntry.data)
+  const incoming = (await parseAdapterXml(
+    incomingEntry,
+    definition.type,
+    'Metadata API file'
+  )).document
   const existing = existingEntry
-    ? await parseXml(existingEntry.data)
+    ? (await parseAdapterXml(
+        existingEntry,
+        definition.type,
+        'Stored metadata file'
+      )).document
     : { [definition.type]: { $: { xmlns: XML_NAMESPACE } } }
   const merged = rootOnly ? cloneDeep(incoming) : existing
   if (rootOnly) {
@@ -681,12 +722,20 @@ const mergeMetadata = async (metadataEntries, options = {}) => {
 }
 
 const mergeAggregateMetadata = async (metadataEntry, definition, existingEntry) => {
-  const incoming = await parseXml(metadataEntry.data)
+  const incoming = (await parseAdapterXml(
+    metadataEntry,
+    definition.type,
+    'Metadata API file'
+  )).document
   if (!existingEntry) {
     return xmlEntry(`${definition.directory}/CustomLabels.${definition.sourceSuffix}`, incoming)
   }
 
-  const existing = await parseXml(existingEntry.data)
+  const existing = (await parseAdapterXml(
+    existingEntry,
+    definition.type,
+    'Stored metadata file'
+  )).document
   const child = definition.children[0]
   const incomingChildren = incoming[definition.type][child.xmlTag] || []
   const incomingByName = new Map(incomingChildren.map(value => [value[child.uniqueIdElement][0], value]))
@@ -700,8 +749,11 @@ const mergeAggregateMetadata = async (metadataEntry, definition, existingEntry) 
 }
 
 const staticResourceContentType = async descriptor => {
-  const parsed = await parseXml(descriptor.data)
-  const root = Object.values(parsed)[0]
+  const root = (await parseAdapterXml(
+    descriptor,
+    'StaticResource',
+    'Metadata file'
+  )).root
   return root.contentType && root.contentType[0] ? root.contentType[0] : 'application/octet-stream'
 }
 
@@ -777,6 +829,22 @@ const toSource = async (metadataEntries, options = {}, packageMapping) => {
       result.upserts.push(...decomposedResult.upserts)
       result.deletes.push(...decomposedResult.deletes)
       continue
+    }
+
+    const simpleDefinition = findMetadataSimpleDefinition(metadataEntry.fileName)
+    if (simpleDefinition) {
+      const isDescriptor = simpleDefinition.companionSuffix &&
+        metadataEntry.fileName.endsWith(`.${simpleDefinition.companionSuffix}`)
+      if (!simpleDefinition.companionSuffix || isDescriptor) {
+        await parseAdapterXml(metadataEntry, simpleDefinition.type, 'Metadata API file')
+      }
+    } else {
+      const definition = findDefinition(metadataEntry.fileName, packageMapping, 'metadata')
+      const isXmlMetadata = definition && (
+        metadataEntry.fileName.endsWith('-meta.xml') ||
+        (!definition.metaFile && !!definition.suffix)
+      )
+      if (isXmlMetadata) await parseAdapterXml(metadataEntry, definition.type, 'Metadata API file')
     }
 
     result.upserts.push(toSourceSimple(metadataEntry) || toSourceGeneric(metadataEntry, packageMapping))

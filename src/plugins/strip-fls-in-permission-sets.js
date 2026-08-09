@@ -1,11 +1,17 @@
 const get = require('lodash').get
+const { definePlugin } = require('../plugin')
+const { transformXml } = require('./v2-utils')
 
-module.exports = async (context, helpers) => {
-  if (!get(context, 'config.permissionSets.stripUselessFls')) return
+module.exports = definePlugin({
+  name: 'core-strip-useless-permission-set-fls',
+  stage: 'metadata',
 
-  helpers.xmlTransformer('permissionsets/**/*', async (filename, fJson) => {
-    fJson.fieldPermissions = (fJson.fieldPermissions || []).filter(x => {
-      return (x.readable && x.readable[0] === 'true') || (x.editable && x.editable[0] === 'true')
+  async onRetrieve ({ files, config }) {
+    if (!get(config, 'permissionSets.stripUselessFls')) return
+    await transformXml(files, 'permissionsets/**/*', fJson => {
+      fJson.fieldPermissions = (fJson.fieldPermissions || []).filter(x => {
+        return (x.readable && x.readable[0] === 'true') || (x.editable && x.editable[0] === 'true')
+      })
     })
-  })
-}
+  }
+})
