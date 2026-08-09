@@ -1,978 +1,957 @@
 # sfdy
 
-sfdy is a command line tool to work with the [Salesforce Metadata API](https://developer.salesforce.com/docs/atlas.en-us.api_meta.meta/api_meta/meta_intro.htm).
-It has been built to work around strange behaviors and known limitations of the API, and to simplify the implementation of a continuous integration process. It applies [useful patches](#apply-standard-patches-and-renderers-to-metadata) to avoid common problems when deploying metadata, and it exposes a simple interface to [build your own plugins](#build-your-own-plugins)
+## Small, stable infrastructure for Salesforce metadata delivery
 
-1. [Requirements](#requirements)
-1. [Usage](#usage)
-1. [Why not SFDX?](#why-not-sfdx)
-1. [Installation](#installation)
-1. [Features](#features)
-1. [Changelog](#changelog)
+Salesforce CI/CD infrastructure should be boring.
 
-## Requirements
+`sfdy` is a deliberately small deployment engine for the metadata workflows
+teams run every day: retrieve, transform, validate and deploy—either in full,
+by file, or from a Git diff.
 
-- [Node.js](https://nodejs.org/en/) `22.x` or newer. Node.js 24 LTS is the recommended runtime.
+It has powered real Salesforce projects since 2019 while remaining only a few
+thousand lines of runtime JavaScript. It does not depend on Salesforce CLI or
+jsforce, and the same core runs from the command line, inside a CI/CD pipeline,
+as a JavaScript library and behind the
+[fast-sfdc VS Code extension](https://marketplace.visualstudio.com/items?itemName=m1ck83.fast-sfdc).
 
-## Usage
+The goal is simple: put it in your delivery workflow and stop thinking about
+your deployment tooling.
 
-`sfdy` is meant to be mainly used as a command line tool. It can also be used as a library since it exposes a small [API](#use-sfdy-as-a-library).
+## The 80/20 metadata tool
 
-Type `sfdy --help` to see available commands. Type `sfdy [command] --help` to see available options for a specific command
+General-purpose platforms optimize for breadth. `sfdy` optimizes for the
+common path.
 
-## Why not SFDX?
+It does not try to reproduce every command in the Salesforce developer
+toolchain. It focuses on the small, stable set of capabilities behind most
+day-to-day metadata workflows and makes them predictable, scriptable and easy
+to customize.
 
-[SFDX](https://developer.salesforce.com/tools/sfdxcli) is a tool to work with scratch orgs and with modular projects.
+That deliberately narrow scope matters:
 
-In a typical salesforce project, development starts in a scratch org or a classic sandbox.
-Even if you use scratch orgs, however, sooner or later you'll have to deploy your sfdx project to a classic sandbox (a shared, persistent development sandbox used to test integrations, a UAT sandbox, etc.). After the code is deployed to a classic sandbox, we are right back to where we started.
+- fewer dependencies and moving parts;
+- less tooling churn in long-lived projects;
+- a codebase small enough to understand and debug;
+- one deployment engine from the developer's editor to production;
+- focused upgrades when the Salesforce platform actually requires them.
 
-Moreover, DX requires the developer to break down their entire Enterprise org into individual projects, but sometimes this is not possible/advisable or the sub-projects are still too big to be worked on by a single developer. Salesforce metadata are deeply interconnected, and every module is very likely to use a subset of common functionalities (standard objects, layout, flexipages). It is often a nightmare to divide an enterprise project in modules because those modules are not independent of each other.
+Small does not mean abandoned or frozen. `sfdy` evolves with the platform—such
+as adding OAuth 2.0 client credentials and Salesforce source-format support—
+without repeatedly changing the workflow around it.
 
-Finally, this tool solves some problems that SFDX does not address, and gives the developer an easy way to customize a Salesforce CI process the way HE/SHE wants. To have the best possible experience, use this tool in conjunction with the VSCode plugin [fast-sfdc](https://marketplace.visualstudio.com/items?itemName=m1ck83.fast-sfdc). patches and even your custom plugins are automatically applied in both your CI flow and your local development environment!
+## Why sfdy
 
-## Installation
+### Git-based incremental deployments are built in
+
+Deploy the files changed between two Git references directly:
+
+```bash
+sfdy deploy --diff='origin/main..HEAD'
+```
+
+`sfdy` selects the changed metadata, builds the deployment manifest, applies
+your renderers and pre-deploy transformations, and sends the result to the
+Salesforce Metadata API. There is no separate delta generator and no
+intermediate deployment project to manage.
+
+Glob patterns can further include or exclude files from the delta:
+
+```bash
+sfdy deploy \
+  --diff='origin/main..HEAD' \
+  --files='!experiences/EnvironmentSpecificSite/**'
+```
+
+Destructive changesets are supported explicitly, while full destructive
+deployments are deliberately rejected as unsafe.
+
+### Metadata can be normalized instead of merely moved
+
+Salesforce metadata is not always stable, complete or directly portable
+between orgs. `sfdy` treats transformation as part of the delivery workflow.
+
+Built-in patches can remove noisy or undeployable metadata, complete profiles
+with information Salesforce omits, strip managed-package artifacts and keep
+static resources as uncompressed folders.
+
+Custom plugins and renderers can:
+
+- transform XML or arbitrary file content;
+- add, remove or require related metadata;
+- change environment-specific values before deployment;
+- normalize retrieved metadata before it reaches Git;
+- query Salesforce through the REST or Tooling API;
+- represent metadata in a repository-friendly format.
+
+The same transformation pipeline runs locally, in CI/CD and in `fast-sfdc`.
+What a developer deploys from VS Code is prepared by the same engine used by
+the release pipeline.
+
+### Automation is a first-class use case
+
+`sfdy` supports non-interactive OAuth 2.0 client credentials, environment-based
+configuration, meaningful process exit codes, deployment validation, quick
+deploys and JUnit test reports.
+
+It can also be imported directly instead of being wrapped in shell scripts:
+
+```js
+const { deploy, retrieve } = require('sfdy')
+```
+
+The public API also exposes the deploy, retrieve, transformer, format-adapter
+and metadata utility modules through supported package exports. The complete
+extension and JavaScript APIs are documented below.
+
+### Metadata API and Salesforce source format
+
+`sfdy` works with traditional Metadata API projects and `package.xml` out of
+the box.
+
+It can also work directly with Salesforce source-format projects:
+
+```json
+{
+  "sourceFormat": "sfdx"
+}
+```
+
+In source-format mode, `sfdy` reads the default package directory from
+`sfdx-project.json`, generates manifests when needed, converts decomposed
+metadata at the API boundary and keeps plugins operating on a consistent
+Metadata API representation.
+
+## Quick start
+
+`sfdy` requires Node.js 22 or newer. Node.js 24 LTS is recommended.
 
 ```bash
 npm install -g sfdy
+cd your-salesforce-project
+sfdy init --api-version 65.0
 ```
 
-then go to the root folder of a Salesforce project, and type
+For a non-interactive CI/CD job, configure an OAuth 2.0 client-credentials flow
+on a Salesforce Connected App and expose the credentials as protected
+variables:
+
+```bash
+export SFDY_SERVER_URL='https://your-domain.my.salesforce.com'
+export SFDY_CLIENT_ID='your-client-id'
+export SFDY_CLIENT_SECRET='your-client-secret'
+
+sfdy deploy --diff='origin/main..HEAD'
+```
+
+For local interactive authentication:
+
+```bash
+sfdy auth --save --alias dev
+sfdy retrieve --target dev
+```
+
+Run `sfdy --help` to list commands and `sfdy <command> --help` for command
+options.
+
+## Command-line workflows
+
+The CLI has six commands:
+
+| Command | Purpose |
+| --- | --- |
+| `sfdy init` | Create the project configuration |
+| `sfdy auth` | Authorize an org interactively |
+| `sfdy retrieve` | Retrieve and normalize metadata |
+| `sfdy deploy` | Prepare and deploy metadata |
+| `sfdy prepare` | Reapply the retrieve pipeline to local files |
+| `sfdy community:publish` | Publish an Experience Cloud site |
+
+Run `sfdy <command> --help` for the complete option list.
+
+### Configure a project
+
+Run `sfdy init` from the project root. For a Metadata API project without an
+existing `package.xml`, provide the API version explicitly:
 
 ```bash
 sfdy init --api-version 65.0
 ```
 
-this command creates a `.sfdy.json` file within the root folder of your current workspace with the configuration of the 'standard' patches (more on this [later](#apply-standard-patches-and-renderers-to-metadata))
-
-## Features
-
-1. [Authenticate to Salesforce](#authenticate-to-salesforce)
-1. [Retrieve full metadata](#retrieve-full-metadata)
-1. [Retrieve partial metadata (glob pattern or metadata-based)](#retrieve-partial-metadata)
-1. [Deploy full metadata](#deploy-full-metadata)
-1. [Deploy partial metadata (glob pattern or diff between 2 git branches)](#deploy-partial-metadata)
-1. [Perform a quick deploy](#perform-a-quick-deploy)
-1. [Deploy a destructive changeset (glob pattern or metadata-based)](#deploy-a-destructive-changeset)
-1. [Publish a community](#publish-a-community)
-1. [Apply 'standard' patches and renderers to metadata](#apply-standard-patches-and-renderers-to-metadata)
-1. [Build your own plugins (pre-deploy and after-retrieve)](#build-your-own-plugins)
-1. [Build your own renderers](#build-your-own-renderers)
-1. [Use `sfdy` as a library](#use-sfdy-as-a-library)
-
-### Authenticate to Salesforce
-
-You can pass a username and password in all the available commands. For example:
-
-```bash
-sfdy retrieve -u USERNAME -p PASSWORD ...
-```
-
-For non-interactive CI/CD jobs, use the OAuth 2.0 client credentials flow. Enable that flow on your Salesforce Connected App, select its Run As user, and provide the consumer key and secret:
-
-```bash
-sfdy deploy --server-url https://your-domain.my.salesforce.com --client-id CLIENT_ID --client-secret CLIENT_SECRET ...
-```
-
-Credentials can be supplied through protected CI variables instead of command-line arguments:
-
-```bash
-export SFDY_CLIENT_ID=clientid
-export SFDY_CLIENT_SECRET=clientsecret
-export SFDY_SERVER_URL=https://your-domain.my.salesforce.com
-sfdy deploy ...
-```
-
-Salesforce requires a My Domain token endpoint for this flow; `login.salesforce.com` and `test.salesforce.com` are not supported. For a sandbox, use its My Domain URL, for example `https://your-domain--sandbox-name.sandbox.my.salesforce.com`. Client credentials authentication obtains an OAuth access token; the Metadata SOAP API is still used for metadata operations, but the deprecated SOAP login is not.
-
-Otherwise, just type:
-
-```bash
-sfdy auth -s
-```
-
-This command will start an oauth2 web server flow and will output a refresh token and an instance URL.
-
-The `-s` flag should be used when connecting to a sandbox.
-
-The `refresh token` can be used in all the available commands as an authentication method instead of username+password. Example:
-
-```bash
-sfdy retrieve --refresh-token REFRESH_TOKEN --instance-url INSTANCE_URL -s ...
-```
-
-If you want to avoid passing `refresh token` and `instance url` all the time, you can use the auth command in this way:
-
-```bash
-eval $(sfdy auth -s -e)
-```
-
-This will set the returned `refresh token` and `instance url` as environment variables. The subsequent commands will read them from the environment. Example:
-
-```bash
-sfdy retrieve -s ...
-```
-
-Otherwise, you can just export them manually:
-
-```bash
-sfdy auth -s
-export SFDY_REFRESH_TOKEN=refreshtoken
-export SFDY_INSTANCE_URL=instanceurl
-```
-
-By default, the SFDY connected app will be used for the interactive refresh-token flow. If you want to use yours, you can pass a user-defined `client_id` and `client_secret`.
-
-```bash
-sfdy auth --client-id CLIENT_ID --client-secret CLIENT_SECRET -s ...
-
-sfdy retrieve --refresh-token REFRESH_TOKEN --instance-url INSTANCE_URL --client-id CLIENT_ID --client-secret CLIENT_SECRET -s ...
-```
-
-Or you can use the env vars:
-
-```bash
-export SFDY_REFRESH_TOKEN=refreshtoken
-export SFDY_INSTANCE_URL=instanceurl
-export SFDY_CLIENT_ID=clientid
-export SFDY_CLIENT_SECRET=clientsecret
-sfdy retrieve -s ...
-```
-
-> **Warning:** You must add `http://localhost:3000/callback` as redirect_uri in your connected app setup
-
-### Retrieve full metadata
-
-From the root folder of your salesforce project, type:
-
-```bash
-sfdy retrieve -u USERNAME -p PASSWORD -s
-```
-
-This command retrieves every component already represented in the local metadata tree and
-applies any enabled patch. Use `--meta` to retrieve a component that is not present locally.
-
-The `-s` flag should be used when connecting to a sandbox.
-
-### Retrieve partial metadata
-
-#### using --files
-
-```bash
-sfdy retrieve -u USERNAME -p PASSWORD -s --files='objects/*,!objects/{Account,Contact}*,site*/**/*'
-```
-
-This command will retrieve all objects present in the local `objects` folder, except those whose name starts with `Account` or `Contact`, and will retrieve all metadata (present in the local project) whose folder starts with `site` (for example `sites`, `siteDotCom`)
-
-The --files consist of a comma-separated list of [glob patterns](https://www.npmjs.com/package/globby)
-
-> **Warning:** Negated patterns always have the highest precedence
-
-#### using --meta
-
-```bash
-sfdy retrieve -u USERNAME -p PASSWORD -s --meta='CustomObject/Account,FlexiPage/*'
-```
-
-This command will retrieve the Account object and all the flexipages present on the target salesforce environment
-
-> **Warning:** the --meta option builds an ad-hoc package.xml to retrieve the data. Glob patterns cannot be used in this case. You can use a wildcard only if that metadata type supports it
-
-### Deploy full metadata
-
-```bash
-sfdy deploy -u USERNAME -p PASSWORD -s
-```
-
-This command applies any enabled pre-deploy patch and deploys every metadata component in
-the local source tree.
-
-The `-s` flag should be used when connecting to a sandbox.
-
-### Deploy partial metadata
-
-#### using --files
-
-```bash
-sfdy deploy -u USERNAME -p PASSWORD -s --files='objects/*,!objects/Account*,site*/**/*'
-```
-
-This command will deploy all objects present in the local `objects` folder, except those whose name starts with `Account`, and will deploy all metadata (present in the local project) whose folder starts with `site` (for example `sites`, `siteDotCom`)
-
-The --files consist of a comma-separated list of [glob patterns](https://www.npmjs.com/package/globby)
-
-> **Warning:** Negated patterns always have the highest precedence
-
-#### using --diff
-
-```bash
-sfdy deploy -u USERNAME -p PASSWORD -s --diff='behindBranch..aheadBranch'
-```
-
-The `--diff` flag is used to compute the list of files that needs to be deployed by comparing 2 git branches. (examples: `--diff='origin/myBranch..HEAD'` or `--diff='branch1..branch2`). As an example of a use case, you can trigger a deployment to the DEV environment when you create a pull request to the dev branch. The deployment will contain only the files that have been modified in the pull-request
-
-> **Warning:** the --diff option requires git. To use this feature you should be versioning your Salesforce project
-
-#### using --diff and --files together
-
-```bash
-sfdy deploy -u USERNAME -p PASSWORD -s --diff='behindBranch..aheadBranch' --files='!siteDotCom/**/*'
-```
-
-This is useful if you want to perform a delta deployment skipping some metadata that could be included by the `--diff` option. Typical use case: production and sandbox orgs have different versions and some metadata can't be deployed
-
-### Perform a quick deploy
-
-```bash
-sfdy deploy -u USERNAME -p PASSWORD -s --quick-deploy=0Af1k000028frDD
-```
-
-This command will perform a quick deployment of the deployment identified by the passed id
-
-### Deploy a destructive changeset
-
-Just run a [partial deployment](#deploy-partial-metadata) passing the `--destructive` flag
-
-```bash
-sfdy deploy -u USERNAME -p PASSWORD -s --files='objects/*,!objects/Account*,site*/**/*' --destructive
-```
-
-You can also run a destructive deploy changeset with a custom destructiveChanges.xml path:
-
-```bash
-sfdy deploy -u USERNAME -p PASSWORD -s --destructive <destructiveChanges.xml path>
-```
-
-Optionally you can pass the `--ignoreWarnings` flag to ignore deploy warnings
-
-```bash
-sfdy deploy -u USERNAME -p PASSWORD -s --destructive <destructiveChanges.xml path> --ignoreWarnings
-```
-
-> **Warning:** Full destructive deploy is deliberately not supported
-
-> **Warning:** This command deletes the metadata files from Salesforce, but they remain on the filesystem
-
-### Publish a community
-
-```bash
-sfdy community:publish -u USERNAME -p PASSWORD -s --community-name=myCoolCommunity
-```
-
-This command will programmatically publish your Experience Bundle. Execute it in a pipeline after a deployment to avoid the manual publish step!
-
-### Apply 'standard' patches and renderers to metadata
-
-Sfdy provides several ready-to-use patches that you may find useful.
-All these patches serve 2 purposes:
-
-1. **Remove useless metadata** (not translated fields, useless FLS in permission sets, roles that are automatically managed by salesforce, profile permissions in standard profiles, and stuff created by managed packages at installation time)
-2. **Add useful metadata**. We want our repo to be the 'source of truth' (ALL profile permissions, not only the enabled ones. ALL object permissions. Profile configuration of objects/applications/tabs that we DON'T want to version because they're not used or we're not the maintainer of that metadata)
-
-All of these patches can be disabled, so you can incrementally adopt them or skip a specific patch if you don't find it useful.
-
-In Metadata API projects, `sfdy` provides an out-of-the-box renderer for storing
-static resource bundles as expanded directories. SFDX projects use their native
-source-format static-resource representation and do not run this renderer.
-
-First of all, create the configuration file `.sfdy.json` in the root folder of the salesforce project:
-
-```bash
-sfdy init
-```
-
-The configuration file is a JSON object:
+The generated `.sfdy.json` controls the project format, source root, built-in
+patches, plugins, renderers and files that must never be deployed.
 
 ```json
 {
-  "sourceFormat": "metadata",
-  "apiVersion": "65.0",
-  "permissionSets": {
-    "stripUselessFls": true
-  },
-  "objectTranslations": {
-    "stripUntranslatedFields": true,
-    "stripNotVersionedFields": true
-  },
+  "sourceFormat": "sfdx",
+  "excludeFiles": ["lwc/**/__tests__/**/*"],
   "preDeployPlugins": [],
   "postRetrievePlugins": [],
-  "renderers": [],
-  "profiles": {
-    "addAllUserPermissions": false,
-    "addDisabledVersionedObjects": true,
-    "addExtraObjects": ["*", "!*__?", "!CommSubscription*"],
-    "addExtraTabVisibility": ["standard-*"],
-    "addExtraApplications": ["standard__*"],
-    "stripUserPermissionsFromStandardProfiles": true,
-    "stripUnversionedStuff": true
-  },
-  "roles": {
-    "stripPartnerRoles": true
-  },
-  "staticResources": {
-    "useBundleRenderer": ["*.resource"]
-  },
-  "stripManagedPackageFields": ["et4ae5"]
+  "renderers": []
 }
 ```
 
-`sourceFormat` accepts `metadata` (the default) or `sfdx`. The command-line option
-`--source-format <format>` overrides the value in `.sfdy.json` for one deploy or retrieve.
-`apiVersion` replaces the version formerly read from `package.xml`. It is optional when
-`sfdx-project.json` provides `sourceApiVersion`; an existing `package.xml` is still accepted
-as a backwards-compatible version fallback.
+`sourceFormat` is `metadata` by default. Set it to `sfdx` for a Salesforce
+source-format project. `--source-format` overrides it for one deploy or
+retrieve.
 
-`package.xml` is not required in either metadata or source-format projects. Deploy and
-retrieve manifests are generated from the selected files, or from the complete local
-inventory when no selection is provided. An existing manifest no longer defines that
-inventory.
+The default source root is:
 
-With `sfdx`, the default package directory from `sfdx-project.json` is used when available;
-for a standard project this resolves to `force-app/main/default`. Without that project file,
-`src` remains the default. Set `sourceFolder` in `.sfdy.json`, or pass `--folder`, to override it.
-Metadata
-whose representation is already valid for Metadata API, including Apex, Aura, LWC and
-Experience Bundles, passes through unchanged. The adapter converts XML descriptor names,
-folder and Document descriptors, decomposed Custom Objects, Object Translations and Bots,
-expanded Static Resources, and partial Custom Label retrieves. Plugins continue to receive
-Metadata API-format files.
+- `src` for Metadata API projects;
+- the default package directory from `sfdx-project.json` for source-format
+  projects, normally `force-app/main/default`.
 
-For example, a single field can be deployed or retrieved without composing the object by
-hand:
+Set `sourceFolder` in `.sfdy.json` or pass `--folder` to override it.
+`apiVersion` can come from `.sfdy.json`, `sfdx-project.json` or an existing
+`package.xml`.
+
+`package.xml` is optional in both formats. `sfdy` builds manifests from the
+local source inventory and the current selection.
+
+### Authenticate to a target org
+
+Deploy, retrieve, prepare and community publishing accept exactly one
+authentication method:
+
+| Use case | Credentials |
+| --- | --- |
+| Saved project login | `--target <alias>` or `--username <username>` |
+| CI/CD | `SFDY_SERVER_URL`, `SFDY_CLIENT_ID`, `SFDY_CLIENT_SECRET` |
+| Local OAuth | `SFDY_INSTANCE_URL`, `SFDY_REFRESH_TOKEN` |
+| Legacy login | `--username` and `--password` |
+
+Save an OAuth login directly in the project:
 
 ```bash
-sfdy deploy --source-format sfdx --files='objects/Account/fields/Status__c.field-meta.xml'
-sfdy retrieve --source-format sfdx --files='objects/Account/fields/Status__c.field-meta.xml'
+sfdy auth --save --alias dev
+sfdy retrieve --target dev
 ```
 
-Selecting a file inside a bundle selects the complete bundle. Exact directory paths are
-expanded recursively, so `--files='lwc/accountCard'` is also supported.
+The credential alias is also used as its plugin environment by default. Use
+`--environment` only when several credentials should share the same logical
+environment, for example `--alias uat-admin --environment uat`.
+When `--alias` is omitted in an interactive terminal, `sfdy` asks for one and
+does not accept an empty value. Non-interactive authentication with `--save`
+requires `--alias` explicitly.
 
-A retrieve without `--files` or `--meta` retrieves every component already represented in
-the local source tree; use `--meta` to add a component that is not present locally. Multiple
-package directories, `sourceBehaviorOptions`, and Salesforce source tracking are not
-currently supported.
+The encrypted vault lives in `.sfdy/credentials.vault` and is automatically
+ignored by Git. Only its encryption key is stored in the operating-system
+keychain, so `sfdy` and `fast-sfdc` can safely use the same project credentials.
 
-#### permissionSets
+There is deliberately no implicit current target. Without complete command-line
+or environment credentials, pass `--target` (or a saved username) explicitly.
+In an interactive terminal, omitting it always opens the credential picker. In
+CI or any non-interactive process, omitting it is an error.
 
-| Patch | Description |
-| --- | --- |
-| stripUselessFls | if `stripUselessFls` is `true`, `fieldPermissions` in which both `readable` and `editable` tags are `false` are removed from the XML. They are totally redundand since a `PermissionSet` can only add permissions. |
+```bash
+sfdy credentials
+sfdy credentials --remove dev
+```
 
-#### objectTranslations
+OAuth client credentials are recommended for CI/CD. `SFDY_SERVER_URL` must be
+the org's My Domain URL, including the sandbox domain when applicable:
 
-| Patch | Metadata | Description |
+```bash
+export SFDY_SERVER_URL='https://acme--uat.sandbox.my.salesforce.com'
+export SFDY_CLIENT_ID='connected-app-consumer-key'
+export SFDY_CLIENT_SECRET='connected-app-consumer-secret'
+
+sfdy deploy --validate
+```
+
+For an ephemeral local session, the web-server flow can populate the current
+shell instead of saving the login:
+
+```bash
+eval "$(sfdy auth -s -e)"
+sfdy retrieve
+```
+
+`-s` selects the sandbox login endpoint. A custom Connected App can be passed
+with `--client-id` and `--client-secret`; its callback URL must match
+`http://localhost:3000/callback`, or the port selected with `--callback-port`.
+
+Credentials can also be passed as command options. Environment variables are
+preferable in CI because they can be stored as protected secrets and do not
+appear in the command line.
+
+### Retrieve metadata
+
+With no selection, `sfdy retrieve` retrieves every component already
+represented by the local source tree:
+
+```bash
+sfdy retrieve
+```
+
+This is an inventory-based retrieve, not a request for every component in the
+org. Use `--meta` to introduce metadata that does not exist locally:
+
+```bash
+sfdy retrieve --meta='CustomObject/Account,FlexiPage/Home'
+```
+
+Metadata selections use `MetadataType/fullName`. Salesforce wildcards are
+supported where the Metadata API supports them:
+
+```bash
+sfdy retrieve --meta='ApexClass/*'
+```
+
+Use `--files` to select metadata through project-relative paths and glob
+patterns:
+
+```bash
+sfdy retrieve --files='classes/AccountService.cls,objects/Account.object'
+```
+
+In a source-format project, individual decomposed components can be selected
+directly:
+
+```bash
+sfdy retrieve \
+  --files='objects/Account/fields/Status__c.field-meta.xml'
+```
+
+Exact directory paths are recursive, and selecting a file inside an Aura,
+LWC, Experience or other bundle selects the required companion files in
+source-format projects. Negated glob patterns can remove paths from a broader
+selection.
+
+After Salesforce responds, `sfdy` runs built-in metadata patches, configured
+`postRetrievePlugins` and renderers before writing the result to disk.
+
+### Deploy metadata
+
+With no selection, `sfdy deploy` deploys the complete local metadata
+inventory:
+
+```bash
+sfdy deploy
+```
+
+Use `--files` for a partial deployment:
+
+```bash
+sfdy deploy --files='classes/AccountService.cls,lwc/accountCard'
+```
+
+Use `--diff` to deploy files added or modified between two Git references:
+
+```bash
+sfdy deploy --diff='origin/main..HEAD'
+```
+
+`--diff` and `--files` can be combined. This is useful for applying exclusions
+to a Git delta:
+
+```bash
+sfdy deploy \
+  --diff='origin/main..HEAD' \
+  --files='!experiences/EnvironmentSpecificSite/**'
+```
+
+Git-diff deployments intentionally ignore deleted files. Handle removals with
+an explicit destructive deployment rather than inferring deletion from a
+missing local file.
+
+Renderers and `preDeployPlugins` run in memory before the deployment ZIP is
+created; they do not modify the source tree.
+
+#### Validate and run tests
+
+`--validate` performs a check-only deployment. Test options are passed to the
+Metadata API, and `--test-report` writes `test-report.xml` in JUnit format:
+
+```bash
+sfdy deploy \
+  --diff='origin/main..HEAD' \
+  --validate \
+  --test-level=RunSpecifiedTests \
+  --specified-tests='AccountServiceTest,ContactServiceTest' \
+  --test-report
+```
+
+After a successful validation, use its deployment ID for a quick deploy:
+
+```bash
+sfdy deploy --quick-deploy='0Af...'
+```
+
+The deploy command exits with a non-zero status when Salesforce does not
+report `Succeeded`, making it safe to use as a pipeline gate.
+
+#### Destructive deployments
+
+Select existing local metadata and add `--destructive` to build a destructive
+changeset from that selection:
+
+```bash
+sfdy deploy --files='classes/ObsoleteService.cls' --destructive
+```
+
+The metadata is removed from Salesforce but remains on disk. If the local
+file has already been deleted, provide a destructive manifest instead:
+
+```bash
+sfdy deploy --destructive='manifest/destructiveChanges.xml'
+```
+
+Add `--ignoreWarnings` when missing components should not fail the job. Full
+destructive deployments are deliberately rejected: a file selection or an
+explicit manifest is required.
+
+### Environment-specific deployments
+
+The repository should contain one canonical representation of its metadata.
+Target-specific values belong at the deployment boundary, where they can be
+applied without changing tracked files.
+
+Set the lowercase `environment` variable to expose a logical target name to
+plugins as `target.environment`:
+
+```bash
+export environment='uat'
+sfdy deploy --diff='origin/main..HEAD'
+```
+
+A metadata-stage pre-deploy plugin can then apply the same policy to Metadata
+API and source-format projects. The
+[environment endpoint example](#a-complete-plugin) below maps `dev`, `uat` and
+`prod` to different Named Credential endpoints.
+
+This keeps the responsibilities separate:
+
+- authentication variables identify and authorize the Salesforce org;
+- `environment` selects the logical configuration policy;
+- the plugin transforms the in-memory deployment payload;
+- Git retains the environment-neutral source of truth.
+
+The same plugin runs during `--validate` and the final deploy. It receives
+`checkOnly` when behavior or logging needs to distinguish the two operations.
+
+For values that also vary on retrieve, use a `postRetrievePlugin` to normalize
+the org-specific value back to the canonical repository form. Together, the
+retrieve and deploy hooks form a controlled boundary around environment
+differences rather than scattering them through pipeline scripts.
+
+### Reapply patches locally
+
+`sfdy prepare` runs the retrieve-side normalization pipeline against the
+current source tree without retrieving metadata:
+
+```bash
+environment=dev sfdy prepare
+```
+
+It applies configured renderers, built-in metadata patches and
+`postRetrievePlugins`, then writes the resulting project representation. The
+command still authenticates because a plugin may query the target org.
+`--skip-untransform` skips the deploy direction of configured renderers before
+normalization.
+
+### Publish an Experience Cloud site
+
+Publish a site by its Salesforce community name, normally after a successful
+deployment:
+
+```bash
+sfdy community:publish --community-name='Customer Portal'
+```
+
+## Extending sfdy
+
+Plugin API v2 is available from `sfdy/plugin`. It provides a small typed API
+for changing the metadata selection, reading the whole project and applying
+transactional file changes.
+
+Extensions are ordinary JavaScript modules. They run sequentially, in their
+configured order, and changes made by one extension are immediately visible
+to the next one.
+
+### Plugin or renderer?
+
+Use a **plugin** when the repository representation stays the same and its
+contents need to be completed, filtered or adapted. Typical examples are
+removing noisy profile entries after retrieve or changing a Named Credential
+endpoint before deploy.
+
+Use a **renderer** when the repository representation itself differs from what
+Salesforce accepts. A renderer is bidirectional: `onRetrieve` creates the
+repository representation and `onDeploy` converts it back. The built-in static
+resource renderer, for example, stores a `.resource` ZIP as an ordinary folder
+and rebuilds the archive at deploy time.
+
+| Extension | Configure in | Purpose |
 | --- | --- | --- |
-| stripUntranslatedFields | Translations, CustomObjectTranslation, GlobalValueSetTranslation, StandardValueSetTranslation  | if `stripUntranslatedFields` is `true`, untranslated tags are removed from the XML. |
-| stripNotVersionedFields | CustomObjectTranslation | if `stripNotVersionedFields` is `true`, translated fields that are not present in the file system in the corresponding `.object` files, are removed from the XML. |
+| Retrieve plugin | `postRetrievePlugins` | Normalize or enrich retrieved metadata |
+| Deploy plugin | `preDeployPlugins` | Prepare metadata for the target org |
+| Renderer | `renderers` | Maintain a reversible repository representation |
 
-#### profiles
+Pre-deploy plugins do not run during destructive deployments. Renderers still
+run because they may be needed to resolve the selected metadata.
 
-| Patch | Description |
-| --- | --- |
-| addAllUserPermissions | Salesforce does not retrieve disabled `userPermissions`. If `addAllUserPermissions` is `true`, all permissions are retrieved |
-| addDisabledVersionedObjects | Salesforce does not retrieve totally disabled objects. If `addDisabledVersionedObjects` is `true`, sfdy retrieves also `objectsPermissions` of objects that are present in the file system (and of course tracked by version control systems)) but are disabled for the profile |
-| addExtraObjects | Sometimes you want to explicitly configure the access level to some objects even if you're not interested in versioning the whole object metadata. Now you can. `addExtraObjects` is an array of glob patterns of the objects of which `objectPermissions` you want to add to the profile (the glob patterns match against the `<member>` content in `package.xml`) |
-| addExtraTabVisibility | Sometimes you want to explicitly set the `TabVisibility` of some tabs even if you're not interested in versioning the object/tab metadata. Now you can. `addExtraTabVisibility` is an array of glob patterns of the tabs whose `tabVisibilities` you want to add to the profile (the glob patterns match against the `<member>` content in `package.xml`) |
-| stripUserPermissionsFromStandardProfiles | User Permissions are not editable in standard profiles, and they change almost every Salesforce release causing errors that can be avoided. Set this flag to `true` to automatically remove them |
-| stripUnversionedStuff | This flag 'sanitizes' the profiles, removing `fieldPermissions`, `classAccesses`, `pageAccesses`, `layoutAssignments` that are not related to stuff tracked under version control. I can't really see any reason not to enable this option, that can help avoiding errors made by developers during code/metadata versioning |
+### Configuration
 
-#### roles
-
-| Patch | Description |
-| --- | --- |
-| stripPartnerRoles | if `stripPartnerRoles` is `true`, roles that end with `PartnerUser[0-9]*.role` are removed even if a `*` is used in `package.xml`. They are automatically created by Salesforce when you create a Partner Account, so there's no need to track them them using version control |
-
-#### staticResources
-
-| Renderer | Metadata | Description |
-| --- | --- | --- |
-| useBundleRenderer | StaticResource | Metadata API projects only. Glob pattern identifying static resource files stored as expanded directories. The `contentType` of the `.resource-meta.xml` file must be `application/zip`. If a single file inside the bundle is deployed, the renderer rebuilds and deploys the corresponding `.resource` archive. |
-
-#### other
-
-| Patch | Metadata | Description |
-| --- | --- | --- |
-| stripManagedPackageFields | CustomObject, PermissionSet, Profile | Array of namespaces of stuff created by managed packages (eg Marketing Cloud) that we don't want to track changes using Version Control. This plugin removes `fields`, `picklistValues`, `weblinks` from `CustomObject` and `fieldPermissions` from `Profile` and `PermisissionSet` |
-
-### Plugin API v2
-
-Plugin API v2 runs on the project's configured file format by default. In an
-SFDX project, project-stage plugins receive files such as
-`objects/Account/fields/Name.field-meta.xml`; in a Metadata API project they
-receive the corresponding Metadata API files.
-
-The execution order is:
-
-```text
-Retrieve: Salesforce -> metadata plugins -> adapter -> project plugins -> renderers -> filesystem
-Deploy:   filesystem -> renderers -> project plugins -> adapter -> metadata plugins -> Salesforce
-```
-
-JavaScript plugins get typed completions through the `sfdy/plugin` public
-export. Add `// @ts-check` to also enable diagnostics in VS Code:
-
-```javascript
-// @ts-check
-
-const { definePlugin } = require('sfdy/plugin')
-
-module.exports = definePlugin({
-  name: 'environment-patches',
-
-  async onDeploy ({ files, target }) {
-    for (const file of files.match('namedCredentials/*.namedCredential-meta.xml')) {
-      const credential = await file.readXml()
-      credential.endpoint = [`https://service-${target.environment}.example.com`]
-      await file.writeXml(credential)
-    }
-  }
-})
-```
-
-#### Representation stage
-
-Plugins default to `stage: 'project'`. A plugin that intentionally operates on
-the Metadata API representation can instead declare `stage: 'metadata'`:
-
-```javascript
-module.exports = definePlugin({
-  name: 'raw-profile-cleanup',
-  stage: 'metadata',
-
-  async onRetrieve ({ files }) {
-    for (const file of files.match('profiles/*.profile')) {
-      // This path and XML shape are Metadata API format in every project.
-    }
-  }
-})
-```
-
-The representation name is stable in both directions: metadata-stage plugins
-run before the adapter on retrieve and after it on deploy. This is useful for a
-single format-independent implementation, but should be chosen deliberately;
-the default project stage is normally easier for project-owned plugins.
-
-Plugins and renderers may also declare `formats: ['metadata']` or
-`formats: ['sfdx']` when they only make sense for a particular project format.
-The built-in metadata static-resource renderer uses `formats: ['metadata']`.
-Projects may override these properties when loading a v2 extension:
+Extension paths are resolved from the project root:
 
 ```json
 {
   "preDeployPlugins": [
     {
-      "path": "build-scripts/sfdy/raw-patches.js",
+      "path": "sfdy-plugins/environment-endpoints.js",
       "stage": "metadata",
-      "formats": ["sfdx", "metadata"]
+      "formats": ["metadata", "sfdx"]
     }
+  ],
+  "postRetrievePlugins": [
+    "sfdy-plugins/normalize-retrieve.js"
+  ],
+  "renderers": [
+    "sfdy-renderers/custom-renderer.js"
   ]
 }
 ```
 
-Stage and format overrides are intentionally rejected for legacy extensions.
+A string uses the extension's declared `stage` and `formats`. The object form
+can override either setting without changing a shared extension. CommonJS
+exports and transpiled default exports are both supported.
 
-TypeScript plugins can import the same API:
+### A complete plugin
 
-```typescript
-import { definePlugin } from 'sfdy/plugin'
+Custom configuration keys can keep the environment map outside the plugin.
+The same extension can be registered in both directions to apply the target
+value on deploy and restore the canonical repository value on retrieve:
 
-export default definePlugin({
-  name: 'profile-cleanup',
+```json
+{
+  "canonicalBackendUrl": "https://service.example.invalid",
+  "environments": {
+    "dev": { "backendUrl": "https://dev.example.com" },
+    "uat": { "backendUrl": "https://uat.example.com" },
+    "prod": { "backendUrl": "https://api.example.com" }
+  },
+  "preDeployPlugins": ["sfdy-plugins/environment-endpoints.js"],
+  "postRetrievePlugins": ["sfdy-plugins/environment-endpoints.js"]
+}
+```
 
-  async onRetrieve({ files }) {
-    for (const file of files.match('profiles/*')) {
-      const profile = await file.readXml()
-      profile.userPermissions = []
-      await file.writeXml(profile)
+```js
+const { definePlugin } = require('sfdy/plugin')
+
+const setEndpoint = async (files, endpoint) => {
+  for (const file of files.match('namedCredentials/*.namedCredential')) {
+    const credential = await file.readXml()
+    credential.endpoint = [endpoint]
+    await file.writeXml(credential)
+  }
+}
+
+module.exports = definePlugin({
+  name: 'environment-endpoints',
+  stage: 'metadata',
+  formats: ['metadata', 'sfdx'],
+
+  async onDeploy ({ files, target, config, checkOnly, log }) {
+    const endpoint = config.environments?.[target.environment]?.backendUrl
+
+    if (!endpoint) {
+      throw new Error(`No endpoint configured for ${target.environment}`)
     }
+
+    await setEndpoint(files, endpoint)
+    log.info(`${checkOnly ? 'Validating' : 'Deploying'} backend for ${target.environment}`)
+  },
+
+  async onRetrieve ({ files, config }) {
+    await setEndpoint(files, config.canonicalBackendUrl)
   }
 })
 ```
 
-#### File views
+Run it with the project environment exposed to `sfdy`:
 
-Each plugin receives four related views:
-
-- `files` is the mutable working set for the current operation;
-- `project` is a read-only overlay of the working set on top of the existing
-  filesystem;
-- `disk` is a read-only snapshot of the filesystem before the operation;
-- `output` records paths that must be removed when the transaction is
-  committed; active replacement files at the same paths are written after the
-  cleanup.
-
-When the same path exists on disk and is being retrieved, `project` returns the
-incoming version. Files created or modified by an earlier plugin are also
-visible through `project` to later plugins. Excluding an incoming file reveals
-the previous disk version; deleting it hides both versions.
-
-At `stage: 'metadata'`, these views contain the current Metadata API
-transaction, including components added with `selection.require()`. In an SFDX
-project the on-disk source tree is a different representation, so it is not
-mixed into the metadata-stage `disk` view.
-
-Reading a file from `project` does not add it to the operation. Inclusion is
-explicit:
-
-```javascript
-const stored = project.get('profiles/Admin.profile-meta.xml')
-if (stored) {
-  const editable = files.include(stored)
-  const profile = await editable.readXml()
-  profile.description = ['Included by a plugin']
-  await editable.writeXml(profile)
-}
+```bash
+environment=uat sfdy deploy --files='namedCredentials/Backend.namedCredential*'
 ```
 
-Mutable files expose `readBytes`, `readText`, `readXml`, `writeBytes`,
-`writeText`, `writeXml`, `exclude` and `delete`. `files.create()` adds a file to
-the working set immediately, so subsequent plugins can match and transform it.
+`definePlugin` marks the module as Plugin API v2 and preserves type inference
+for JavaScript editors and TypeScript.
 
-XML remains intentionally schema-free. `readXml()` returns the root object
-produced by `xml2js`; TypeScript authors may optionally provide a local type:
+### Lifecycle and representations
 
-```typescript
-type Profile = {
-  userPermissions?: Array<{ name: string[] }>
-}
+Extensions can run against two representations:
 
-const profile = await file.readXml<Profile>()
+| Stage | Representation | Best suited for |
+| --- | --- | --- |
+| `project` (default) | Files exactly as stored in the project | Repository conventions and custom layouts |
+| `metadata` | Metadata API paths and XML | Salesforce semantics independent of project format |
+
+For a Salesforce source-format project, `metadata` plugins run after source
+files have been composed for deploy and before they are decomposed on
+retrieve. The plugin therefore sees the same Metadata API representation in
+both `metadata` and `sfdx` projects. Built-in metadata patches use this stage.
+
+The high-level pipelines are:
+
+```text
+retrieve: plan -> Metadata API -> metadata plugins -> format conversion
+          -> project plugins -> renderers -> disk
+
+deploy:   selection resolution -> renderers -> project plugins
+          -> format conversion -> metadata plugins -> Metadata API
 ```
 
-#### Planning retrieve dependencies
+Within a matching plugin, `run` executes first and is followed by
+`onRetrieve` or `onDeploy`. Use `run` for direction-independent behavior and a
+directional hook when the operation matters.
 
-The optional `plan` hook runs before retrieving files and can extend the
-metadata selection using the local inventory:
+The optional `formats` property limits an extension to `metadata`, `sfdx`, or
+both project formats. `format` always describes the project, even while a
+plugin is running at the `metadata` stage.
 
-```javascript
+The optional `enabled(context)` predicate skips the extension before any hook
+in the current phase. It may inspect `config`, `direction`, `format`, `target`
+and the phase-specific `selection` or `files` view. Keep it cheap and free of
+I/O; its purpose is to avoid loading or querying data for inactive patches.
+It may return a boolean or a promise:
+
+```js
+enabled: ({ config, files }) =>
+  config.profiles?.normalize === true &&
+  (!files || files.match('profiles/**/*').length > 0)
+```
+
+If an extension participates in more than one phase, `enabled` is evaluated
+once before its hooks in each phase.
+
+#### Plugin hooks
+
+| Hook | When it runs |
+| --- | --- |
+| `enabled(context)` | Before the extension's hooks in the current phase; returning `false` skips it |
+| `plan(context)` | Before a retrieve; can change which components Salesforce returns |
+| `run(context)` | In either direction, at the configured stage |
+| `onRetrieve(context)` | During retrieve, after `run` |
+| `onDeploy(context)` | During deploy, after `run`; also receives `checkOnly` and `destructive` |
+
+#### Renderer hooks
+
+| Hook | When it runs |
+| --- | --- |
+| `enabled(context)` | Before the renderer's hooks in the current phase; returning `false` skips it |
+| `resolveSelection(context)` | Before a partial operation; maps selected project paths to the files the renderer needs |
+| `onRetrieve(context)` | Converts retrieved files into their repository representation |
+| `onDeploy(context)` | Rebuilds deployable files from the repository representation |
+
+### Planning retrieve dependencies
+
+`plan` works with metadata addresses shaped as `{ type, fullName }`. It can
+add a selected component or retrieve a dependency only for use by plugins:
+
+```js
+const { definePlugin } = require('sfdy/plugin')
+
 module.exports = definePlugin({
   name: 'profile-dependencies',
+  stage: 'metadata',
 
   plan ({ selection, inventory }) {
-    if (selection.match('Profile/*').length) {
-      selection.require(inventory.match('CustomObject/*'))
-    }
+    if (!selection.match('Profile/*').length) return
+
+    selection.require(inventory.match([
+      'CustomObject/*',
+      'ApexClass/*',
+      'Layout/*'
+    ]))
   }
 })
 ```
 
-`selection.include()` adds components to both the retrieve request and its
-output. `selection.require()` retrieves auxiliary components for plugin
-context but does not write them to the project. The latter replaces the v1
-`filterPackage`/`patchPackage` dependency behavior.
+- `selection.include(addresses)` adds components to both the retrieve and its
+  output.
+- `selection.require(addresses)` retrieves dependencies but does not write
+  them unless they were selected independently.
+- `selection.exclude(addresses)` removes components from the output
+  selection.
+- `selection.match(globs)` and `inventory.match(globs)` return matching
+  metadata addresses.
 
-#### Renderers
+`inventory` represents metadata already known to the local project. Glob
+patterns use the `MetadataType/fullName` form.
 
-Renderers use the same typed file transaction but declare their two directions
-explicitly:
+### The file context
 
-```javascript
+Runtime hooks receive four views of the current operation:
+
+| Property | Access | Meaning |
+| --- | --- | --- |
+| `files` | Read/write | Files currently included in the operation |
+| `project` | Read-only | Current project view: active changes overlaid on stored files |
+| `disk` | Read-only | Original files before the operation |
+| `output` | Delete only | Paths that must be removed from the written retrieve output |
+
+Use `files.match(globs)`, `files.get(path)` and `files.has(path)` to inspect the
+active set. File paths are relative to the source root and normalized with `/`.
+The read-only `project` and `disk` views expose the same `match`, `get` and
+`has` operations.
+
+Every file supports:
+
+- `readBytes()`, `readText()` and `readXml()`;
+- the normalized `path` and its `origin` (`disk`, `incoming` or `generated`).
+
+Files from the mutable `files` set additionally support:
+
+- `writeBytes()`, `writeText()` and `writeXml()`;
+- `exclude()` to remove the file from this operation;
+- `delete()` to remove it from the current output tree.
+
+`readXml()` returns the contents below the XML root. Like Salesforce metadata
+parsed elsewhere in `sfdy`, elements are represented as arrays. `writeXml()`
+preserves the original root element.
+
+The file set can also include stored project files or create new ones:
+
+```js
+async function addGeneratedClass ({ files, project }) {
+  const stored = project.get('classes/Shared.cls')
+  if (stored && !files.has(stored.path)) files.include(stored)
+
+  if (!project.has('classes/Generated.cls')) {
+    files.create({
+      path: 'classes/Generated.cls',
+      contents: 'public class Generated {}\n'
+    })
+  }
+}
+```
+
+`files.exclude(globs)`, `files.excludeWhere(predicate)` and
+`files.delete(globs)` operate on multiple paths. `output.delete(globs)` is
+useful on retrieve when a renderer must clean an old directory before writing
+its new representation.
+
+Deleting a file from the plugin transaction does **not** create a Salesforce
+destructive deployment. Destructive changes remain an explicit deploy mode.
+
+### Renderer skeleton
+
+Renderers use the same file model, but must describe both directions:
+
+```js
 const { defineRenderer } = require('sfdy/plugin')
 
 module.exports = defineRenderer({
-  name: 'profile-csv',
-
-  async onRetrieve ({ files }) {
-    // Project representation -> repository representation.
-  },
-
-  async onDeploy ({ files }) {
-    // Repository representation -> project representation.
-  },
+  name: 'custom-renderer',
 
   resolveSelection ({ selection }) {
-    // Optionally expand or remap selected project paths.
+    // Expand or replace paths needed to render a partial operation.
+  },
+
+  async onRetrieve ({ files, project, output, config }) {
+    // Convert Salesforce files into the representation stored in Git.
+  },
+
+  async onDeploy ({ files, project, config }) {
+    // Rebuild the representation accepted by Salesforce.
   }
 })
 ```
 
-Plugins and renderers run sequentially in configuration order. Every extension
-sees the complete result of the previous one.
+The selection passed to `resolveSelection` exposes `match`, `has`, `include`,
+`exclude`, `replace` and `values`. This makes a partial operation behave as if
+the user had selected the complete rendered artifact.
 
-The `.sfdy.json` configuration keys and path-based loading remain unchanged:
-use `postRetrievePlugins`, `preDeployPlugins` and `renderers` as before.
+See the
+[built-in static resource renderer](src/renderers/static-resource-bundle.js)
+for a complete implementation covering selection remapping, binary files,
+generated files and output cleanup.
 
-#### Legacy API compatibility
+### Shared context
 
-Modules without `apiVersion: 2` continue to use Plugin API v1 through a
-compatibility adapter and emit a deprecation warning on every run. Legacy
-extensions run at the same project-format stage as v2 extensions. Therefore a
-legacy extension may continue to work unchanged in an SFDX project when its
-paths and XML structure are unaffected, but format-dependent transformations
-must be migrated.
+All hooks receive the values relevant to their phase plus this shared context:
 
-The compatibility adapter preserves `xmlTransformer`, `modifyRawContent`,
-`filterMetadata`, `requireMetadata`, `addRemapper`, `requireFiles`, `addFiles`
-and `cleanFiles`. Plugin API v1 is planned for removal in sfdy 3.
+- `direction`: `retrieve` or `deploy`;
+- `format`: `metadata` or `sfdx`;
+- `target.environment` and `target.username`;
+- `config`: the complete project configuration;
+- `log`: `debug`, `info`, `warn` and `error` methods;
+- `salesforce`: the authenticated Salesforce client.
 
-### Legacy: build plugins with API v1
+The Salesforce client exposes `query`, `rest`, `metadata`,
+`describeMetadata`, `listMetadata` and `publishCommunity`. Pass `true` as the
+second argument of `query` to use the Tooling API.
 
-This section documents the deprecated v1 API for existing plugins. New plugins
-should use Plugin API v2 above; the built-in plugins in [plugins](src/plugins)
-are v2 examples.
+Errors are annotated with the extension name and failing hook. XML parse
+errors also identify the offending project path.
 
-A plugin is a `.js` module that exports a function with this signature:
+### TypeScript and Plugin API v1
 
-```javascript
-module.exports = async (context, helpers, utils) => {
-  //TODO -> Plugin implementation
+`sfdy/plugin` ships TypeScript declarations. A typed project-specific config
+can be inferred through the helper generic:
+
+```ts
+import { definePlugin } from 'sfdy/plugin'
+
+type Config = {
+  namespaces: string[]
 }
-```
 
-#### `context`
+export default definePlugin<Config>({
+  name: 'typed-plugin',
 
-- `sfdcConnector` - an instance of a Salesforce connector. It exposes 2 methods, `query` and `rest`
-- `environment` - The value of the environment variable `environment`. It can be used to execute different patches in different sandboxes
-- `username` - The username used to login
-- `log` - A `log` function that should be used instead of `console.log` if you want to log something. The reason is that, when used as a library, `sfdy` can accept a custom logger implementation. When used as a command line tool, the `log` function fallbacks to `console.log`
-- `pkg` - A JSON representation of the `package.xml`
-- `config` - The content of `.sfdy.json` (as a JSON object)
-
-#### `helpers`
-
-- `xmlTransformer (pattern, callback1)` - This helper allows the developer to easily transform one or more metadata (identified by `pattern`), using a `callback` function. See [examples](#examples) to understand how to use it
-- `modifyRawContent (pattern, callback2)` - This helper allows the developer to manipulate the whole metadata file. It is useful if you want to edit a file that is not an XML, or if you want to apply drastic transformations
-- `filterMetadata (filterFn)` - This helper can be used in a post-retrieve plugin to filter out unwanted metadata
-- `requireMetadata (pattern, callback3)` - This helper can be used to define dependencies between metadata. For example, a `Profile` must be retrieved together with `CustomObject` metadata to also get the list of `fieldPermissions`. By defining such a dependency using `requireMetadata`, whenever you retrieve a `Profile`, all dependent metadata are automatically included in the `package.xml` and eventually discarded at the end of the retrieve operation, just to retrieve all the related parts of the original metadata you wanted to retrieve
-- `addRemapper (regex, callback4)` - This helper can be used to map an arbitrary file to a file representing Salesforce metadata. For example, it can be used to instruct `sfdy` to deploy/retrieve a `.resource` file when you deploy/retrieve a file inside an uncompressed bundle. `regex` is a `RegExp` object defining the matching patterns
-
-##### `callback1 (filename, fJson, requireFiles, addFiles, cleanFiles)`
-
-- `filename` - The current filename
-- `fJson`  -  JSON representation of the XML. You can modify the object to modify the XML
-- `requireFiles (filenames: string[]): Promise<Entry[]>` - An async function taking an array of glob patterns and returning an array of `{ fileName: string, data: Buffer }` objects representing files. The files are taken from memory if you are requiring files that you are retrieving/deploying, otherwise, they are searched in the filesystem. These files will be added to the files that will be retrieved/deployed unless you specify a filter with the `filterMetadata` helper. This helper is useful when you want to act on metadata based on another one (for example you need to retrieve the versioned fields from a `.object` file to add/delete FLS from `profiles`).
-- `addFiles (entries: Entry[])` - A function taking an array of `{ fileName: string, data: Buffer }` objects representing files. This function is similar to `requireFiles`. The main difference is that `requireFiles` looks for existing files, while `addFiles` let you add arbitrary data to the retrieved/deployed files. For this reason, it is best suited to be used in a `renderer`
-- `cleanFiles (filenames: string[])` - A function taking an array of glob patterns. This function lets you specify files that should be deleted. It should be used in the context of an after-retrieve plugin or a transform renderer (for example it is used to clean up an uncompressed staticresource bundle before uncompressing the `.resource` file coming from Salesforce)
-
-##### `callback2 (filename, file, requireFiles, addFiles, cleanFiles)`
-
-- `filename` - The current filename
-- `file` is an object containing a `data` field. `data` is a buffer containing the whole file. You can modify `data` to modify the file
-- `requireFiles (filenames: string[]): Promise<Entry[]>` - See [callback1](#callback1-filename-fjson-requirefiles-addfiles-cleanfiles)
-- `addFiles (entries: Entry[])` - See [callback1](#callback1-filename-fjson-requirefiles-addfiles-cleanfiles)
-- `cleanFiles (filenames: string[])` - See [callback1](#callback1-filename-fjson-requirefiles-addfiles-cleanfiles)
-
-##### `filterFn (filename)`
-
-- `filename: string` - The current filename, including the path (for example `classes/MyClass.cls`)
-
-##### `callback3 ({ filterPackage, requirePackage })`
-
-- `filterPackage (arrayOfMetadata: string[])` - A function taking an array of metadata that should be included together with metadata matched by `pattern`. The 'companions' will be retrieved only if they are present in the stored `package.xml`. For example, if you retrieve a profile, the profile will be retrieved together with the referenced `CustomObject`
-
-- `requirePackage (arrayOfMetadata: string[])` - The same as `filterPackage`, but the included metadata will be added to `package.xml` whether they were present before or not. In this case, `arrayOfMetadata` is an array of 'pseudo' glob patterns (ex. `['CustomApplication/*', 'CustomObject/Account']`)
-
-##### `callback4 (fileName, regexp): string`
-
-- `fileName: string` - The current filename, including the path (for example `classes/MyClass.cls`)
-- `regexp: RegExp` - The regexp originally passed to the helper
-- return value: a string representing the mapped filename
-
-### utils `{ parseXml, buildXml, parseXmlNoArray }`
-
-Helpers function. See [here](src/utils/xml-utils.js)
-
-To instruct `sfdy` to use your plugin, you have to configure the path of your plugin in the `.sfdy.json` file:
-
-```json
-{
-  "preDeployPlugins": ["sfdy-plugins/my-awesome-plugin.js"],
-  "postRetrievePlugins": ["sfdy-plugins/my-wonderful-plugin.js"]
-}
-```
-
-You have 2 different 'hooks' to choose from:
-
-- `postRetrievePlugins` are executed just before the metadata retrieved from Salesforce is stored on the filesystem
-- `preDeployPlugins` are executed before deploying metadata to Salesforce
-
-#### Examples
-
-##### Change the endpoint of a named credential (better suited as a `preDeployPlugin`)
-
-```javascript
-module.exports = async ({ environment, log }, helpers) => {
-  helpers.xmlTransformer('namedCredentials/*', async (filename, fJson) => {
-    log(`Patching ${filename}...`)    
-    if(filename === 'idontwanttochangethis.NamedCredential') return
-
-    switch(environment) {
-      case 'uat':
-        fJson.endpoint = 'https://uat-endpoint.com/restservice'
-        break
-      case 'prod':
-        fJson.endpoint = 'https://prod-endpoint.com/restservice'
-        break
-      default:
-        fJson.endpoint = 'https://test-endpoint.com/restservice'
-        break
-      
-      log('Done')    
-    }
-  })
-}
-```
-
-##### Remove every field and every apex class that starts with `Test_` (better suited as a `postRetrievePlugin`)
-
-```javascript
-module.exports = async ({ environment, log }, helpers) => {
-  helpers.xmlTransformer('objects/*', async (filename, fJson) => {
-    log(`Patching ${filename}...`)    
-    fJson.fields = (fJson.fields || []).filter(field => !field.FullName[0].startsWith('Test_'))
-    log('Done')        
-  })
-
-  helpers.filterMetadata(fileName => !/classes\/Test_[^\/]+\.cls$/.test(fileName))
-}
-```
-
-> **Warning:** fJson contains the json representation of the metadata file. The root tag of the metadata is omitted for convenience. Every tag is treated as an array
-
-> **Warning:** The callback function ot the `xmlTransformer` helper MUST return a `Promise`
-
-##### Query Salesforce to apply advanced transformations
-
-See [this](src/plugins/profile-plugins/add-all-permissions-to-custom-profiles.js)
-
-##### Define dependencies between metadata
-
-See [this](src/plugins/dependency-graph.js)
-
-### Build your own renderers
-
-A renderer is a `.js` file that exports an object with this signature:
-
-```javascript
-module.exports = {
-  transform: async (context, helpers, utils) => {
-    //TODO -> Transform
-  },
-  untransform: async (context, helpers, utils) => {
-    //TODO -> Untransform
+  onRetrieve ({ files, config }) {
+    files.exclude(config.namespaces.map(namespace =>
+      `objects/${namespace}__*/**/*`))
   }
-}
+})
 ```
 
-The `transform` function is applied after the retrieve operation and after the execution of the post-retrieve plugins. The `untransform` function is applied as soon as you start a deployment, before the application of the pre-deploy plugins and the actual deployment.
+Compile TypeScript extensions to JavaScript before loading them from
+`.sfdy.json`.
 
-A renderer can be used to transform the metadata in the format you like. For example, you could think to split a `.object` file into different files, one for `fields` and one per `recordtypes`, or to even convert everything in JSON, or represent some information as a `.csv` file. You can do what best fit your needs.
+Plugin API v1 extensions are still adapted automatically. They now run in the
+project representation and emit a deprecation warning because format-dependent
+extensions may require migration. API v1 is scheduled for removal in `sfdy`
+3.
 
-To instruct `sfdy` to use your renderer, you have to configure the path of your renderer in the `.sfdy.json` file:
+## JavaScript API
 
-```json
-{
-  "renderers": ["sfdy-plugins/my-awesome-renderer.js"]
-}
-```
-
-> **Tip:** You do not have to include the renderer whithin your salesforce project to be able to use it, so you can use your plugin referencing it from all of your project workspaces!
-
-#### Example - Store profiles as JSON files
+The CLI is a thin wrapper around the same public functions used by
+`fast-sfdc` and other integrations:
 
 ```js
-module.exports = {
-  transform: async (context, helpers, { parseXmlNoArray }) => {
-    helpers.modifyRawContent('profiles/*', async (filename, file) => {
-      const fJson = await parseXmlNoArray(file.data)
-      file.data = Buffer.from(JSON.stringify(fJson, null, 2), 'utf8')
-    })
-  },
-  untransform: async (context, helpers, { buildXml }) => {
-    helpers.modifyRawContent('profiles/*', async (filename, file) => {
-      const fJson = JSON.parse(file.data.toString())
-      file.data = Buffer.from(buildXml(fJson), 'utf8')
-    })
-  }
-}
+const { deploy, retrieve, transformer, auth } = require('sfdy')
 ```
 
-#### Example - Handle zip staticresources as uncompressed folders
-
-See [here](src/renderers/static-resource-bundle.js)
-
-### Use `sfdy` as a library
-
-It's as simple as that:
-
-```bash
-npm i sfdy
-```
-
-#### retrieve
+### Deploy programmatically
 
 ```js
-const retrieve = require('sfdy/retrieve')
+const path = require('node:path')
+const { deploy } = require('sfdy')
 
-retrieve({
-  basePath: 'root/folder',
+const basePath = path.resolve('your-salesforce-project')
+const config = {
+  sourceFormat: 'sfdx',
+  preDeployPlugins: ['sfdy-plugins/environment-endpoints.js'],
+  renderers: []
+}
+
+const result = await deploy({
+  basePath,
+  config,
+  loginOpts: {
+    serverUrl: process.env.SFDY_SERVER_URL,
+    clientId: process.env.SFDY_CLIENT_ID,
+    clientSecret: process.env.SFDY_CLIENT_SECRET
+  },
+  diffCfg: 'origin/main..HEAD',
+  preDeployPlugins: config.preDeployPlugins,
+  renderers: config.renderers,
+  checkOnly: true,
+  testLevel: 'RunSpecifiedTests',
+  specifiedTests: 'AccountServiceTest'
+})
+
+if (result.status !== 'Succeeded') process.exitCode = 1
+```
+
+Important deploy options are:
+
+- project: `basePath`, `srcFolder`, `sourceFormat`, `config`;
+- selection: `files` or `diffCfg`;
+- extensions: `preDeployPlugins`, `renderers`;
+- behavior: `checkOnly`, `destructive`, `destructivePackage`,
+  `ignoreWarnings`, `quickDeploy`;
+- tests: `testLevel`, `specifiedTests`, `testReport`;
+- output: `logger(message)`.
+
+Plugin and renderer entries can be paths, configuration descriptors or
+already imported API v2 definitions.
+
+### Retrieve programmatically
+
+```js
+const path = require('node:path')
+const { retrieve } = require('sfdy')
+
+const basePath = path.resolve('your-salesforce-project')
+
+await retrieve({
+  basePath,
   config: {
-    //.sfdy.json like config
+    sourceFormat: 'sfdx',
+    postRetrievePlugins: ['sfdy-plugins/normalize-retrieve.js'],
+    renderers: []
   },
-  files: [ /*specific files*/ ],
   loginOpts: {
-    serverUrl: creds.url,
-    username: creds.username,
-    password: creds.password
+    serverUrl: process.env.SFDY_SERVER_URL,
+    clientId: process.env.SFDY_CLIENT_ID,
+    clientSecret: process.env.SFDY_CLIENT_SECRET
   },
-  meta: [/*specific meta*/]
-  logger: (msg: string) => logger.appendLine(msg)
-}).then(() => console.log('Done!'))
+  meta: 'CustomObject/Account,Profile/Admin',
+  logger: console.log
+})
 ```
 
-#### deploy
+Use `files` for project-path selection or `meta` for
+`MetadataType/fullName` selection. A retrieve resolves after the transformed
+files have been written to the source folder.
 
-```js
-const deploy = require('sfdy/deploy')
+Both operations accept these authentication shapes in `loginOpts`:
 
-deploy({
-  logger: (msg: string) => logger.appendLine(msg),
-  preDeployPlugins,
-  renderers,
-  basePath: 'root/folder',
-  loginOpts: {
-    serverUrl: creds.url,
-    username: creds.username,
-    password: creds.password
-  },
-  checkOnly,
-  files: ['specific', 'files']
-}).then(() => console.log('Done!'))
-```
+- `serverUrl`, `clientId`, `clientSecret` for OAuth client credentials;
+- `instanceUrl`, `refreshToken` and optional client credentials for refresh
+  token authentication;
+- `username`, `password` and optional `sandbox` for the legacy SOAP login.
 
-## Changelog
+The lower-level transformer API additionally accepts an existing
+`sessionId`/`instanceHostname` pair.
 
-- 2.0.0
-  - Requires Node.js 22 or newer
-  - Adds OAuth 2.0 client credentials authentication for CI/CD
-  - Replaces private `sfdy/src/*` imports with supported public subpath exports
-  - Uses the native Fetch API and updates the dependency tree
+### Supported package exports
 
-- 1.8.1
-  - Prints the corrupted filename if a trasformation fails because of a corrupt xml
-  - Fix minor vulnerability
+| Export | Purpose |
+| --- | --- |
+| `sfdy` | `auth`, `deploy`, `retrieve`, `transformer` |
+| `sfdy/plugin` | Plugin API v2 helpers, file model, selections and TypeScript types |
+| `sfdy/deploy`, `sfdy/retrieve` | Direct operation imports |
+| `sfdy/transformer` | Local transform and untransform operations |
+| `sfdy/auth` | Interactive OAuth web-server flow |
+| `sfdy/format-adapters` | Project-format resolution and adapters |
+| `sfdy/package-utils` | Manifest and metadata mapping utilities |
+| `sfdy/sfdc-utils` | Authenticated low-level Salesforce client factory |
+| `sfdy/xml-utils` | XML parsing and serialization utilities |
+| `sfdy/path-service`, `sfdy/constants` | Project paths and shared constants |
 
-- 1.7.8
-  - Fix error when retrieving profiles that contain `'`
+## Where sfdy fits
 
-- 1.7.7
-  - Fix quick deploy polling
+`sfdy` is not a replacement for every Salesforce CLI command, and it does not
+try to manage the complete Salesforce development lifecycle.
 
-- 1.7.6
-  - Fix quick deploy polling
-  
-- 1.7.5
-  - Printing deployment id
-  - Better error reporting when package.xml is corrupt
+Use Salesforce CLI when you need its broad platform capabilities, such as
+scratch-org lifecycle management, packaging or data operations.
 
-- 1.7.4
-  - Bugfixing
+Use `sfdy` when you want a focused and dependable metadata delivery engine:
 
-- 1.7.3
-  - Bugfixing
+- your Git repository is the source of truth;
+- deployments must behave consistently from a laptop to production;
+- your pipeline should deploy only what changed;
+- metadata requires normalization between orgs and source control;
+- you want to extend the workflow with ordinary JavaScript;
+- you value a small maintenance surface over a large feature surface.
 
-- 1.7.2
-  - Handling `Territory2*` metadata, that works differently from everything else
-  - Updated dependencies to fix vulnerabilities
+## Stability is a feature
 
-- 1.7.1
-  - Added `--ignoreWarnings` option to `sfdy deploy` to ignore deployment warnings. If you don't pass this option, a warning during the deployment will cause the entire deployment to fail. Thanks, [maiantialberto](https://github.com/maiantialberto)
-  - Corrected several typos in the documentation
+`sfdy` has been used and maintained since 2019. Its core workflow has remained
+recognizable across Salesforce CLI generations and changes to the Salesforce
+platform.
 
-- 1.7.0
-  - Added `community:publish` command to publish an experience bundle after deployment
-  - Added `--quick-deploy=deploymentId` option to `sfdy deploy` to perform a quick deploy
+That is intentional. Delivery infrastructure should not demand constant
+attention merely to keep performing the same job. `sfdy` favors a small API,
+explicit behavior and targeted evolution over perpetual reinvention.
 
-- 1.6.5
-  - Fix instanceUrl redirection to new `*.sandbox.my.salesforce.com` domains when using oauth2
+## Documentation
 
-- 1.6.4
-  - Faster getListOfSrcFiles when using `**/*`
-  - Added web scope to Oauth2 auth
-  - Faster `PermissionSet` retrieval
-
-- 1.6.3
-  - Fixed plugins context variable when OAuth2 flow is used
-
-- 1.6.2
-  - Fixed broken soapLogin
-
-- 1.6.1
-  - Minor bug fixing
-
-- 1.6.0
-  - Oauth2 web server auth flow: get a refresh token using an oauth2 flow. If you have enabled MFA you should use this auth method
-
-- 1.5.3
-  - Minor bug fixing
-
-- 1.5.2
-  - Retrieve: When `--files` option is used, the real list of files is shown instead of the raw glob patterns
-  - Bugfixing: glob expression parser now recognizes expressions with {}
-  - Bugfixing: negated glob patterns have the highest priority
-  - Bugfixing: fix retrieve of in-folder metadata (for example a report in a folder) when using `--meta`
-
-- 1.5.1
-  - Bugfixing: fix deployment of static resource bundle
-
-- 1.5.0
-  - Deploy: added the possibility to skip some files from deploying. To do that, add for example `"excludeFiles": ["lwc/**/__tests__/**/*"]` to `.sfdy.json`
-
-- 1.4.7
-  - Bugfixing: fix another regression handling folder in an in-folder metadata
-
-- 1.4.6
-  - Bugfixing: fix regression handling folders in in-folder metadata
-
-- 1.4.5
-  - Bugfixing: solved the 'multiple metadata types in same folder' issue. It is now possible to retrieve and deploy correctly wave metadata
-
-- 1.4.4
-  - Destructive changeset: added the possibility to pass both a `package.xml` or a glob pattern. See [here](#deploy-a-destructive-changeset). Thanks, [zerbfra](https://github.com/zerbfra)
-  - Bugfixing: fixed crash when `--diff` returned only files outside the `src` folder
-
-- 1.4.3
-  - Bugfixing: fixed exclusion glob pattern when using `--files` option
-
-- 1.4.2
-  - Bugfixing: fixed issue when deploying ExperienceBundle
-
-- 1.4.1
-  - Bugfixing: fixed issue when deploying with --diff a report in a nested folder
-
-- 1.4.0
-  - Transformer API. API to load unrendered files in memory
-
-- 1.3.6
-  - Bugfixing: `--diff` and `--files` flag can be used together
-
-- 1.3.5
-  - Bugfixing: [Handle --diff that finds no diff in the src folder](issues/8)
-
-- 1.3.4
-  - Bugfixing: [Delta deployment of in-folder metadata (Report, Document, Email, Dashboard) fails](issues/10)
-  - Minor Bugfixing
-
-- 1.3.3
-  - Bugfixing
-  - `--files` option: now you can pass specific file paths (not glob patterns) even if the files are not present in the filesystem
-
-- 1.3.2
-  - README.md fixes
-  - Static resource bundle renderer cleans `.resource` file when active, and the uncompressed folder when inactive
-
-- 1.3.1
-  - README.md fixes
-
-- 1.3.0
-  - Added `addRemapper` helper function
-  - Added `addFiles`, `cleanFiles` utility functions to plugin helpers. (See [here](#callback1-filename-fjson-requirefiles-addfiles-cleanfiles))
-  - Static resource bundle [renderer](#apply-standard-patches-and-renderers-to-metadata)
-
-- 1.2.0
-  - [destructive changesets](#deploy-a-destructive-changeset) support
-  - `README.md` improvements. Thanks, [tr4uma](https://github.com/tr4uma)
-
-- 1.1.0
-  - First release
+- [fast-sfdc on the VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=m1ck83.fast-sfdc)
+- [Salesforce Metadata API](https://developer.salesforce.com/docs/atlas.en-us.api_meta.meta/api_meta/meta_intro.htm)
+- [MIT license](LICENSE)
