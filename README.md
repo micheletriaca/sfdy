@@ -9,7 +9,18 @@ projects—in full, by file, or directly from a Git diff.
 The same small engine runs from the terminal, in CI/CD and behind the
 [fast-sfdc VS Code extension](https://marketplace.visualstudio.com/items?itemName=m1ck83.fast-sfdc).
 
-## From zero to metadata
+## Contents
+
+- [Quick start](#quick-start)
+- [Why sfdy](#why-sfdy)
+- [Small by design](#small-by-design)
+- [Command-line workflows](#command-line-workflows)
+- [Standard patches and custom plugins](#standard-patches-and-custom-plugins)
+- [Extending sfdy](#extending-sfdy)
+- [JavaScript API](#javascript-api)
+- [Where sfdy fits](#where-sfdy-fits)
+
+## Quick start
 
 `sfdy` requires Node.js 22 or newer. Install it once, then run one command from
 an empty directory or an existing Salesforce project:
