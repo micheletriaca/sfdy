@@ -10,14 +10,19 @@ module.exports = definePlugin({
   name: 'core-add-profile-object-permissions',
   stage: 'metadata',
 
+  enabled: ({ files, config }) => {
+    const extraObjects = get(config, 'profiles.addExtraObjects', [])
+    return (extraObjects.length > 0 || !!get(config, 'profiles.addDisabledVersionedObjects')) &&
+      files.match('profiles/**/*').length > 0
+  },
+
   async onRetrieve ({ files, project, config, salesforce, log }) {
-    if (!get(config, 'profiles.addExtraObjects') && !get(config, 'profiles.addDisabledVersionedObjects')) return
+    const extraObjectsGlob = get(config, 'profiles.addExtraObjects', [])
     const services = {
       query: _.memoize(salesforce.query.bind(salesforce)),
       salesforce
     }
     const retrieveObjects = _.memoize(group => retrieveAllObjects(group, services))
-    const extraObjectsGlob = get(config, 'profiles.addExtraObjects', [])
     const versionedObjects = getVersionedObjects(project.match('objects/**/*'))
     const allObjectsPerLicense = await retrieveObjects('license')
 

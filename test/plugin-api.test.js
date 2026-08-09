@@ -65,6 +65,33 @@ test('plugin XML errors identify the offending project file', async () => {
   )
 })
 
+test('XML writes are cached between plugins and remain explicit', async () => {
+  const tree = new FileTree({
+    files: [entry(
+      'profiles/Admin.profile',
+      '<Profile xmlns="http://soap.sforce.com/2006/04/metadata"><label>Initial</label></Profile>'
+    )]
+  })
+  const file = tree.files.get('profiles/Admin.profile')
+
+  const uncommitted = await file.readXml()
+  uncommitted.label = ['Not written']
+  assert.deepEqual((await file.readXml()).label, ['Initial'])
+
+  const committed = await file.readXml()
+  committed.label = ['First plugin']
+  await file.writeXml(committed)
+  const nextPlugin = await file.readXml()
+  assert.deepEqual(nextPlugin.label, ['First plugin'])
+  nextPlugin.description = ['Second plugin']
+  await file.writeXml(nextPlugin)
+
+  const output = await file.readText()
+  assert.match(output, /xmlns="http:\/\/soap\.sforce\.com\/2006\/04\/metadata"/)
+  assert.match(output, /<label>First plugin<\/label>/)
+  assert.match(output, /<description>Second plugin<\/description>/)
+})
+
 test('excluded incoming files fall back to disk while deleted files hide it', async () => {
   const tree = new FileTree({
     diskEntries: [entry('profiles/Admin.profile', 'stored')],

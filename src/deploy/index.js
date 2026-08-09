@@ -87,6 +87,10 @@ module.exports = async ({
       formatAdapter
     })
   }
+  if (deployJob.skipped) {
+    console.timeEnd('running time')
+    return deployJob
+  }
   logger.log(chalk.yellow(`Deployment Id: ${deployJob.id}`))
 
   const typeOfDeploy = checkOnly ? 'Validate' : 'Deploy'
@@ -308,7 +312,7 @@ const performFullDeploy = async ({
 
   if (!targetFiles.length) {
     logger.log(chalk.yellow('No files to deploy. Deploy skipped'))
-    return { status: 'Succeeded' }
+    return { status: 'Succeeded', skipped: true }
   }
 
   logger.time('zip creation')

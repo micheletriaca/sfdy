@@ -32,6 +32,16 @@ const executeHook = async (extension, hookName, context) => {
   }
 }
 
+const isEnabled = async (extension, context) => {
+  if (!extension.enabled) return true
+  try {
+    return !!(await extension.enabled(context))
+  } catch (error) {
+    error.message = `Extension ${extension.name || '<anonymous>'} failed in enabled: ${error.message}`
+    throw error
+  }
+}
+
 const appliesTo = (extension, { stage = 'project', format }) =>
   (extension.stage || 'project') === stage &&
   (!extension.formats || extension.formats.includes(format))
@@ -39,7 +49,9 @@ const appliesTo = (extension, { stage = 'project', format }) =>
 const planExtensions = async ({ extensions, selection, inventory, ...options }) => {
   const context = { ...createBaseContext(options), selection, inventory }
   for (const extension of extensions) {
+    if (!extension.plan) continue
     if (extension.formats && !extension.formats.includes(options.format)) continue
+    if (!await isEnabled(extension, context)) continue
     await executeHook(extension, 'plan', context)
   }
 }
@@ -56,6 +68,8 @@ const runExtensions = async ({ extensions, fileTree, ...options }) => {
   }
   for (const extension of extensions) {
     if (!appliesTo(extension, options)) continue
+    if (!(extension.run || extension[options.direction === 'retrieve' ? 'onRetrieve' : 'onDeploy'])) continue
+    if (!await isEnabled(extension, context)) continue
     await executeHook(extension, 'run', context)
     await executeHook(extension, options.direction === 'retrieve' ? 'onRetrieve' : 'onDeploy', context)
   }
@@ -65,6 +79,8 @@ const resolveSelections = async ({ extensions, selection, project, ...options })
   const context = { ...createBaseContext(options), selection, project }
   for (const extension of extensions) {
     if (!appliesTo(extension, options)) continue
+    if (!extension.resolveSelection) continue
+    if (!await isEnabled(extension, context)) continue
     await executeHook(extension, 'resolveSelection', context)
   }
 }

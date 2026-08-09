@@ -38,10 +38,16 @@ class ProjectFile {
   }
 
   async readXml () {
-    return (await parseXmlRoot(await this.readBytes(), {
+    const record = this._tree._getRecord(this.path, this._layer)
+    if (!record) throw new Error(`File not found: ${this.path}`)
+    if (record.xmlDocument) return structuredClone(record.xmlDocument)
+    const parsed = await parseXmlRoot(this._tree._recordData(record), {
       filePath: this.path,
       label: 'Plugin XML file'
-    })).root
+    })
+    record.xmlRoot = parsed.rootName
+    record.xmlDocument = structuredClone(parsed.root)
+    return structuredClone(record.xmlDocument)
   }
 }
 
@@ -68,9 +74,9 @@ class MutableFile extends ProjectFile {
         filePath: this.path,
         label: 'Plugin XML file'
       })).rootName
-      record.xmlRoot = root
     }
-    return this.writeText(buildXml({ [root]: xml }) + '\n')
+    this._tree._writeXml(this.path, root, xml)
+    return this
   }
 
   exclude () {
@@ -228,6 +234,13 @@ class FileTree {
   }
 
   _recordData (record) {
+    if (record.xmlDirty) {
+      record.data = Buffer.from(buildXml({
+        [record.xmlRoot]: structuredClone(record.xmlDocument)
+      }) + '\n')
+      record.xmlDirty = false
+      record.loadData = undefined
+    }
     if (record.data === undefined) {
       record.data = cloneBuffer(record.loadData ? record.loadData() : undefined)
       record.loadData = undefined
@@ -267,6 +280,19 @@ class FileTree {
     record.loadData = undefined
     record.modified = true
     record.xmlRoot = undefined
+    record.xmlDocument = undefined
+    record.xmlDirty = false
+  }
+
+  _writeXml (filePath, root, xml) {
+    const record = this._files.get(filePath)
+    if (!record || record.excluded || this._deleted.has(filePath)) {
+      throw new Error(`File is not part of the operation: ${filePath}`)
+    }
+    record.xmlRoot = root
+    record.xmlDocument = structuredClone(xml)
+    record.xmlDirty = true
+    record.modified = true
   }
 
   _exclude (filePath) {

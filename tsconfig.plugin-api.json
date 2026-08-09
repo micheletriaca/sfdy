@@ -7,5 +7,5 @@
     "target": "ES2022",
     "types": ["node"]
   },
-  "include": ["test/types/plugin-api.ts"]
+  "include": ["test/types/plugin-api.ts", "test/types/credentials.ts"]
 }

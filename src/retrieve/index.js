@@ -49,8 +49,9 @@ module.exports = async ({
   logger.log(chalk.green(`Logged in as ${sfdcConnector.username}!`))
   const packageMapping = await getPackageMapping(sfdcConnector)
   if (formatAdapter) formatAdapter = getAdapter(config, sourceFormat, packageMapping)
+  const diskEntries = await readProjectEntries(pathService.getSrcFolder(true))
   const localSourceFiles = formatAdapter
-    ? await globby(['**/*'], { cwd: pathService.getSrcFolder(true) })
+    ? diskEntries.map(entry => entry.fileName)
     : []
   const localSourceComponents = formatAdapter
     ? formatAdapter.resolve(localSourceFiles.filter(fileName => formatAdapter.isMetadataPath(fileName)))
@@ -58,7 +59,6 @@ module.exports = async ({
   const localPackageComponents = formatAdapter
     ? formatAdapter.getPackageComponents(localSourceComponents)
     : []
-  const diskEntries = await readProjectEntries(pathService.getSrcFolder(true))
   const preparedRenderers = prepareExtensions({
     entries: [
       ...(formatAdapter ? [] : standardRenderers),
@@ -198,6 +198,7 @@ module.exports = async ({
     metadataPlugins: [...standardPlugins, ...preparedPlugins.extensions],
     renderers: preparedRenderers.extensions,
     config,
+    diskEntries,
     retrievePackage: packageJsonWithDependencies
   })
   logger.log(chalk.green('Unzipped!'))

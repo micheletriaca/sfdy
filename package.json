@@ -19,6 +19,10 @@
     ".": "./src/index.js",
     "./auth": "./src/auth/index.js",
     "./constants": "./src/utils/constants.js",
+    "./credentials": {
+      "types": "./src/credentials/index.d.ts",
+      "default": "./src/credentials/index.js"
+    },
     "./deploy": "./src/deploy/index.js",
     "./format-adapters": "./src/format-adapters/index.js",
     "./package-utils": "./src/utils/package-utils.js",
@@ -44,7 +48,7 @@
   "scripts": {
     "check-types": "tsc -p tsconfig.plugin-api.json",
     "lint": "eslint src test",
-    "test": "npm run check-types && npm run lint && node test/auth-utils.test.js && node test/client-credentials.test.js && node test/plugin-api.test.js && node test/core-plugins.test.js && node test/streaming-deploy.test.js && node test/metadata-manifestless-integration.test.js && node test/sfdx-format-adapter.test.js && node test/sfdx-deploy-integration.test.js && node test/sfdx-retrieve-integration.test.js && node test/sfdx-retrieve-command-integration.test.js && node test/sfdx-transformer-integration.test.js"
+    "test": "npm run check-types && npm run lint && node test/auth-utils.test.js && node test/client-credentials.test.js && node test/credentials.test.js && node test/prompt-utils.test.js && node test/public-exports.test.js && node test/plugin-api.test.js && node test/core-plugins.test.js && node test/streaming-deploy.test.js && node test/metadata-manifestless-integration.test.js && node test/sfdx-format-adapter.test.js && node test/sfdx-deploy-integration.test.js && node test/sfdx-retrieve-integration.test.js && node test/sfdx-retrieve-command-integration.test.js && node test/sfdx-transformer-integration.test.js"
   },
   "dependencies": {
     "base64-stream": "^1.0.0",
@@ -70,5 +74,8 @@
     "eslint-plugin-n": "^16.6.2",
     "eslint-plugin-promise": "^6.6.0",
     "typescript": "^7.0.2"
+  },
+  "optionalDependencies": {
+    "@napi-rs/keyring": "^1.3.0"
   }
 }

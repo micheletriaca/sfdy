@@ -146,7 +146,8 @@ sfdy deploy --diff='origin/main..HEAD'
 For local interactive authentication:
 
 ```bash
-sfdy auth -s
+sfdy auth --save --alias dev
+sfdy retrieve --target dev
 ```
 
 Run `sfdy --help` to list commands and `sfdy <command> --help` for command
@@ -213,9 +214,38 @@ authentication method:
 
 | Use case | Credentials |
 | --- | --- |
+| Saved project login | `--target <alias>` or `--username <username>` |
 | CI/CD | `SFDY_SERVER_URL`, `SFDY_CLIENT_ID`, `SFDY_CLIENT_SECRET` |
 | Local OAuth | `SFDY_INSTANCE_URL`, `SFDY_REFRESH_TOKEN` |
 | Legacy login | `--username` and `--password` |
+
+Save an OAuth login directly in the project:
+
+```bash
+sfdy auth --save --alias dev
+sfdy retrieve --target dev
+```
+
+The credential alias is also used as its plugin environment by default. Use
+`--environment` only when several credentials should share the same logical
+environment, for example `--alias uat-admin --environment uat`.
+When `--alias` is omitted in an interactive terminal, `sfdy` asks for one and
+does not accept an empty value. Non-interactive authentication with `--save`
+requires `--alias` explicitly.
+
+The encrypted vault lives in `.sfdy/credentials.vault` and is automatically
+ignored by Git. Only its encryption key is stored in the operating-system
+keychain, so `sfdy` and `fast-sfdc` can safely use the same project credentials.
+
+There is deliberately no implicit current target. Without complete command-line
+or environment credentials, pass `--target` (or a saved username) explicitly.
+In an interactive terminal, omitting it always opens the credential picker. In
+CI or any non-interactive process, omitting it is an error.
+
+```bash
+sfdy credentials
+sfdy credentials --remove dev
+```
 
 OAuth client credentials are recommended for CI/CD. `SFDY_SERVER_URL` must be
 the org's My Domain URL, including the sandbox domain when applicable:
@@ -228,7 +258,8 @@ export SFDY_CLIENT_SECRET='connected-app-consumer-secret'
 sfdy deploy --validate
 ```
 
-For local development, the web-server flow can populate the current shell:
+For an ephemeral local session, the web-server flow can populate the current
+shell instead of saving the login:
 
 ```bash
 eval "$(sfdy auth -s -e)"
@@ -578,10 +609,26 @@ The optional `formats` property limits an extension to `metadata`, `sfdx`, or
 both project formats. `format` always describes the project, even while a
 plugin is running at the `metadata` stage.
 
+The optional `enabled(context)` predicate skips the extension before any hook
+in the current phase. It may inspect `config`, `direction`, `format`, `target`
+and the phase-specific `selection` or `files` view. Keep it cheap and free of
+I/O; its purpose is to avoid loading or querying data for inactive patches.
+It may return a boolean or a promise:
+
+```js
+enabled: ({ config, files }) =>
+  config.profiles?.normalize === true &&
+  (!files || files.match('profiles/**/*').length > 0)
+```
+
+If an extension participates in more than one phase, `enabled` is evaluated
+once before its hooks in each phase.
+
 #### Plugin hooks
 
 | Hook | When it runs |
 | --- | --- |
+| `enabled(context)` | Before the extension's hooks in the current phase; returning `false` skips it |
 | `plan(context)` | Before a retrieve; can change which components Salesforce returns |
 | `run(context)` | In either direction, at the configured stage |
 | `onRetrieve(context)` | During retrieve, after `run` |
@@ -591,6 +638,7 @@ plugin is running at the `metadata` stage.
 
 | Hook | When it runs |
 | --- | --- |
+| `enabled(context)` | Before the renderer's hooks in the current phase; returning `false` skips it |
 | `resolveSelection(context)` | Before a partial operation; maps selected project paths to the files the renderer needs |
 | `onRetrieve(context)` | Converts retrieved files into their repository representation |
 | `onDeploy(context)` | Rebuilds deployable files from the repository representation |

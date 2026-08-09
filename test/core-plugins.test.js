@@ -68,6 +68,105 @@ test('runtime executes extensions only at their configured stage', async () => {
   assert.deepEqual(calls, ['metadata', 'project'])
 })
 
+test('enabled skips an extension before its hooks and is evaluated once per phase', async () => {
+  const calls = []
+  const disabled = definePlugin({
+    name: 'disabled',
+    enabled: () => {
+      calls.push('disabled.enabled')
+      return false
+    },
+    run: () => calls.push('disabled.run'),
+    onRetrieve: () => calls.push('disabled.retrieve')
+  })
+  const enabled = definePlugin({
+    name: 'enabled',
+    enabled: async ({ config }) => {
+      calls.push('enabled.enabled')
+      return config.active
+    },
+    run: () => calls.push('enabled.run'),
+    onRetrieve: () => calls.push('enabled.retrieve')
+  })
+
+  await runExtensions({
+    ...options,
+    extensions: [disabled, enabled],
+    fileTree: new FileTree(),
+    config: { active: true }
+  })
+
+  assert.deepEqual(calls, [
+    'disabled.enabled',
+    'enabled.enabled',
+    'enabled.run',
+    'enabled.retrieve'
+  ])
+})
+
+test('profile plugins do not query Salesforce when no profiles were retrieved', async () => {
+  let queries = 0
+  const fileTree = new FileTree({
+    files: [entry('classes/Example.cls', 'public class Example {}')]
+  })
+
+  await runExtensions({
+    ...options,
+    extensions: corePlugins,
+    fileTree,
+    stage: 'metadata',
+    config: {
+      profiles: {
+        addDisabledVersionedObjects: true,
+        addExtraObjects: ['*'],
+        addExtraTabVisibility: ['*']
+      }
+    },
+    sfdcConnector: {
+      query: async () => {
+        queries++
+        return []
+      }
+    }
+  })
+
+  assert.equal(queries, 0)
+})
+
+test('disabled profile patches do not query Salesforce when profiles were retrieved', async () => {
+  let queries = 0
+  const fileTree = new FileTree({
+    files: [entry('profiles/Admin.profile', '<Profile><custom>true</custom></Profile>')]
+  })
+
+  await runExtensions({
+    ...options,
+    extensions: corePlugins,
+    fileTree,
+    stage: 'metadata',
+    config: {
+      profiles: {
+        addAllUserPermissions: false,
+        addDisabledVersionedObjects: false,
+        addExtraObjects: [],
+        addExtraTabVisibility: []
+      }
+    },
+    sfdcConnector: {
+      query: async () => {
+        queries++
+        return []
+      },
+      rest: async () => {
+        queries++
+        return {}
+      }
+    }
+  })
+
+  assert.equal(queries, 0)
+})
+
 test('core metadata plugins transform raw metadata through the v2 file API', async () => {
   const tree = new FileTree({
     files: [

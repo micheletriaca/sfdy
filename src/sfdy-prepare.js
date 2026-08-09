@@ -10,7 +10,8 @@ const { getPackageXml, getPackageMapping } = require('./utils/package-utils')
 const pathService = require('./services/path-service')
 const standardPlugins = require('./plugins')
 const { DEFAULT_CLIENT_ID } = require('./utils/constants')
-const { addAuthenticationOptions, configureAuthentication, getOauth2Options } = require('./utils/auth-utils')
+const { addAuthenticationOptions, getOauth2Options } = require('./utils/auth-utils')
+const { resolveAuthentication } = require('./utils/credential-auth-utils')
 const { getAdapter } = require('./format-adapters')
 const { FileTree } = require('./plugin')
 const { runExtensions } = require('./plugin/runtime')
@@ -23,11 +24,10 @@ addAuthenticationOptions(program)
   .option('--skip-untransform', 'Skip untransform phase')
   .parse(process.argv)
 
-const options = configureAuthentication(program.opts())
-
 const config = configService.getConfig()
 
 ;(async () => {
+  const options = await resolveAuthentication(program.opts())
   console.time('running time')
   printLogo()
 

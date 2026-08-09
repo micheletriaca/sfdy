@@ -8,16 +8,16 @@ const { DEFAULT_CLIENT_ID } = require('./utils/constants')
 const logger = require('./services/log-service')
 const configService = require('./services/config-service')
 const pathService = require('./services/path-service')
-const { addAuthenticationOptions, configureAuthentication, getOauth2Options } = require('./utils/auth-utils')
+const { addAuthenticationOptions, getOauth2Options } = require('./utils/auth-utils')
+const { resolveAuthentication } = require('./utils/credential-auth-utils')
 require('./error-handling')()
 
 addAuthenticationOptions(program)
   .option('-n, --community-name <communityName>', 'The community name')
   .parse(process.argv)
 
-const options = configureAuthentication(program.opts())
-
 ;(async () => {
+  const options = await resolveAuthentication(program.opts())
   console.time('running time')
   printLogo()
   if (!options.communityName) {

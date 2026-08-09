@@ -12,7 +12,7 @@ const configureAuthentication = options => {
   fromEnvironment(options, 'instanceUrl', 'SFDY_INSTANCE_URL')
   fromEnvironment(options, 'serverUrl', 'SFDY_SERVER_URL')
 
-  const hasAnyUserPassword = !!options.username || !!options.password
+  const hasAnyUserPassword = !!options.password
   const hasUserPassword = !!options.username && !!options.password
   const hasAnyRefreshToken = !!options.refreshToken || !!options.instanceUrl
   const hasRefreshToken = !!options.refreshToken && !!options.instanceUrl
@@ -32,6 +32,7 @@ const configureAuthentication = options => {
 }
 
 const addAuthenticationOptions = program => program
+  .option('--target <target>', 'Saved Salesforce credential alias')
   .option('-u, --username <username>', 'Username')
   .option('-p, --password <password>', 'Password + Token')
   .option('--refresh-token <refreshToken>', 'OAuth refresh token')
@@ -64,4 +65,10 @@ const getOauth2Options = (options, defaultClientId) => {
   }
 }
 
-module.exports = { AUTH_ERROR, CLIENT_CREDENTIALS_URL_ERROR, addAuthenticationOptions, configureAuthentication, getOauth2Options }
+module.exports = {
+  AUTH_ERROR,
+  CLIENT_CREDENTIALS_URL_ERROR,
+  addAuthenticationOptions,
+  configureAuthentication,
+  getOauth2Options
+}

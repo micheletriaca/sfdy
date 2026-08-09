@@ -19,9 +19,12 @@ module.exports = definePlugin({
   name: 'core-add-profile-tab-visibilities',
   stage: 'metadata',
 
+  enabled: ({ files, config }) =>
+    _.get(config, 'profiles.addExtraTabVisibility', []).length > 0 &&
+    files.match('profiles/**/*').length > 0,
+
   async onRetrieve ({ files, project, config, salesforce, log }) {
     const extraTabsGlob = _.get(config, 'profiles.addExtraTabVisibility', [])
-    if (!extraTabsGlob.length) return
     const query = _.memoize(salesforce.query.bind(salesforce))
     const services = { query, salesforce }
     const allTabs = [

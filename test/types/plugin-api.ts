@@ -14,6 +14,9 @@ definePlugin<ProjectConfig>({
   stage: 'metadata',
   formats: ['metadata', 'sfdx'],
 
+  enabled: ({ config, files }) =>
+    config.namespaces.length > 0 && (!files || files.match('classes/**/*').length > 0),
+
   plan ({ selection, inventory, config }) {
     selection.include(inventory.match(config.namespaces.map(namespace => `CustomField/*.${namespace}__*`)))
   },

@@ -7,7 +7,6 @@ const logger = require('../services/log-service')
 const path = require('path')
 const pathService = require('../services/path-service')
 const { getPackageMapping, getMeta } = require('../utils/package-utils')
-const globby = require('globby')
 const { getComponentModel } = require('../format-adapters')
 const { FileTree } = require('../plugin')
 const { runExtensions } = require('../plugin/runtime')
@@ -78,7 +77,9 @@ module.exports = async (zipBuffer, sfdcConnector, pkgJson, formatAdapter, source
             })
             const filteredEntries = metadataTree.entries()
               .filter(entry => matchesSelection(entry.fileName, outputKeys, packageMapping))
-            const existingFiles = await globby(['**/*'], { cwd: pathService.getSrcFolder(true) })
+            const sourceFolder = pathService.getSrcFolder(true)
+            const diskEntries = extensionPipeline.diskEntries || await readProjectEntries(sourceFolder)
+            const existingFiles = diskEntries.map(entry => entry.fileName)
             const configuredMergePaths = formatAdapter
               ? formatAdapter.getMergePaths(selectedComponents)
               : componentModel.getMetadataMergePaths(selectedComponents)
@@ -104,9 +105,8 @@ module.exports = async (zipBuffer, sfdcConnector, pkgJson, formatAdapter, source
                 components: selectedComponents,
                 existingEntries
               })
-            const sourceFolder = pathService.getSrcFolder(true)
             const fileTree = new FileTree({
-              diskEntries: await readProjectEntries(sourceFolder),
+              diskEntries,
               files: formatted.upserts
             })
             fileTree.markDeleted(formatted.deletes)

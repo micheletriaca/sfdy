@@ -9,8 +9,10 @@ module.exports = definePlugin({
   name: 'core-add-all-custom-profile-permissions',
   stage: 'metadata',
 
-  async onRetrieve ({ files, config, salesforce, log }) {
-    if (!get(config, 'profiles.addAllUserPermissions')) return
+  enabled: ({ files, config }) =>
+    !!get(config, 'profiles.addAllUserPermissions') && files.match('profiles/**/*').length > 0,
+
+  async onRetrieve ({ files, salesforce, log }) {
     const services = {
       query: _.memoize(salesforce.query.bind(salesforce)),
       salesforce

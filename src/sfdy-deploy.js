@@ -3,7 +3,8 @@
 const { program } = require('commander')
 const deploy = require('./deploy')
 const configService = require('./services/config-service')
-const { addAuthenticationOptions, configureAuthentication } = require('./utils/auth-utils')
+const { addAuthenticationOptions } = require('./utils/auth-utils')
+const { resolveAuthentication } = require('./utils/credential-auth-utils')
 require('./error-handling')()
 
 addAuthenticationOptions(program)
@@ -20,34 +21,36 @@ addAuthenticationOptions(program)
   .option('--source-format <format>', 'Project source format: metadata or sfdx')
   .parse(process.argv)
 
-const config = configService.getConfig()
-const options = configureAuthentication(program.opts())
-
-deploy({
-  diffCfg: options.diff,
-  files: options.files,
-  loginOpts: {
-    username: options.username,
-    password: options.password,
-    sandbox: options.sandbox,
-    serverUrl: options.serverUrl,
-    refreshToken: options.refreshToken,
-    instanceUrl: options.instanceUrl,
-    clientId: options.clientId,
-    clientSecret: options.clientSecret,
-    clientCredentials: options.clientCredentials
-  },
-  quickDeploy: options.quickDeploy,
-  destructive: !!options.destructive,
-  destructivePackage: typeof options.destructive === 'string' && options.destructive,
-  ignoreWarnings: !!options.ignoreWarnings,
-  checkOnly: !!options.validate,
-  preDeployPlugins: config.preDeployPlugins || [],
-  renderers: config.renderers || [],
-  specifiedTests: options.specifiedTests,
-  testLevel: options.testLevel,
-  testReport: options.testReport,
-  srcFolder: options.folder,
-  sourceFormat: options.sourceFormat,
-  config
-}).then(deployResult => process.exit(deployResult.status !== 'Succeeded' ? 1 : 0))
+;(async () => {
+  const config = configService.getConfig()
+  const options = await resolveAuthentication(program.opts())
+  const deployResult = await deploy({
+    diffCfg: options.diff,
+    files: options.files,
+    loginOpts: {
+      username: options.username,
+      password: options.password,
+      sandbox: options.sandbox,
+      serverUrl: options.serverUrl,
+      refreshToken: options.refreshToken,
+      instanceUrl: options.instanceUrl,
+      clientId: options.clientId,
+      clientSecret: options.clientSecret,
+      clientCredentials: options.clientCredentials
+    },
+    quickDeploy: options.quickDeploy,
+    destructive: !!options.destructive,
+    destructivePackage: typeof options.destructive === 'string' && options.destructive,
+    ignoreWarnings: !!options.ignoreWarnings,
+    checkOnly: !!options.validate,
+    preDeployPlugins: config.preDeployPlugins || [],
+    renderers: config.renderers || [],
+    specifiedTests: options.specifiedTests,
+    testLevel: options.testLevel,
+    testReport: options.testReport,
+    srcFolder: options.folder,
+    sourceFormat: options.sourceFormat,
+    config
+  })
+  process.exit(deployResult.status !== 'Succeeded' ? 1 : 0)
+})()

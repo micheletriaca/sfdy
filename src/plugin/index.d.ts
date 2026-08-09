@@ -194,11 +194,23 @@ export interface DeployContext<TConfig = PluginConfig> extends Omit<RunContext<T
   destructive: boolean
 }
 
+export interface EnableContext<TConfig = PluginConfig> extends BaseContext<TConfig> {
+  selection?: Selection | FileSelectionView
+  inventory?: MetadataInventory
+  files?: FileSet
+  project?: ProjectView
+  disk?: ProjectView
+  output?: OutputWorkspace
+  checkOnly?: boolean
+  destructive?: boolean
+}
+
 export interface Plugin<TConfig = PluginConfig> {
   readonly apiVersion: 2
   name: string
   stage?: ExtensionStage
   formats?: readonly ProjectFormat[]
+  enabled?(context: EnableContext<TConfig>): Awaitable<boolean>
   plan?(context: PlanContext<TConfig>): Awaitable<void>
   run?(context: RunContext<TConfig>): Awaitable<void>
   onRetrieve?(context: RetrieveContext<TConfig>): Awaitable<void>
@@ -216,6 +228,7 @@ export interface Renderer<TConfig = PluginConfig> {
   readonly apiVersion: 2
   name: string
   formats?: readonly ProjectFormat[]
+  enabled?(context: EnableContext<TConfig>): Awaitable<boolean>
   resolveSelection?(context: SelectionResolutionContext<TConfig>): Awaitable<void>
   onRetrieve?(context: RetrieveContext<TConfig>): Awaitable<void>
   onDeploy?(context: DeployContext<TConfig>): Awaitable<void>

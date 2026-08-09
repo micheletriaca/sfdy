@@ -46,6 +46,8 @@ const fieldXml = `<?xml version="1.0" encoding="UTF-8"?>
   const basePath = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'sfdy-sfdx-deploy-'))
   const sourceFolder = path.join(basePath, 'force-app', 'main', 'default')
   let deployedZip
+  let deploymentCount = 0
+  let pollCount = 0
 
   try {
     await fs.promises.mkdir(path.join(sourceFolder, 'objects', 'Invoice__c', 'fields'), { recursive: true })
@@ -109,14 +111,18 @@ const fieldXml = `<?xml version="1.0" encoding="UTF-8"?>
         }]
       }),
       deployMetadata: async stream => {
+        deploymentCount++
         deployedZip = await buffer(stream)
         return { id: '0Af-test' }
       },
-      pollDeployMetadataStatus: async () => ({
-        status: 'Succeeded',
-        checkOnly: 'false',
-        details: {}
-      })
+      pollDeployMetadataStatus: async () => {
+        pollCount++
+        return {
+          status: 'Succeeded',
+          checkOnly: 'false',
+          details: {}
+        }
+      }
     })
 
     const runDeploy = (files, preDeployPlugins = []) => deploy({
@@ -230,6 +236,13 @@ const fieldXml = `<?xml version="1.0" encoding="UTF-8"?>
     )
     assert.strictEqual(reportFolderManifest.Package.types[0].name[0], 'Report')
     assert.deepStrictEqual(reportFolderManifest.Package.types[0].members, ['Sales/'])
+
+    const deploymentsBeforeEmptyDelta = deploymentCount
+    const pollsBeforeEmptyDelta = pollCount
+    const skipped = await runDeploy('classes/Missing.cls')
+    assert.deepStrictEqual(skipped, { status: 'Succeeded', skipped: true })
+    assert.strictEqual(deploymentCount, deploymentsBeforeEmptyDelta)
+    assert.strictEqual(pollCount, pollsBeforeEmptyDelta)
     console.log('SFDX deploy integration tests passed')
   } finally {
     Sfdc.newInstance = originalNewInstance

@@ -4,7 +4,8 @@ const { program } = require('commander')
 const pathService = require('./services/path-service')
 const configService = require('./services/config-service')
 const retrieve = require('./retrieve')
-const { addAuthenticationOptions, configureAuthentication } = require('./utils/auth-utils')
+const { addAuthenticationOptions } = require('./utils/auth-utils')
+const { resolveAuthentication } = require('./utils/credential-auth-utils')
 require('./error-handling')()
 
 addAuthenticationOptions(program)
@@ -14,14 +15,15 @@ addAuthenticationOptions(program)
   .option('--source-format <format>', 'Project source format: metadata or sfdx')
   .parse(process.argv)
 
-const options = configureAuthentication(program.opts())
-
-retrieve({
-  basePath: pathService.getBasePath(),
-  config: configService.getConfig(),
-  files: options.files,
-  loginOpts: options,
-  meta: options.meta,
-  srcFolder: options.folder,
-  sourceFormat: options.sourceFormat
-})
+;(async () => {
+  const options = await resolveAuthentication(program.opts())
+  await retrieve({
+    basePath: pathService.getBasePath(),
+    config: configService.getConfig(),
+    files: options.files,
+    loginOpts: options,
+    meta: options.meta,
+    srcFolder: options.folder,
+    sourceFormat: options.sourceFormat
+  })
+})()

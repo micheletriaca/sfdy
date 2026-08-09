@@ -13,4 +13,5 @@ program
   .command('prepare', 'Patch metadata')
   .command('init', 'Create .sfdy.json config file')
   .command('auth', 'Obtain a refresh token with the OAuth 2.0 web server flow')
+  .command('credentials', 'Manage saved Salesforce credentials')
   .parse(process.argv)
