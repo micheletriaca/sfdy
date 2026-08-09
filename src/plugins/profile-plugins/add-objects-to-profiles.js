@@ -78,16 +78,6 @@ module.exports = definePlugin({
       }
 
       fJson.objectPermissions = Object.keys(finalPermissions).sort().map(x => finalPermissions[x])
-      const disabledObjects = new Set(_(fJson.objectPermissions)
-        .filter(x => Object.entries(x).every(([k, v]) => {
-          v = Array.isArray(v) ? v : [v]
-          return k === 'object' || v[0] === 'false' || !v[0]
-        }))
-        .map(x => Array.isArray(x.object) ? x.object[0] : x.object)
-        .value())
-      if (fJson.fieldPermissions) {
-        fJson.fieldPermissions = fJson.fieldPermissions.filter(x => !disabledObjects.has(x.field[0].split('.')[0]))
-      }
       log.info(chalk.blue('----> Done'))
     })
   }

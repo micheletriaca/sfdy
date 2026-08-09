@@ -167,6 +167,50 @@ test('disabled profile patches do not query Salesforce when profiles were retrie
   assert.equal(queries, 0)
 })
 
+test('adding disabled object permissions preserves field permissions', async () => {
+  const addObjectPermissions = corePlugins.find(plugin => plugin.name === 'core-add-profile-object-permissions')
+  const tree = new FileTree({
+    files: [
+      entry('objects/Invoice__c.object', '<CustomObject/>'),
+      entry('profiles/Custom.profile', `
+        <Profile>
+          <custom>true</custom>
+          <fieldPermissions>
+            <editable>false</editable>
+            <field>Invoice__c.Reference__c</field>
+            <readable>true</readable>
+          </fieldPermissions>
+        </Profile>`)
+    ]
+  })
+
+  await runExtensions({
+    ...options,
+    extensions: [addObjectPermissions],
+    fileTree: tree,
+    stage: 'metadata',
+    config: { profiles: { addDisabledVersionedObjects: true } },
+    sfdcConnector: {
+      query: async soql => {
+        if (soql.includes('Profile.Name FROM PermissionSet')) return []
+        if (soql.includes('Parent.IsCustom = true')) return []
+        return [{
+          Parent: { License: { Name: 'Salesforce' } },
+          SobjectType: 'Invoice__c'
+        }]
+      }
+    }
+  })
+
+  const profile = await tree.files.get('profiles/Custom.profile').readXml()
+  assert.deepEqual(profile.fieldPermissions, [{
+    editable: ['false'],
+    field: ['Invoice__c.Reference__c'],
+    readable: ['true']
+  }])
+  assert.deepEqual(profile.objectPermissions.map(permission => permission.object), ['Invoice__c'])
+})
+
 test('core metadata plugins transform raw metadata through the v2 file API', async () => {
   const tree = new FileTree({
     files: [

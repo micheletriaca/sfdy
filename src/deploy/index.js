@@ -60,6 +60,9 @@ module.exports = async ({
     apiVersion
   })
   logger.log(chalk.green(`Logged in as ${sfdcConnector.username}!`))
+  if (process.env.environment) {
+    logger.log(chalk.green(`Environment: ${process.env.environment}`))
+  }
   if (formatAdapter) formatAdapter = getAdapter(config, sourceFormat, await getPackageMapping(sfdcConnector))
 
   let deployJob

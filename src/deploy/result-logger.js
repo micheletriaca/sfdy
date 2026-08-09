@@ -30,7 +30,8 @@ const printDeployResult = (deployResult) => {
       logger.log(chalk.red('\nCode Coverage Failures:'))
       const errCounter = counterGen()
       _([d.runTestResult.codeCoverageWarnings]).flatten().each(x => {
-        logger.log(chalk.red(`${errCounter()} ${x.name} -- ${x.message}`))
+        const warningName = typeof x.name === 'string' && x.name.trim() ? `${x.name} -- ` : ''
+        logger.log(chalk.red(`${errCounter()}${warningName}${x.message}`))
       })
     }
   }
