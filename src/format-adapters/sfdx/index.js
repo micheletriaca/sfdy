@@ -49,6 +49,8 @@ const mappingDefinitions = packageMapping => {
   ]
 }
 
+const stripEnding = (value, ending) => value.endsWith(ending) ? value.slice(0, -ending.length) : value
+
 const pathSuffix = fileName => {
   const match = path.posix.basename(fileName).match(/\.([^.]+?)(?:-meta\.xml)?$/)
   return match && match[1]
@@ -61,8 +63,16 @@ const findDefinition = (fileName, packageMapping, format = 'source') => {
   if (candidates.length === 1) return candidates[0]
 
   const suffix = pathSuffix(fileName)
-  const exact = candidates.find(definition => definition.suffix === suffix)
-  if (exact) return exact
+  const exact = candidates.filter(definition => definition.suffix === suffix)
+  if (exact.length === 1) return exact[0]
+  if (exact.length > 1) {
+    const baseName = stripEnding(path.posix.basename(fileName), '-meta.xml')
+    const stem = stripEnding(baseName, `.${suffix}`)
+    const expectedType = `${stem}${suffix.charAt(0).toUpperCase()}${suffix.slice(1)}`.toLowerCase()
+    const named = exact.find(definition => definition.type.toLowerCase() === expectedType)
+    if (named) return named
+    return exact[0]
+  }
 
   if (format === 'metadata' && fileName.endsWith('-meta.xml')) {
     const folder = candidates.find(isFolderType)
@@ -79,7 +89,12 @@ const findDefinition = (fileName, packageMapping, format = 'source') => {
   return candidates.find(definition => !definition.suffix)
 }
 
-const stripEnding = (value, ending) => value.endsWith(ending) ? value.slice(0, -ending.length) : value
+const expectedGenericXmlRoot = (definition, fileName) => {
+  if (definition.type !== 'Settings' || definition.directory !== 'settings') return definition.type
+  const baseName = stripEnding(path.posix.basename(fileName), '-meta.xml')
+  const settingsName = stripEnding(baseName, `.${definition.suffix}`)
+  return `${settingsName}Settings`
+}
 
 const genericFullName = (fileName, definition, format) => {
   let relative = fileName.slice(definition.directory.length + 1)
@@ -489,7 +504,11 @@ const toMetadata = async (sourceEntries, packageMapping) => {
     } else {
       const definition = findDefinition(sourceEntry.fileName, packageMapping)
       if (definition && sourceEntry.fileName.endsWith('-meta.xml')) {
-        await parseAdapterXml(sourceEntry, definition.type, 'SFDX source file')
+        await parseAdapterXml(
+          sourceEntry,
+          expectedGenericXmlRoot(definition, sourceEntry.fileName),
+          'SFDX source file'
+        )
       }
     }
     const metadataEntry = toMetadataSimple(sourceEntry) ||
@@ -844,7 +863,13 @@ const toSource = async (metadataEntries, options = {}, packageMapping) => {
         metadataEntry.fileName.endsWith('-meta.xml') ||
         (!definition.metaFile && !!definition.suffix)
       )
-      if (isXmlMetadata) await parseAdapterXml(metadataEntry, definition.type, 'Metadata API file')
+      if (isXmlMetadata) {
+        await parseAdapterXml(
+          metadataEntry,
+          expectedGenericXmlRoot(definition, metadataEntry.fileName),
+          'Metadata API file'
+        )
+      }
     }
 
     result.upserts.push(toSourceSimple(metadataEntry) || toSourceGeneric(metadataEntry, packageMapping))

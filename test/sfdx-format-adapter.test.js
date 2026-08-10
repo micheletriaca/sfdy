@@ -550,6 +550,31 @@ const packageMapping = {
   const genericRoundTrip = await genericAdapter.toSource(genericMetadata.entries)
   assert.deepStrictEqual(genericRoundTrip.upserts.map(item => item.fileName), genericSource.map(item => item.fileName))
 
+  const settingsAdapter = adapter.create({
+    settings: {
+      directoryName: 'settings',
+      inFolder: 'false',
+      metaFile: 'false',
+      suffix: 'settings',
+      xmlName: 'Settings'
+    }
+  })
+  const businessHours = entry('settings/BusinessHours.settings', `
+<BusinessHoursSettings xmlns="http://soap.sforce.com/2006/04/metadata">
+    <businessHours><name>Default</name></businessHours>
+</BusinessHoursSettings>`.trim())
+  const businessHoursSource = await settingsAdapter.toSource([businessHours])
+  assert.deepStrictEqual(businessHoursSource.upserts.map(item => item.fileName), [
+    'settings/BusinessHours.settings-meta.xml'
+  ])
+  assert.deepStrictEqual(await settingsAdapter.resolveMetadata([businessHours]), [
+    { type: 'Settings', fullName: 'BusinessHours' }
+  ])
+  const businessHoursRoundTrip = await settingsAdapter.toMetadata(businessHoursSource.upserts)
+  assert.deepStrictEqual(businessHoursRoundTrip.entries.map(item => item.fileName), [
+    'settings/BusinessHours.settings'
+  ])
+
   const expandedStaticResource = [
     entry('staticresources/App/main.js', Buffer.from('main')),
     entry('staticresources/App/styles/app.css', Buffer.from('css')),

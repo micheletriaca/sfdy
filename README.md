@@ -492,6 +492,26 @@ environment stored with the selected credential.
 `--skip-untransform` skips the deploy direction of configured renderers before
 normalization.
 
+### Convert the project source format
+
+Convert the whole local project to the opposite representation without a
+retrieve or deploy:
+
+```bash
+sfdy convert --target dev
+```
+
+A Metadata API project becomes Salesforce DX source format; a source-format
+project becomes Metadata API format. Use `--to source` or `--to mdapi` to make
+the destination explicit. The source folder is preserved unless `--folder` is
+provided.
+
+The command first runs the current format's renderers in the deploy direction,
+converts through the Metadata API representation, and then runs the destination
+format's renderers in the retrieve direction. Conversion and rendering finish
+in memory before project files are rewritten. `.sfdy.json` is updated, and a
+conversion to source format also creates or updates `sfdx-project.json`.
+
 ### Publish an Experience Cloud site
 
 Publish a site by its Salesforce community name, normally after a successful
@@ -936,7 +956,7 @@ The CLI is a thin wrapper around the same public functions used by
 `fast-sfdc` and other integrations:
 
 ```js
-const { deploy, retrieve, transformer, auth, credentials } = require('sfdy')
+const { convert, deploy, retrieve, transformer, auth, credentials } = require('sfdy')
 ```
 
 ### Deploy programmatically

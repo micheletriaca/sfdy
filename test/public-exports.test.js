@@ -4,6 +4,7 @@ const test = require('node:test')
 const publicModules = [
   'auth',
   'constants',
+  'convert',
   'credentials',
   'deploy',
   'package-utils',
@@ -17,6 +18,7 @@ const publicModules = [
 
 test('public subpath exports are loadable', () => {
   const sfdy = require('sfdy')
+  assert.equal(typeof sfdy.convert, 'function')
   assert.equal(typeof sfdy.deploy, 'function')
   assert.equal(typeof sfdy.retrieve, 'function')
   assert.equal(typeof sfdy.credentials.list, 'function')
