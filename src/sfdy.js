@@ -10,7 +10,7 @@ program
   .command('create', 'Create or connect a Salesforce project')
   .command('retrieve', 'Retrieve patched metadata')
   .command('deploy', 'Deploy patched metadata')
-  .command('community:publish', 'Publish community')
+  .command('community:publish', 'Publish community', { executableFile: 'sfdy-community-publish' })
   .command('prepare', 'Patch metadata')
   .command('convert', 'Convert the project to the opposite source format')
   .command('init', 'Create .sfdy.json config file')

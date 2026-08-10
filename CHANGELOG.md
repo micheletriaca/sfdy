@@ -4,7 +4,7 @@ This file records user-visible changes to `sfdy`. Historical entries through
 1.8.1 were recovered from the original README and lightly edited for clarity.
 Git tags remain the authoritative record for older package versions.
 
-## [2.0.0] - Unreleased
+## [2.0.0] - 2026-08-10
 
 ### Added
 
@@ -35,7 +35,8 @@ Git tags remain the authoritative record for older package versions.
   queries or file processing when they are not active.
 - Authentication targets must be selected explicitly or interactively; there
   is no implicit current target.
-- GitHub Actions test Node.js 22 and 24.
+- GitHub Actions test Node.js 22 and 24 on Linux, plus Node.js 24 on macOS and
+  Windows.
 
 ### Removed
 
@@ -49,6 +50,9 @@ Git tags remain the authoritative record for older package versions.
 - Source-format selection preserves container and child metadata semantics.
 - Metadata folders, nested territory components, partial Custom Labels and
   source-format static resources are mapped correctly.
+- Recombined source-format Custom Objects preserve stable root-element and
+  child-component ordering.
+- The `community:publish` executable uses a Windows-compatible filename.
 - Streaming deploys and quick-deploy polling report results consistently.
 
 ## [1.8.1] - 2025-06-13
