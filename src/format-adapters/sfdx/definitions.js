@@ -35,6 +35,7 @@ const object = {
   metadataSuffix: 'object',
   sourceSuffix: 'object-meta.xml',
   decomposition: 'folderPerType',
+  sortRootElements: true,
   children: [
     {
       type: 'BusinessProcess',

@@ -457,6 +457,14 @@ const groupDecomposedEntries = entries => {
   return groups
 }
 
+const compareNames = (left, right) => left < right ? -1 : left > right ? 1 : 0
+
+const sortRootElements = root => Object.fromEntries(Object.entries(root).sort(([left], [right]) => {
+  if (left === '$') return -1
+  if (right === '$') return 1
+  return compareNames(left, right)
+}))
+
 const composeDecomposed = async ({ definition, parentName, entries: sourceEntries }) => {
   const main = sourceEntries.find(item => item.component.type === definition.type)
   const result = main
@@ -464,7 +472,9 @@ const composeDecomposed = async ({ definition, parentName, entries: sourceEntrie
     : { [definition.type]: { $: { xmlns: XML_NAMESPACE } } }
 
   for (const child of definition.children) {
-    const children = sourceEntries.filter(item => item.component.type === child.type)
+    const children = sourceEntries
+      .filter(item => item.component.type === child.type)
+      .sort((left, right) => compareNames(left.component.fullName, right.component.fullName))
     if (!children.length) continue
     result[definition.type][child.xmlTag] = []
     for (const item of children) {
@@ -476,6 +486,13 @@ const composeDecomposed = async ({ definition, parentName, entries: sourceEntrie
       delete childValue.$
       result[definition.type][child.xmlTag].push(childValue)
     }
+  }
+
+  // Decomposition removes child groups from the parent XML. Re-appending them
+  // would move every remaining property (for example label and pluralLabel)
+  // ahead of fields. Restore the stable order emitted for CustomObject roots.
+  if (definition.sortRootElements) {
+    result[definition.type] = sortRootElements(result[definition.type])
   }
 
   return xmlEntry(componentPath(definition, parentName, definition.metadataSuffix), result)

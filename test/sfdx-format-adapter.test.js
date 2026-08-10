@@ -222,6 +222,35 @@ const packageMapping = {
     await normalizedXml(recomposed.entries[0].data),
     await normalizedXml(customObject.data)
   )
+  const recomposedRootElements = recomposed.entries[0].data.toString()
+    .split('\n')
+    .map(line => line.match(/^ {4}<([A-Za-z][A-Za-z0-9]*)[ >/]/))
+    .filter(Boolean)
+    .map(match => match[1])
+  assert.deepStrictEqual(recomposedRootElements, [
+    'businessProcesses',
+    'compactLayouts',
+    'fieldSets',
+    'fields',
+    'fields',
+    'indexes',
+    'label',
+    'listViews',
+    'pluralLabel',
+    'recordTypes',
+    'sharingReasons',
+    'validationRules',
+    'webLinks'
+  ])
+  assert.strictEqual(recomposed.entries[0].data.toString().endsWith('\n'), true)
+
+  const shuffledSource = [fullSource.upserts[0], ...fullSource.upserts.slice(1).reverse()]
+  const recomposedFromShuffledSource = await adapter.toMetadata(shuffledSource)
+  const shuffledObject = await normalizedXml(recomposedFromShuffledSource.entries[0].data)
+  assert.deepStrictEqual(
+    shuffledObject.CustomObject.fields.map(field => field.fullName[0]),
+    ['Amount__c', 'Status__c']
+  )
 
   const selectedField = fullSourceMap.get('objects/Invoice__c/fields/Status__c.field-meta.xml')
   const partialMetadata = await adapter.toMetadata([selectedField])
