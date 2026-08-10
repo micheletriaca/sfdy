@@ -19,7 +19,8 @@ long-lived `NPM_TOKEN` secret.
 
 ## Prepare a release
 
-1. Start from a clean `master` branch with a green CI run.
+1. Start a `release/<version>` branch from an up-to-date `master` with a green
+   CI run.
 2. Choose the version according to semantic versioning.
 3. Set the same version in `package.json` and `package-lock.json`:
 
@@ -38,19 +39,25 @@ long-lived `NPM_TOKEN` secret.
    npm pack --dry-run
    ```
 
-7. Commit the version and changelog together.
-8. Create and push an annotated tag matching `package.json`:
+7. Commit the version and changelog together, push the release branch and open
+   a pull request into `master`.
+8. Wait for every required CI check to pass, then merge the pull request.
+9. Update the local `master`, create an annotated tag on the merge commit and
+   push the tag:
 
    ```bash
+   git switch master
+   git pull --ff-only origin master
    git tag -a v2.0.0 -m "v2.0.0"
-   git push origin master v2.0.0
+   git push origin v2.0.0
    ```
 
 ## Publish
 
-Create a GitHub Release from the tag. Copy the matching `CHANGELOG.md` section
-into the release description and edit it for readability rather than relying
-on a raw commit list.
+Create a draft GitHub Release from the tag. Copy the matching `CHANGELOG.md`
+section into the release description and edit it for readability rather than
+relying on a raw commit list. Publish the release only after confirming that
+the tag points to the merge commit and the CI run for that commit is green.
 
 Publishing the GitHub Release starts `.github/workflows/release.yml`. The
 workflow:

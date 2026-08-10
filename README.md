@@ -24,8 +24,9 @@ The same small engine runs from the terminal, in CI/CD and behind the
 
 ## Quick start
 
-`sfdy` requires Node.js 22 or newer. Install it once, then run one command from
-an empty directory or an existing Salesforce project:
+`sfdy` supports macOS, Linux and Windows and requires Node.js 22 or newer.
+Install it once, then run one command from an empty directory or an existing
+Salesforce project:
 
 ```bash
 npm install --global sfdy
@@ -269,6 +270,10 @@ requires `--alias` explicitly.
 The encrypted vault lives in `.sfdy/credentials.vault` and is automatically
 ignored by Git. Only its encryption key is stored in the operating-system
 keychain, so `sfdy` and `fast-sfdc` can safely use the same project credentials.
+On macOS this uses Keychain, on Windows Credential Manager and on Linux Secret
+Service with a kernel-keyring fallback. The Linux fallback may not persist
+across logout or reboot, so headless servers and CI should use environment
+credentials instead of the saved project vault.
 
 There is deliberately no implicit current target. Without complete command-line
 or environment credentials, pass `--target` (or a saved username) explicitly.
