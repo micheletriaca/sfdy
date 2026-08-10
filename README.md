@@ -17,8 +17,10 @@ The same small engine runs from the terminal, in CI/CD and behind the
 - [Command-line workflows](#command-line-workflows)
 - [Standard patches and custom plugins](#standard-patches-and-custom-plugins)
 - [Extending sfdy](#extending-sfdy)
+- [Plugin API v2 migration](MIGRATING_PLUGINS_TO_V2.md)
 - [JavaScript API](#javascript-api)
 - [Where sfdy fits](#where-sfdy-fits)
+- [Changelog](CHANGELOG.md)
 
 ## Quick start
 
@@ -923,8 +925,10 @@ Compile TypeScript extensions to JavaScript before loading them from
 
 Plugin API v1 extensions are still adapted automatically. They now run in the
 project representation and emit a deprecation warning because format-dependent
-extensions may require migration. API v1 is scheduled for removal in `sfdy`
-3.
+extensions may require migration. API v1 remains supported throughout the 2.x
+series and will be removed in `sfdy` 3. See the
+[Plugin API v2 migration guide](MIGRATING_PLUGINS_TO_V2.md) for a mechanical
+mapping of the old helpers and complete before-and-after examples.
 
 ## JavaScript API
 

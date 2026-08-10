@@ -6,6 +6,8 @@
   "bin": "src/sfdy.js",
   "files": [
     "src",
+    "CHANGELOG.md",
+    "MIGRATING_PLUGINS_TO_V2.md",
     "STANDARD_PATCHES.md"
   ],
   "author": "Michele Triaca",

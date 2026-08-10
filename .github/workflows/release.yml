@@ -1,0 +1,29 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish-npm:
+    if: ${{ !github.event.release.prerelease }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.release.tag_name }}
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+      - name: Verify tag and package version
+        run: node -e "const version = require('./package.json').version; const tag = process.env.GITHUB_REF_NAME; if (tag !== 'v' + version) throw new Error('Tag ' + tag + ' does not match package version ' + version)"
+      - run: npm ci
+      - run: npm test
+      - run: npm pack --dry-run
+      - run: npm publish --access public
