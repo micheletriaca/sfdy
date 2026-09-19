@@ -4,6 +4,16 @@ This file records user-visible changes to `sfdy`. Historical entries through
 1.8.1 were recovered from the original README and lightly edited for clarity.
 Git tags remain the authoritative record for older package versions.
 
+## [2.0.1] - 2026-09-19
+
+### Changed
+
+- Update `open` from 11.0.0 to 11.0.4 and refresh its transitive dependencies.
+- Update development dependencies: `@types/node` from 26.2.0 to 26.6.2
+  and `js-yaml` from 4.3.1 to 4.3.2.
+- Run CI checks on pushes to `master` and pull requests, skipping tag pushes.
+- Add project funding links to GitHub and the README.
+
 ## [2.0.0] - 2026-08-10
 
 ### Added
