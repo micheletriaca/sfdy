@@ -3,6 +3,7 @@ const logger = require('../services/log-service')
 const chalk = require('chalk')
 const { Base64Encode } = require('base64-stream')
 const _ = require('highland')
+const { DEFAULT_CLIENT_ID } = require('./constants')
 
 const sleep = async ms => new Promise((resolve) => setTimeout(resolve, ms))
 const incrementalSleep = (level0, count1, level1, count2, level2) => {
@@ -49,6 +50,48 @@ const wsdlMap = {
   }
 }
 
+const oauth2TokenRequest = async (url, body) => {
+  const response = await fetch(url, {
+    method: 'POST',
+    body: body.toString(),
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    signal: AbortSignal.timeout(30000)
+  })
+  const result = await response.json()
+  if (!response.ok) {
+    const error = new Error(result.error_description || result.error || `OAuth token request failed (${response.status})`)
+    error.name = 'SalesforceOAuthError'
+    error.detail = result
+    throw error
+  }
+  return result
+}
+
+const refreshOAuthToken = async ({ credential, onRefreshToken, ...options }) => {
+  const exchange = async ({ instanceUrl, refreshToken, clientId, clientSecret }) => {
+    if (!instanceUrl || !refreshToken) throw new Error('OAuth refresh requires a Salesforce instance URL and refresh token')
+    const body = new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: refreshToken,
+      client_id: clientId || DEFAULT_CLIENT_ID
+    })
+    if (clientSecret) body.append('client_secret', clientSecret)
+    const result = await oauth2TokenRequest(`${instanceUrl.replace(/\/$/, '')}/services/oauth2/token`, body)
+    if (!result.access_token) throw new Error('Salesforce OAuth response is missing the access token')
+    return { ...result, instance_url: result.instance_url || instanceUrl }
+  }
+
+  const result = credential
+    ? await credential.manager.refreshOAuthToken(credential.id, profile => exchange({
+      ...profile,
+      clientId: credential.clientId || profile.clientId,
+      clientSecret: credential.clientSecret || profile.clientSecret
+    }))
+    : await exchange(options)
+  if (result.refresh_token && onRefreshToken) await onRefreshToken(result.refresh_token, result.instance_url)
+  return result
+}
+
 class SfdcConn {
   async login ({ username, password, isSandbox = true, serverUrl, oauth2, apiVersion, sessionId, instanceHostname }) {
     this.apiVersion = apiVersion
@@ -60,20 +103,6 @@ class SfdcConn {
   async oauth2Login (oauth2) {
     if (oauth2.grantType === 'client_credentials') return this.oauth2ClientCredentials(oauth2)
     return this.oauth2Refresh(oauth2)
-  }
-
-  async oauth2TokenRequest (url, body) {
-    const response = await fetch(url, {
-      method: 'POST', body, headers: { 'content-type': 'application/x-www-form-urlencoded' }
-    })
-    const result = await response.json()
-    if (!response.ok) {
-      const error = new Error(result.error_description || result.error || `OAuth token request failed (${response.status})`)
-      error.name = 'SalesforceOAuthError'
-      error.detail = result
-      throw error
-    }
-    return result
   }
 
   async setOauth2Session (oauth2Response) {
@@ -88,15 +117,8 @@ class SfdcConn {
     }
   }
 
-  async oauth2Refresh ({ instanceUrl, refreshToken, clientId, clientSecret }) {
-    const body = new URLSearchParams()
-    body.append('grant_type', 'refresh_token')
-    body.append('refresh_token', refreshToken)
-    body.append('client_id', clientId)
-    if (clientSecret) body.append('client_secret', clientSecret)
-
-    const resOauth2 = await this.oauth2TokenRequest(`${instanceUrl.replace(/\/$/, '')}/services/oauth2/token`, body.toString())
-    await this.setOauth2Session(resOauth2)
+  async oauth2Refresh (oauth2) {
+    await this.setOauth2Session(await refreshOAuthToken(oauth2))
   }
 
   async oauth2ClientCredentials ({ loginUrl, clientId, clientSecret }) {
@@ -106,7 +128,7 @@ class SfdcConn {
     body.append('client_id', clientId)
     body.append('client_secret', clientSecret)
 
-    const resOauth2 = await this.oauth2TokenRequest(`${loginUrl.replace(/\/$/, '')}/services/oauth2/token`, body.toString())
+    const resOauth2 = await oauth2TokenRequest(`${loginUrl.replace(/\/$/, '')}/services/oauth2/token`, body)
     await this.setOauth2Session(resOauth2)
   }
 
@@ -270,6 +292,7 @@ class SfdcConn {
 }
 
 module.exports = {
+  refreshOAuthToken,
   newInstance: async ({ username, password, isSandbox = true, serverUrl, oauth2, apiVersion, sessionId, instanceHostname }) => {
     const res = new SfdcConn()
     await res.login({ username, password, isSandbox, oauth2, serverUrl, apiVersion, sessionId, instanceHostname })

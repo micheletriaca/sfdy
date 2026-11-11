@@ -263,6 +263,10 @@ sfdy auth --save --alias dev
 sfdy retrieve --target dev
 ```
 
+Use a saved target when the Connected App rotates refresh tokens. Each refresh
+updates the token in the project vault. A refresh token passed through an
+environment variable or command option is managed by its caller.
+
 The credential alias is also used as its plugin environment by default. Use
 `--environment` only when several credentials should share the same logical
 environment, for example `--alias uat-admin --environment uat`.

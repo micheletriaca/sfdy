@@ -44,7 +44,8 @@ const addAuthenticationOptions = program => program
 
 const getOauth2Options = (options, defaultClientId) => {
   const clientCredentials = options.clientCredentials || (
-    !options.username && !options.password && !options.refreshToken && !options.instanceUrl && options.clientId && options.clientSecret
+    !options.credential && !options.username && !options.password &&
+    !options.refreshToken && !options.instanceUrl && options.clientId && options.clientSecret
   )
   if (clientCredentials) {
     if (!options.serverUrl) throw new Error(CLIENT_CREDENTIALS_URL_ERROR)
@@ -55,12 +56,14 @@ const getOauth2Options = (options, defaultClientId) => {
       loginUrl: options.serverUrl
     }
   }
-  if (options.refreshToken && options.instanceUrl) {
+  if (options.credential || (options.refreshToken && options.instanceUrl)) {
     return {
       refreshToken: options.refreshToken,
       instanceUrl: options.instanceUrl,
       clientId: options.clientId || defaultClientId,
-      clientSecret: options.clientSecret || undefined
+      clientSecret: options.clientSecret || undefined,
+      ...(options.credential ? { credential: options.credential } : {}),
+      ...(options.onRefreshToken ? { onRefreshToken: options.onRefreshToken } : {})
     }
   }
 }

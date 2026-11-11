@@ -1,6 +1,7 @@
 const crypto = require('crypto')
 const fs = require('fs')
 const path = require('path')
+const { lock } = require('proper-lockfile')
 
 const SERVICE = 'sfdy'
 const VAULT_VERSION = 1
@@ -182,9 +183,25 @@ const createCredentialManager = ({
     }
   }
 
-  const writeState = async state => {
+  const writeState = async (state, { ensureGitignore = updateGitignore } = {}) => {
     await writeAtomic(vaultPath, encrypt(state, await readKey(state.id, { create: true })))
-    if (updateGitignore) await ensureIgnored(basePath)
+    if (ensureGitignore) await ensureIgnored(basePath)
+  }
+
+  const withVaultLock = async operation => {
+    const directory = path.dirname(vaultPath)
+    await fs.promises.mkdir(directory, { recursive: true, mode: 0o700 })
+    const canonicalPath = path.join(await fs.promises.realpath(directory), path.basename(vaultPath))
+    const release = await lock(canonicalPath, {
+      realpath: false,
+      stale: 5 * 60 * 1000,
+      retries: { retries: 60, factor: 1.2, minTimeout: 50, maxTimeout: 1000 }
+    })
+    try {
+      return await operation()
+    } finally {
+      await release()
+    }
   }
 
   const list = async () => clone((await readState()).vault.profiles.map(withoutSecrets))
@@ -192,7 +209,7 @@ const createCredentialManager = ({
   const resolveProfile = async selector => clone(withoutSecrets(selectProfile((await readState()).vault.profiles, selector)))
   const get = async selector => clone(selectProfile((await readState()).vault.profiles, selector))
 
-  const save = async profile => {
+  const save = profile => withVaultLock(async () => {
     if (!profile || !profile.username) throw new Error('A Salesforce username is required')
     if (!(profile.refreshToken || profile.clientSecret || profile.password || profile.sessionId)) {
       throw new Error('No credential secret was provided')
@@ -213,9 +230,40 @@ const createCredentialManager = ({
     else state.vault.profiles[index] = stored
     await writeState(state)
     return clone(stored)
-  }
+  })
 
-  const remove = async selector => {
+  const update = (selector, changes) => withVaultLock(async () => {
+    const state = await readState()
+    const profile = selectProfile(state.vault.profiles, selector)
+    if (changes.alias !== undefined) {
+      if (state.vault.profiles.some(other => other !== profile && normalize(other.alias) === normalize(changes.alias))) {
+        throw new CredentialSelectionError(`Credential alias '${changes.alias}' is already in use`)
+      }
+      profile.alias = changes.alias
+    }
+    if (changes.environment !== undefined) profile.environment = changes.environment
+    await writeState(state)
+    return clone(profile)
+  })
+
+  const refreshOAuthToken = (selector, exchange) => withVaultLock(async () => {
+    const state = await readState()
+    const profile = selectProfile(state.vault.profiles, selector)
+    if (!profile.refreshToken || !profile.instanceUrl || (profile.authType && profile.authType !== 'oauth2')) {
+      throw new CredentialSelectionError(`Saved Salesforce credential '${profile.alias}' does not support OAuth refresh`)
+    }
+    const result = await exchange(clone(profile))
+    const refreshToken = result.refresh_token || profile.refreshToken
+    const instanceUrl = result.instance_url || profile.instanceUrl
+    if (refreshToken !== profile.refreshToken || instanceUrl !== profile.instanceUrl) {
+      profile.refreshToken = refreshToken
+      profile.instanceUrl = instanceUrl
+      await writeState(state, { ensureGitignore: false })
+    }
+    return result
+  })
+
+  const remove = selector => withVaultLock(async () => {
     const state = await readState()
     const matches = findProfiles(state.vault.profiles, selector)
     if (matches.length === 0) return false
@@ -223,9 +271,9 @@ const createCredentialManager = ({
     state.vault.profiles = state.vault.profiles.filter(item => item.id !== selected.id)
     await writeState(state)
     return true
-  }
+  })
 
-  return { vaultPath, get, list, remove, resolveProfile, save }
+  return { vaultPath, get, list, remove, resolveProfile, save, update, refreshOAuthToken }
 }
 
 const credentials = createCredentialManager()
@@ -239,5 +287,6 @@ module.exports = {
   list: credentials.list,
   remove: credentials.remove,
   resolveProfile: credentials.resolveProfile,
-  save: credentials.save
+  save: credentials.save,
+  refreshOAuthToken: credentials.refreshOAuthToken
 }

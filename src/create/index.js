@@ -232,10 +232,13 @@ const login = async ({
     const saved = await credentialManager.save({
       ...loginOptions,
       alias,
-      environment: options.environment || alias
+      environment: options.environment || alias,
+      authType: 'oauth2',
+      password: undefined
     })
     loginOptions.environment = saved.environment
     loginOptions.target = saved.alias
+    loginOptions.credential = { manager: credentialManager, id: saved.id }
     output.write(`Saved credential '${saved.alias}'.\n`)
   }
   return loginOptions
