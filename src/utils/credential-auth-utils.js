@@ -50,6 +50,14 @@ const resolveAuthentication = async (options, {
   }
 
   if (!profile) return configureAuthentication(options)
+  if (profile.refreshToken) {
+    options.credential = {
+      manager: credentialManager,
+      id: profile.id,
+      clientId: options.clientId,
+      clientSecret: options.clientSecret
+    }
+  }
   Object.assign(options, {
     username: profile.username,
     password: profile.password,

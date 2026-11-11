@@ -29,17 +29,7 @@ addAuthenticationOptions(program)
   const deployResult = await deploy({
     diffCfg: options.diff,
     files: options.files,
-    loginOpts: {
-      username: options.username,
-      password: options.password,
-      sandbox: options.sandbox,
-      serverUrl: options.serverUrl,
-      refreshToken: options.refreshToken,
-      instanceUrl: options.instanceUrl,
-      clientId: options.clientId,
-      clientSecret: options.clientSecret,
-      clientCredentials: options.clientCredentials
-    },
+    loginOpts: options,
     quickDeploy: options.quickDeploy,
     destructive: !!options.destructive,
     destructivePackage: typeof options.destructive === 'string' && options.destructive,

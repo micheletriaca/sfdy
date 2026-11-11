@@ -4,6 +4,21 @@ This file records user-visible changes to `sfdy`. Historical entries through
 1.8.1 were recovered from the original README and lightly edited for clarity.
 Git tags remain the authoritative record for older package versions.
 
+## [2.0.2] - 2026-11-11
+
+### Fixed
+
+- Save the replacement OAuth refresh token for each saved target. The CLI and
+  Fast SFDC coordinate renewals through the shared project vault, so concurrent
+  requests use the latest token.
+- Save the OAuth client ID and any client secret used at login so saved targets
+  can renew sessions with the correct Connected App.
+
+### Security
+
+- Update the transitive dependency `brace-expansion` from 1.1.18 to 1.1.21
+  ([#41](https://github.com/micheletriaca/sfdy/pull/41)).
+
 ## [2.0.1] - 2026-09-19
 
 ### Changed

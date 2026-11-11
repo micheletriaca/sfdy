@@ -1,6 +1,6 @@
 {
   "name": "sfdy",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "Tool to better handle Salesforce metadata",
   "main": "src/index.js",
   "bin": "src/sfdy.js",
@@ -66,6 +66,7 @@
     "mime": "^2.6.0",
     "multimatch": "^4.0.0",
     "open": "^11.0.0",
+    "proper-lockfile": "^4.1.2",
     "xml2js": "^0.6.2",
     "yauzl": "^3.4.0",
     "yazl": "^3.3.1"

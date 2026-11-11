@@ -22,12 +22,21 @@ export type CredentialMetadata = Omit<CredentialProfile, 'refreshToken' | 'clien
 export class CredentialStoreUnavailableError extends Error {}
 export class CredentialSelectionError extends Error {}
 
+export interface OAuthTokenResponse {
+  access_token: string
+  instance_url: string
+  refresh_token?: string
+  id?: string
+}
+
 export interface CredentialManager {
   readonly vaultPath: string
   list(): Promise<CredentialMetadata[]>
   get(selector: string): Promise<CredentialProfile & { id: string, alias: string }>
   resolveProfile(selector: string): Promise<CredentialMetadata>
   save(profile: CredentialProfile): Promise<CredentialProfile & { id: string, alias: string }>
+  update(selector: string, changes: Pick<CredentialProfile, 'alias' | 'environment'>): Promise<CredentialProfile & { id: string, alias: string }>
+  refreshOAuthToken(selector: string, exchange: (profile: CredentialProfile) => Promise<OAuthTokenResponse>): Promise<OAuthTokenResponse>
   remove(selector: string): Promise<boolean>
 }
 
@@ -49,3 +58,4 @@ export function get(selector: string): Promise<CredentialProfile & { id: string,
 export function resolveProfile(selector: string): Promise<CredentialMetadata>
 export function save(profile: CredentialProfile): Promise<CredentialProfile & { id: string, alias: string }>
 export function remove(selector: string): Promise<boolean>
+export const refreshOAuthToken: CredentialManager['refreshOAuthToken']

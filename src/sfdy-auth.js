@@ -31,6 +31,9 @@ const CLIENT_SECRET = options.clientSecret || process.env.SFDY_CLIENT_SECRET || 
 
 ;(async () => {
   const { oauth2, userInfo } = await auth(BASE_URL, CLIENT_ID, CLIENT_SECRET, CALLBACK_PORT)
+  if (!oauth2.refresh_token) {
+    throw new Error('Salesforce did not return a refresh token. Check the Connected App OAuth scopes and refresh-token policy.')
+  }
   const shouldSave = options.save || (process.stdin.isTTY && await confirm('Save this login securely?'))
   let saved
   if (shouldSave) {
@@ -45,8 +48,10 @@ const CLIENT_SECRET = options.clientSecret || process.env.SFDY_CLIENT_SECRET || 
         username: userInfo.username,
         instanceUrl: oauth2.instance_url,
         refreshToken: oauth2.refresh_token,
-        clientId: options.clientId,
-        clientSecret: options.clientSecret
+        authType: 'oauth2',
+        password: undefined,
+        clientId: CLIENT_ID,
+        clientSecret: CLIENT_SECRET
       })
     } catch (error) {
       logger.log(chalk.yellow(`Could not save the credential securely: ${error.message}`))
